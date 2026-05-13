@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "bySlug": {
+    "new": {
+      "hostUserId": "2b0b4ae1-1a66-496a-a341-f57c77d9777e",
+      "gameDisplayName": "First ever test game",
+      "durationPreset": "custom",
+      "customEndsOn": "2026-05-16",
+      "startsAtIso": "2026-05-12T01:54:19.889Z",
+      "endsAtIso": "2026-05-16T23:59:59.999Z",
+      "assetsMode": "all",
+      "assetsCategory": null,
+      "visibility": "public",
+      "themePaletteId": "emerald_bank",
+      "loadScreenEmoji": "🍁",
+      "hostDisplayName": "You",
+      "setupComplete": true,
+      "updatedAtIso": "2026-05-12T03:00:39.534Z"
+    }
+  }
+}

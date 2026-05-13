@@ -1,0 +1,986 @@
+/* Perform dashboard — Figma nodes 22:29, 105:189, 130:162 (402px frame). */
+
+.pf-root {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #e8e8e8;
+  padding: 24px 0 48px;
+  box-sizing: border-box;
+}
+
+.pf-phone {
+  position: relative;
+  width: 402px;
+  height: 874px;
+  max-height: min(874px, calc(100vh - 48px));
+  background: #f7f7f7;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  overflow-x: hidden;
+  overflow-y: visible;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  --gc-tabbar-scroll-pad: 120px;
+}
+
+.pf-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(var(--gc-tabbar-scroll-pad) + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+/* Figma perform frame 22:29 tweaks on shared challenge header */
+.pf-performHeader.gc-headerBand .gc-title {
+  top: 68px;
+  line-height: 1.05;
+}
+
+.pf-performHeader.gc-headerBand .gc-host {
+  top: 157px;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Horizontal inset — cards clear phone edges so radius / shadow aren’t clipped */
+.pf-statsCard,
+.pf-nwChartWrap {
+  padding: 0 16px 12px;
+}
+
+.pf-nwChartWrap {
+  margin-top: 16px;
+}
+
+.pf-nwChartTitle {
+  margin: 0 0 8px;
+}
+
+.pf-rankBar,
+.pf-compareCard {
+  width: calc(100% - 20px);
+  max-width: 386px;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+/* Stats card */
+.pf-statsCard {
+  position: relative;
+  margin-top: 12px;
+  min-height: 85px;
+  background: #fff;
+  border-radius: 11px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.15);
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 10px 0 12px;
+}
+
+.pf-statCol {
+  text-align: center;
+  position: relative;
+}
+
+.pf-statCol:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 52px;
+  background: linear-gradient(180deg, transparent, #ddd 15%, #ddd 85%, transparent);
+}
+
+.pf-statLab {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  color: #777;
+}
+
+.pf-statVal {
+  margin: 4px 0 0;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 25px;
+  color: #000;
+  letter-spacing: -0.02em;
+}
+
+.pf-statSub {
+  margin: 6px 0 0;
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  font-size: 10px;
+  color: rgba(119, 119, 119, 0.6);
+}
+
+.pf-statCol--today {
+  position: relative;
+}
+
+.pf-fire {
+  position: absolute;
+  right: 10px;
+  top: 36px;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+
+/* Rank bar — white pill + shadow; full line “You're ranked **Nth** out of …”; orange streak at right */
+.pf-rankBar {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  margin-top: 6px;
+  min-height: 28px;
+  background: #fff;
+  border-radius: 9px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.pf-rankTextRow {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  gap: 4px;
+  padding: 5px 6px 5px 12px;
+  box-sizing: border-box;
+  font-family: 'Inter', sans-serif;
+  font-size: clamp(11px, 3.05vw, 13px);
+  font-weight: 400;
+  color: #000;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+.pf-rankLead,
+.pf-rankTrail {
+  font-weight: 400;
+  color: #000;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.pf-rankNum {
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: clamp(12px, 3.2vw, 15px);
+  color: #0a95db;
+}
+
+.pf-rankStreak {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px 0 7px;
+  box-sizing: border-box;
+  background: #e98800;
+  border-radius: 0 9px 9px 0;
+  z-index: 2;
+}
+
+.pf-rankStreakFire {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  line-height: 0;
+}
+
+.pf-rankStreakFire .pf-fire,
+.pf-rankStreakFire svg {
+  position: static;
+  width: 11px;
+  height: 11px;
+  filter: brightness(0) invert(1);
+}
+
+.pf-rankStreakText {
+  flex: 0 1 auto;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: 7.5px;
+  color: #fff;
+  text-align: center;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Horizontal carousel: gainers | losers */
+.pf-carousel {
+  margin-top: 18px;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 10px 10px;
+  box-sizing: border-box;
+}
+
+.pf-carouselTrack {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  width: max-content;
+}
+
+.pf-panel {
+  flex: 0 0 363px;
+  width: 363px;
+  scroll-snap-align: start;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.15);
+  border: 3px solid #246d36;
+  padding: 13px 12px 16px;
+  box-sizing: border-box;
+  min-height: 449px;
+}
+
+.pf-panel--losers {
+  border-color: #d93025;
+}
+
+.pf-panelTitle {
+  margin: 0 0 10px 4px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 30px;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pf-stockRow {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 72px 58px 76px;
+  align-items: center;
+  gap: 4px 6px;
+  min-height: 56px;
+  margin-bottom: 2px;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pf-stockRow:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.pf-stockRow:focus-visible {
+  outline: 2px solid #0a95db;
+  outline-offset: 1px;
+}
+
+.pf-stockLogoWrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ececec;
+  box-sizing: border-box;
+}
+
+.pf-stockLogo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.pf-stockSym {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pf-stockCo {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 400;
+  font-size: 10px;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pf-spark {
+  width: 72px;
+  height: 34px;
+  display: block;
+}
+
+.pf-stockPrice {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  text-align: right;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pf-pct {
+  justify-self: end;
+  min-width: 68px;
+  height: 20px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pf-pct--up {
+  background: #0fae37;
+}
+
+.pf-pct--down {
+  background: #d93025;
+}
+
+.pf-pct--striped {
+  background: repeating-linear-gradient(
+    -45deg,
+    #0fae37,
+    #0fae37 3px,
+    #0a8f2d 3px,
+    #0a8f2d 6px
+  );
+}
+
+/* Compare section */
+.pf-compareTitle {
+  margin: 22px 10px 0 10px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pf-compareCard {
+  margin-top: 10px;
+  padding: 16px 14px 18px;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.15);
+}
+
+.pf-compareHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.pf-netWorthLab {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pf-addCompare {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  color: #777;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pf-addCompare img {
+  width: 20px;
+  height: 20px;
+}
+
+.pf-legendGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 7px;
+  margin-bottom: 12px;
+}
+
+.pf-legendBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 2px 10px;
+  border: 1px solid #777;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pf-legendBtn--off {
+  opacity: 0.38;
+}
+
+.pf-legendBtn:focus-visible {
+  outline: 2px solid #0a95db;
+  outline-offset: 1px;
+}
+
+.pf-legAvatar {
+  width: 23px;
+  height: 23px;
+  border-radius: 100px;
+  object-fit: cover;
+}
+
+.pf-legendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.pf-clockIcon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.pf-chartWrap {
+  margin-top: 4px;
+}
+
+.pf-chartPlot {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.pf-chartSvg {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  display: block;
+  cursor: crosshair;
+}
+
+.pf-chartLine {
+  cursor: pointer;
+}
+
+.pf-chartYAxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 220px;
+  padding: 4px 0 8px;
+  box-sizing: border-box;
+}
+
+.pf-chartYLab {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 300;
+  font-size: 11px;
+  color: #777;
+  text-align: right;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pf-chartHint {
+  margin: 8px 0 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: #777;
+  line-height: 1.35;
+}
+
+.pf-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 120px;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 10px 18px;
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  border-radius: 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.pf-loading {
+  padding: 48px;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  color: #555;
+}
+
+.pf-compareSubLab {
+  margin: 2px 0 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: #666;
+  line-height: 1.3;
+  max-width: 220px;
+}
+
+.pf-rangeRow--perform {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 8px;
+}
+
+.pf-rangePill {
+  border: 1px solid #c8c8c8;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  color: #444;
+  background: #f3f3f3;
+  cursor: pointer;
+}
+
+.pf-rangePill--active {
+  background: #0a95db;
+  border-color: #0a95db;
+  color: #fff;
+}
+
+.pf-baselineNote {
+  margin: 0 0 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.pf-compareWarnings {
+  margin: 0 0 10px;
+  padding-left: 18px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: #8a5a00;
+}
+
+.pf-compareError {
+  margin: 0 0 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #b00020;
+}
+
+.pf-legendGrid--flow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+}
+
+.pf-legendCell {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pf-legendCell .pf-legendBtn {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.pf-legendList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pf-legendItem {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.pf-legendItem .pf-legendBtn {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.pf-legendBtnText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.pf-legendRemove {
+  flex-shrink: 0;
+  width: 36px;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #555;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pf-legendRemove:hover {
+  background: #ffecec;
+  border-color: #e88;
+  color: #b00020;
+}
+
+.pf-legendRemoveSpacer {
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.pf-windowRange {
+  margin: 0 0 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: #555;
+  line-height: 1.35;
+}
+
+.pf-windowRangeTag {
+  color: #0a6b9c;
+  font-weight: 600;
+}
+
+.pf-chartTipLine {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+}
+
+.pf-chartTipSwatch {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  margin-right: 5px;
+  vertical-align: 0.1em;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.pf-compareLoading {
+  margin: 6px 0 0;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #666;
+}
+
+/* Add comparison modal */
+.pf-compareModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.pf-compareModal {
+  width: 100%;
+  max-width: 402px;
+  max-height: min(78vh, 640px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  padding: 16px 16px 24px;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
+}
+
+.pf-compareModalHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pf-compareModalTitle {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.pf-compareModalClose {
+  border: 0;
+  background: transparent;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  color: #555;
+  padding: 0 4px;
+}
+
+.pf-compareModalSub {
+  margin: 8px 0 14px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #555;
+  line-height: 1.45;
+}
+
+.pf-compareCurrent {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: #f5f5f5;
+  border-radius: 10px;
+}
+
+.pf-compareCurrentLab {
+  margin: 0 0 6px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 12px;
+  color: #333;
+}
+
+.pf-compareCurrentEmpty {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #666;
+}
+
+.pf-compareTokenList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pf-compareTokenRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px solid #e4e4e4;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+}
+
+.pf-compareTokenRow:last-child {
+  border-bottom: 0;
+}
+
+.pf-compareTokenRemove {
+  border: 0;
+  background: transparent;
+  color: #0a95db;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.pf-compareTabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pf-compareTab {
+  flex: 1;
+  border: 1px solid #c8c8c8;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fafafa;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pf-compareTab--on {
+  border-color: #0a95db;
+  background: #e8f6fd;
+  color: #054b73;
+}
+
+.pf-compareLimit {
+  margin: 0 0 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #8a5a00;
+}
+
+.pf-comparePanelStatus {
+  margin: 0 0 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #666;
+}
+
+.pf-comparePanelStatus--err {
+  color: #b00020;
+}
+
+.pf-comparePlayerList,
+.pf-compareStockList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.pf-comparePlayerBtn,
+.pf-compareStockBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border: 0;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+}
+
+.pf-comparePlayerBtn:disabled,
+.pf-compareStockBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pf-comparePlayerBtn--added,
+.pf-compareStockBtn--added {
+  background: #f0faf6;
+}
+
+.pf-comparePlayerAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.pf-comparePlayerName {
+  flex: 1;
+}
+
+.pf-comparePlayerAction,
+.pf-compareStockAction {
+  font-weight: 700;
+  color: #0a95db;
+  font-size: 12px;
+}
+
+.pf-compareSearchLab {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.pf-compareSearchInput {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.pf-compareStockSym {
+  font-weight: 800;
+  min-width: 52px;
+}
+
+.pf-compareStockName {
+  flex: 1;
+  color: #555;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-compareStockIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.pf-compareStockIconPf {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #e8e8e8;
+  flex-shrink: 0;
+}

@@ -1,0 +1,279 @@
+/* Portfolio — Figma node 152:74 (investments list + sort). */
+
+.pf-phone--portfolio {
+  position: relative;
+}
+
+.pf-port-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(var(--gc-tabbar-scroll-pad, 120px) + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.pf-port-sheet {
+  position: relative;
+  z-index: 2;
+  margin: -26px 0 0;
+  background: #fff;
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  padding: 16px 10px 12px;
+  flex: 1;
+  min-height: 320px;
+}
+
+.pf-port-investHead {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 0 4px;
+}
+
+.pf-port-investTitle {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pf-port-headControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pf-port-toggle {
+  display: inline-flex;
+  background: #f2f2f2;
+  border-radius: 9px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.pf-port-toggleBtn {
+  border: 0;
+  background: transparent;
+  color: #555;
+  border-radius: 7px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 9px;
+  cursor: pointer;
+}
+
+.pf-port-toggleBtn--active {
+  background: #fff;
+  color: #000;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+}
+
+.pf-port-sort {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.pf-port-sortBtn {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  border: 0;
+  padding: 4px 2px 4px 8px;
+  background: transparent;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #000;
+  border-radius: 8px;
+}
+
+.pf-port-sortBtn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.pf-port-sortBtn:focus-visible {
+  outline: 2px solid #0a95db;
+  outline-offset: 2px;
+}
+
+.pf-port-sortChev {
+  width: 22px;
+  height: 22px;
+  opacity: 0.75;
+}
+
+.pf-port-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 200px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  border: 1px solid #e4e4e4;
+  z-index: 20;
+  padding: 6px 0;
+  list-style: none;
+  margin: 0;
+}
+
+.pf-port-menu li {
+  margin: 0;
+}
+
+.pf-port-menu__opt {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  padding: 10px 14px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #000;
+  cursor: pointer;
+}
+
+.pf-port-menu__opt:hover {
+  background: #f5f5f5;
+}
+
+.pf-port-menu__opt--active {
+  background: #eef8fc;
+}
+
+.pf-port-menu li + li {
+  border-top: 1px solid #ececec;
+}
+
+.pf-port-empty {
+  margin: 24px 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #666;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.pf-port-tableWrap {
+  margin-top: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid #ececec;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.pf-port-table {
+  min-width: 980px;
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Inter', sans-serif;
+}
+
+.pf-port-table th,
+.pf-port-table td {
+  border-bottom: 1px solid #f0f0f0;
+  text-align: left;
+  padding: 10px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+  color: #111;
+}
+
+.pf-port-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
+  font-weight: 800;
+}
+
+.pf-port-table tbody tr {
+  cursor: pointer;
+}
+
+.pf-port-tableRow:hover {
+  background: #f9fbfd;
+}
+
+.pf-port-tableRow:focus-visible {
+  outline: 2px solid #0a95db;
+  outline-offset: -2px;
+}
+
+.pf-port-symbolCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pf-port-symbolTop {
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.pf-port-symbolName {
+  color: #8a8a8a;
+  font-size: 11px;
+  text-transform: uppercase;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pf-port-table tfoot td {
+  font-weight: 800;
+  background: #fcfcfc;
+}
+
+.pf-port-num--up {
+  color: #22863a !important;
+}
+
+.pf-port-num--down {
+  color: #cf222e !important;
+}
+
+.pf-port-summaryRows {
+  margin-top: 10px;
+  border: 1px solid #ececec;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.pf-port-summaryRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  background: #fff;
+}
+
+.pf-port-summaryRow + .pf-port-summaryRow {
+  border-top: 1px solid #efefef;
+}
+
+.pf-port-err {
+  margin: 24px 12px;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #b00020;
+}

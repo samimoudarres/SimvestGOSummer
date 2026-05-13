@@ -1,0 +1,12 @@
+{
+  "nov-2024-stock-challenge": [
+    { "ticker": "AAPL", "shares": 12, "avgCost": 185.25 },
+    { "ticker": "SONY", "shares": 40, "avgCost": 24.3 },
+    { "ticker": "GE", "shares": 100, "avgCost": 145 },
+    { "ticker": "SPOT", "shares": 15, "avgCost": 310.5 },
+    { "ticker": "NVDA", "shares": 8, "avgCost": 118 },
+    { "ticker": "SSNLF", "shares": 25, "avgCost": 44.1 },
+    { "ticker": "META", "shares": 6, "avgCost": 505 }
+  ],
+  "new": []
+}

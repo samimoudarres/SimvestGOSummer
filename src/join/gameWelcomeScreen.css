@@ -1,0 +1,391 @@
+/* Game welcome — template from Figma node 386:1367 (402×874 frame). Values are pegged to the template; colors come from theme props. */
+
+.gw-root {
+  min-height: 100vh;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #e8e8e8;
+  padding: 24px 0 48px;
+  box-sizing: border-box;
+}
+
+.gw-phone {
+  position: relative;
+  width: 402px;
+  height: 874px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+.gw-back {
+  position: absolute;
+  left: 11px;
+  top: 40px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 6;
+}
+
+.gw-back:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.gw-stockwm {
+  position: absolute;
+  left: -9px;
+  top: 181px;
+  width: 420px;
+  height: 420px;
+  opacity: 0.1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.92) 0px,
+    rgba(255, 255, 255, 0.92) 3px,
+    transparent 3px,
+    transparent 38px
+  );
+  mask-image: radial-gradient(closest-side at 52% 45%, #000 0%, transparent 92%);
+}
+
+.gw-maple {
+  position: absolute;
+  left: 252px;
+  top: 429px;
+  width: 133px;
+  height: 133px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+.gw-maple--emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 118px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.06));
+}
+
+.gw-hosted {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  top: 118px;
+  margin: 0;
+  width: 360px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 16px;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.95);
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  z-index: 2;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+}
+
+.gw-tagline {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  top: 149px;
+  margin: 0;
+  width: 360px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 24px;
+  line-height: normal;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  z-index: 2;
+}
+
+.gw-title {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  top: 224px;
+  margin: 0;
+  width: 394px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 39px;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  z-index: 2;
+}
+
+.gw-details {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  top: 330px;
+  width: 394px;
+  margin: 0;
+  padding: 0 8px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  line-height: 1.08;
+  text-align: center;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  z-index: 2;
+}
+
+.gw-buyin {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  top: 400px;
+  margin: 0;
+  width: 320px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 20px;
+  line-height: normal;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  z-index: 3;
+}
+
+.gw-privateNote {
+  position: absolute;
+  left: 20px;
+  width: 362px;
+  top: 358px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.12);
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.95);
+  text-align: center;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  z-index: 4;
+  box-sizing: border-box;
+}
+
+.gw-join {
+  position: absolute;
+  left: 69px;
+  top: 420px;
+  width: 263px;
+  height: 43px;
+  padding: 0;
+  margin: 0;
+  border-radius: 30px;
+  border-width: 3px;
+  border-style: solid;
+  box-sizing: border-box;
+  cursor: pointer;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 20px;
+  line-height: normal;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  box-shadow: 0 0 7px rgba(15, 174, 55, 0.8);
+  background: #0fae37;
+  z-index: 4;
+}
+
+.gw-join:active {
+  filter: brightness(0.97);
+}
+
+.gw-join:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.95);
+  outline-offset: 3px;
+}
+
+.gw-prizeCard {
+  position: absolute;
+  left: 23px;
+  top: 560px;
+  width: 355px;
+  height: 220px;
+  border-radius: 30px;
+  background: #fff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+  z-index: 2;
+}
+
+.gw-trophy {
+  position: absolute;
+  left: 177px;
+  top: 571px;
+  width: 49px;
+  height: 49px;
+  z-index: 5;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 32%, #ffe08a 0%, #f2b704 52%, #c98302 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.gw-prizeHead {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 0);
+  top: 628px;
+  margin: 0;
+  width: 280px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: normal;
+  color: #000;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.15);
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  z-index: 3;
+}
+
+.gw-prizeList {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 0);
+  top: 652px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 270px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 20px;
+  line-height: 1.42;
+  color: #000;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.15);
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  z-index: 3;
+}
+
+.gw-prizeAmt {
+  font-weight: 900;
+}
+
+.gw-disclaimer {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 0);
+  top: 740px;
+  margin: 0;
+  width: 292px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(0, 0, 0, 0.7);
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  z-index: 3;
+}
+
+.gw-players {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  top: 806px;
+  margin: 0;
+  width: 300px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: normal;
+  color: rgba(255, 255, 255, 0.8);
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  z-index: 3;
+}
+
+.gw-status {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  top: 420px;
+  width: 320px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.gw-status--error {
+  color: rgba(255, 255, 255, 0.98);
+}
+
+.gw-retry {
+  margin-top: 12px;
+  padding: 8px 20px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 24px;
+  background: transparent;
+  color: #fff;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.gw-loader {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  top: 420px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.gw-phone--noEconomy .gw-privateNote {
+  top: 318px;
+}
+
+.gw-phone--noEconomy .gw-join {
+  top: 392px;
+}
+
+.gw-phone--noEconomy .gw-players {
+  top: 470px;
+  transform: translate(-50%, 0);
+}

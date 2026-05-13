@@ -1,0 +1,106 @@
+{
+  "profiles": {
+    "demo-p-mrose-92": {
+      "userId": "demo-p-mrose-92",
+      "displayName": "Mike Rose",
+      "avatarUrl": "/figma-assets/challenge/gain-1.png",
+      "joinedAtIso": "2025-07-04T18:46:13.424Z"
+    },
+    "demo-p-jan-ms-087": {
+      "userId": "demo-p-jan-ms-087",
+      "displayName": "Jessica An",
+      "avatarUrl": "/figma-assets/challenge/gain-2.png",
+      "joinedAtIso": "2025-01-05T19:23:15.466Z"
+    },
+    "demo-p-jopia-074": {
+      "userId": "demo-p-jopia-074",
+      "displayName": "Jose Pia",
+      "avatarUrl": "/figma-assets/challenge/gain-4.png",
+      "joinedAtIso": "2025-09-25T19:23:42.157Z"
+    },
+    "2b0b4ae1-1a66-496a-a341-f57c77d9777e": {
+      "userId": "2b0b4ae1-1a66-496a-a341-f57c77d9777e",
+      "displayName": "You",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-10T19:24:14.221Z"
+    },
+    "verify_mp0dikl1_ovy6w9jwz0j": {
+      "userId": "verify_mp0dikl1_ovy6w9jwz0j",
+      "displayName": "Verify",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-10T22:57:50.084Z"
+    },
+    "verify_mp0dillx_3vpbc4h7ili": {
+      "userId": "verify_mp0dillx_3vpbc4h7ili",
+      "displayName": "Verify",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-10T22:57:51.390Z"
+    },
+    "verify_mp0dimjr_tza8xm9a3dm": {
+      "userId": "verify_mp0dimjr_tza8xm9a3dm",
+      "displayName": "Verify",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-10T22:57:52.613Z"
+    },
+    "verify_mp0dkluh_rjsvgxbh9zr": {
+      "userId": "verify_mp0dkluh_rjsvgxbh9zr",
+      "displayName": "Verify",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-10T22:59:25.008Z"
+    },
+    "verify_mp0dkmum_ga4qxtfuror": {
+      "userId": "verify_mp0dkmum_ga4qxtfuror",
+      "displayName": "Verify",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-10T22:59:26.312Z"
+    },
+    "verify_mp0dknxi_0kpmbvj0prx": {
+      "userId": "verify_mp0dknxi_0kpmbvj0prx",
+      "displayName": "Verify",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-10T22:59:27.708Z"
+    },
+    "inproc_mp0drqth_yvgt4zxs1t": {
+      "userId": "inproc_mp0drqth_yvgt4zxs1t",
+      "displayName": "Quick Hawk 503",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-10T23:42:56.747Z"
+    },
+    "inproc_mp0drrsw_bbla7xerrkf": {
+      "userId": "inproc_mp0drrsw_bbla7xerrkf",
+      "displayName": "Keen Trader 154",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-10T23:42:56.747Z"
+    },
+    "inproc_mp0drstr_pit5oh1svn9": {
+      "userId": "inproc_mp0drstr_pit5oh1svn9",
+      "displayName": "Quick Investor 119",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-10T23:42:56.747Z"
+    },
+    "legacy-jack-roberts": {
+      "userId": "legacy-jack-roberts",
+      "displayName": "Quick Strategist 687",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-11T02:35:38.702Z"
+    },
+    "legacy-miley-schmidt": {
+      "userId": "legacy-miley-schmidt",
+      "displayName": "Quick Pioneer 171",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-11T02:35:38.702Z"
+    },
+    "testuserid12": {
+      "userId": "testuserid12",
+      "displayName": "Bold Pioneer 757",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-11T21:47:53.878Z"
+    },
+    "verify_mp2w91cy_281zj2psjjr": {
+      "userId": "verify_mp2w91cy_281zj2psjjr",
+      "displayName": "Verify",
+      "avatarUrl": "/figma-assets/challenge/composer-avatar.png",
+      "joinedAtIso": "2026-05-12T17:17:50.293Z"
+    }
+  }
+}

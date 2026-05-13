@@ -1,0 +1,472 @@
+/* Standard Buy sheet — Figma 307:834 (402×874 frame, pixel-aligned where specified). */
+
+.bu-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 120;
+  background: rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.bu-sheet {
+  position: relative;
+  width: 402px;
+  height: min(862px, calc(100% - 12px));
+  max-height: calc(100vh - 80px);
+  margin-top: auto;
+  background: #fff;
+  border: 6px solid #05557d;
+  border-radius: 30px;
+  box-shadow: 0px -1px 20px 2px rgba(37, 163, 226, 0.8);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bu-sheetInner {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 15px 18px 12px;
+  padding-bottom: 0;
+}
+
+.bu-topBar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.bu-back {
+  flex: 0 0 auto;
+  width: 37px;
+  height: 37px;
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bu-back img {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.bu-title {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 32px;
+  line-height: 1.1;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.bu-available {
+  margin: 4px 0 18px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #777;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.bu-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 18px;
+  min-height: 30px;
+}
+
+.bu-rowLab {
+  flex: 0 0 auto;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  line-height: 1.2;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.bu-rowRight {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.bu-rowVal {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 24px;
+  line-height: 1.2;
+  color: #000;
+  text-align: right;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.bu-impliedShares {
+  margin: -10px 0 14px;
+  padding: 0 2px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
+  color: #555;
+  text-align: right;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+/* Segmented control — pill track + sliding teal thumb */
+.bu-segTrack {
+  position: relative;
+  flex: 0 0 auto;
+  width: 130px;
+  height: 30px;
+  background: #fff;
+  border-radius: 999px;
+  box-shadow: 0px 0px 5px 1px rgba(0, 0, 0, 0.1);
+  padding: 3px;
+  box-sizing: border-box;
+}
+
+.bu-segThumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  height: 23px;
+  background: #05557d;
+  border-radius: 999px;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bu-segThumb--right {
+  transform: translateX(calc(100% + 3px));
+}
+
+.bu-segBtns {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: row;
+  height: 23px;
+  margin-top: 1px;
+}
+
+.bu-segBtn {
+  flex: 1 1 50%;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 23px;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.bu-segBtn--lit {
+  color: #fff;
+}
+
+.bu-segBtn:not(.bu-segBtn--lit) {
+  color: #000;
+}
+
+.bu-segTrack--action {
+  width: 129px;
+}
+
+/* Quantity input + underline */
+.bu-qtyInputWrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  cursor: text;
+}
+
+.bu-qtyInputWrap--focus .bu-qtyLine {
+  background: #05557d;
+}
+
+.bu-qtyInputWrap:focus-within .bu-qtyLine {
+  background: #05557d;
+}
+
+.bu-qtyInput {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: #000;
+  text-align: right;
+  padding: 2px 0 4px;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.bu-qtyInput::placeholder {
+  color: #777;
+  font-weight: 400;
+}
+
+.bu-qtyLine {
+  height: 1px;
+  background: #b8b8b8;
+  width: 100%;
+}
+
+/* Competition dropdown */
+.bu-ddWrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.bu-ddBtn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 30px;
+  min-width: 155px;
+  max-width: 170px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 100px;
+  background: #fff;
+  box-shadow: 0px 0px 5px 1px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.bu-ddBtn:focus-visible {
+  outline: 2px solid #05557d;
+  outline-offset: 2px;
+}
+
+.bu-ddBtnText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: #000;
+  text-align: left;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.bu-ddChev {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.bu-ddMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  min-width: 220px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  border: 1px solid #e2e2e2;
+  padding: 6px 0;
+}
+
+.bu-ddItem {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 10px 14px;
+  text-align: left;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: #111;
+  cursor: pointer;
+}
+
+.bu-ddItem:hover,
+.bu-ddItem:focus-visible {
+  background: #f3f8fb;
+}
+
+.bu-ddItem--on {
+  background: #eef6fa;
+}
+
+/* Review Order */
+.bu-reviewWrap {
+  margin: 10px 0 14px;
+  display: flex;
+  justify-content: center;
+}
+
+.bu-reviewBtn {
+  width: 100%;
+  max-width: 367px;
+  height: 40px;
+  border-radius: 20px;
+  border: 3px solid #05557d;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+.bu-reviewBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.bu-reviewBtn:focus-visible {
+  outline: 2px solid #0a98de;
+  outline-offset: 3px;
+}
+
+.bu-reviewGradient {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  line-height: 1;
+  background-image: linear-gradient(90deg, #06567e 0%, #0a98de 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.bu-caution {
+  margin: -6px 0 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #b00020;
+  text-align: center;
+}
+
+/* Numeric keypad — iOS-like */
+.bu-keypad {
+  flex: 0 0 auto;
+  width: 100%;
+  height: 299px;
+  background: #d1d3d9;
+  backdrop-filter: blur(54px);
+  -webkit-backdrop-filter: blur(54px);
+  padding: 8px 6px 28px;
+  box-sizing: border-box;
+}
+
+.bu-keyRow {
+  display: flex;
+  flex-direction: row;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.bu-keyRow:last-child {
+  margin-bottom: 0;
+}
+
+.bu-key {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 46px;
+  border: none;
+  border-radius: 4.6px;
+  background: #fff;
+  box-shadow: 0px 1px 0px 0px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  font-family: 'SF Pro Display', 'Inter', sans-serif;
+  font-weight: 400;
+  color: #000;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.bu-keyMain {
+  font-size: 25px;
+  line-height: 1;
+}
+
+.bu-key:active {
+  filter: brightness(0.96);
+}
+
+.bu-key:focus-visible {
+  outline: 2px solid #05557d;
+  outline-offset: 1px;
+}
+
+.bu-keySub {
+  font-family: 'SF Pro Text', 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #000;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.bu-key--ghost {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.bu-keyDel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bu-keyDelGlyph {
+  font-size: 20px;
+  line-height: 1;
+  color: #222;
+  font-weight: 500;
+}

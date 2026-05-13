@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "games": [
+    {
+      "slug": "nov-2024-stock-challenge",
+      "joinCode": "102024",
+      "displayTitle": "NOV. 2024 STOCK CHALLENGE",
+      "welcomeTagline": "Let the games begin!",
+      "timeline": {
+        "mode": "rolling",
+        "startDaysAgo": 2,
+        "endDaysFromNow": null
+      },
+      "timelineDetailLines": [
+        "Runs in real time — challenge window rolls with the server clock (started 2 days ago).",
+        "Allowed to trade: Stocks & Crypto"
+      ],
+      "economics": {
+        "buyInCents": 500,
+        "prizes": [
+          { "rank": 1, "amountCents": 12300 },
+          { "rank": 2, "amountCents": 3500 },
+          { "rank": 3, "amountCents": 1700 }
+        ],
+        "prizePoolNote": "For games with a buy in, prize money will increase as more people join"
+      },
+      "theme": {
+        "welcomeGradientAngleDeg": 141.75,
+        "welcomeGradientFrom": "#f7b104",
+        "welcomeGradientTo": "#9c5a02",
+        "joinButtonColor": "#0fae37",
+        "joinButtonBorderColor": "#0fae37",
+        "prizeAmountColor": "#0fae37",
+        "titleTextShadow": "0 0 10px rgba(255, 255, 255, 0.8)",
+        "backArrowColor": "#ffffff"
+      },
+      "welcomeCustomization": {
+        "showMapleLeaf": true,
+        "showStockChartWatermark": true,
+        "welcomeCardGlow": "0 0 10px rgba(255,255,255,0.8)",
+        "decorNotes": "Figma reference: node 386:1367 — swap assets per game later."
+      }
+    },
+    {
+      "slug": "new",
+      "joinCode": "900001",
+      "displayTitle": "YOUR NEW GAME",
+      "welcomeTagline": "Let the games begin!",
+      "timeline": {
+        "mode": "rolling",
+        "startDaysAgo": 0,
+        "endDaysFromNow": null
+      },
+      "timelineDetailLines": [
+        "Template: rolling timeline (starts “now” when you ship create-game).",
+        "Set mode \"fixed\" with startIso/endIso for a calendar-locked challenge, or keep rolling with startDaysAgo.",
+        "Allowed to trade: Stocks & Crypto"
+      ],
+      "economics": {
+        "buyInCents": 0,
+        "prizes": [
+          { "rank": 1, "amountCents": 0 },
+          { "rank": 2, "amountCents": 0 },
+          { "rank": 3, "amountCents": 0 }
+        ],
+        "prizePoolNote": "Prize amounts and buy-in will follow your game rules when you publish the challenge."
+      },
+      "theme": {
+        "welcomeGradientAngleDeg": 135,
+        "welcomeGradientFrom": "#0a9be3",
+        "welcomeGradientTo": "#05557d",
+        "joinButtonColor": "#0fae37",
+        "joinButtonBorderColor": "#0fae37",
+        "prizeAmountColor": "#0fae37",
+        "titleTextShadow": "0 0 10px rgba(255, 255, 255, 0.45)",
+        "backArrowColor": "#ffffff"
+      },
+      "welcomeCustomization": {
+        "showMapleLeaf": false,
+        "showStockChartWatermark": true,
+        "welcomeCardGlow": "0 0 10px rgba(255,255,255,0.35)",
+        "decorNotes": "Template game — replace theme, copy, and economics when the create-game flow ships."
+      }
+    }
+  ]
+}

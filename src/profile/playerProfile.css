@@ -1,0 +1,138 @@
+/* Player profile — compact gold header + PERFORM layout tokens */
+
+.pf-phone--profile {
+  --gc-tabbar-scroll-pad: 120px;
+}
+
+.pp-topBand.gc-headerBand {
+  position: relative;
+  height: auto;
+  min-height: 204px;
+  padding: 50px 10px 10px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.pp-topBand .gc-back {
+  z-index: 3;
+}
+
+.pp-topBand .gc-headerMenu {
+  z-index: 3;
+}
+
+.pp-challengeIntro {
+  margin: 0 48px 0 44px;
+  padding: 0;
+}
+
+.pp-challengeTitle {
+  margin: 0;
+  padding: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 22px;
+  line-height: 1.12;
+  color: #fff;
+  text-align: left;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pp-challengeHost {
+  margin: 5px 0 0;
+  padding: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.25;
+  color: #eaeaea;
+  text-align: left;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pp-identity {
+  position: relative;
+  margin: 12px 6px 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+}
+
+.pp-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.55);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.pp-identityText {
+  flex: 1;
+  min-width: 0;
+}
+
+.pp-displayName {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 19px;
+  color: #fff;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.pp-username {
+  margin: 3px 0 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pp-memberLine,
+.pp-gameLine {
+  margin: 5px 0 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pp-gameLine.pp-gameLine--empty {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.pp-perfHint {
+  position: relative;
+  margin: 8px 6px 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.pp-holdings.pf-port-sheet {
+  margin-top: 6px;
+  width: calc(100% - 20px);
+  max-width: 386px;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+.pp-err {
+  padding: 24px 18px;
+  font-family: 'Inter', sans-serif;
+  color: #721c24;
+  text-align: center;
+}

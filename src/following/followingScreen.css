@@ -1,0 +1,95 @@
+/* Following list — matches challenge phone chrome */
+
+.fol-phone {
+  position: relative;
+  width: 402px;
+  height: 874px;
+  max-height: min(874px, calc(100vh - 48px));
+  background: #f7f7f7;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  overflow-x: hidden;
+  overflow-y: visible;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  --gc-tabbar-scroll-pad: 120px;
+}
+
+.fol-topBand {
+  position: relative;
+  flex: 0 0 auto;
+  width: 402px;
+  height: 114px;
+  background: linear-gradient(
+    180deg,
+    var(--sv-chrome-bar1, #f7b104) 0%,
+    var(--sv-chrome-bar2, #c98503) 55%,
+    var(--sv-chrome-bar3, #9f5d02) 100%
+  );
+  box-sizing: border-box;
+}
+
+.fol-back {
+  position: absolute;
+  left: 15px;
+  top: 46px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fol-back img {
+  width: 24px;
+  height: 24px;
+}
+
+.fol-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 44px;
+  width: 280px;
+  margin: 0;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.fol-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 0 calc(var(--gc-tabbar-scroll-pad) + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.fol-msg {
+  margin: 32px 20px;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #555;
+}
+
+.fol-err {
+  margin: 32px 20px;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #b00020;
+}

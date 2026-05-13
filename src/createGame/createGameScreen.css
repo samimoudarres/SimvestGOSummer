@@ -1,0 +1,398 @@
+/* Create game intro — matched to Figma nodes 238:4787, 251:4916–251:5092 (402×874). */
+
+.cg-root {
+  min-height: 100vh;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #e8e8e8;
+  padding: 24px 0 48px;
+  box-sizing: border-box;
+}
+
+.cg-phone {
+  position: relative;
+  width: 402px;
+  height: 874px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+  background: #f7f7f7;
+}
+
+.cg-gradient {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 402px;
+  height: 874px;
+  background-image: url('/figma-assets/create-game/bg-gradient.svg');
+  background-size: 402px 874px;
+  background-repeat: no-repeat;
+  background-position: center top;
+  pointer-events: none;
+}
+
+.cg-back {
+  position: absolute;
+  left: 15px;
+  top: 46px;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  color: #fff;
+}
+
+.cg-back:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.cg-menu {
+  position: absolute;
+  left: 369px;
+  top: 43px;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+.cg-menu img {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.cg-menu:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.cg-logo {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 47px;
+  margin: 0;
+  width: 199px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 35px;
+  line-height: normal;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.cg-carouselWrap {
+  position: absolute;
+  left: 0;
+  top: 157px;
+  width: 402px;
+  height: 552px;
+  z-index: 1;
+}
+
+.cg-carousel {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.cg-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.cg-slide {
+  flex: 0 0 402px;
+  width: 402px;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  box-sizing: border-box;
+  padding: 0 15px 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cg-slideFigure {
+  mix-blend-mode: luminosity;
+  flex-shrink: 0;
+}
+
+/* Figma uses luminosity on other hero art; slide 2 stays full-color blues like the design. */
+.cg-slide2 .cg-slideFigure {
+  mix-blend-mode: normal;
+}
+
+.cg-slideFigure--shadow {
+  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.25));
+}
+
+.cg-slide1 .cg-slideFigure {
+  width: 282px;
+  height: 321px;
+  margin-top: 0;
+}
+
+.cg-slide1 .cg-slideFigure img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cg-slide2 .cg-slideFigure {
+  width: 293px;
+  height: 273px;
+  margin-top: 0;
+}
+
+.cg-slide2 .cg-slideFigure img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  display: block;
+}
+
+.cg-slide3 .cg-slideFigure {
+  width: 329px;
+  height: 308px;
+  margin-top: 0;
+  overflow: hidden;
+}
+
+.cg-slide3 .cg-slideFigure img {
+  width: 97.67%;
+  height: 104.06%;
+  object-fit: cover;
+  display: block;
+  position: relative;
+  left: -0.59%;
+  top: 0;
+}
+
+.cg-slide4 .cg-slideFigure {
+  width: 272px;
+  height: 238px;
+  margin-top: 0;
+  overflow: hidden;
+}
+
+.cg-slide4 .cg-slideFigure img {
+  width: 157.23%;
+  height: 179.86%;
+  object-fit: cover;
+  display: block;
+  position: relative;
+  left: -28.62%;
+  top: -28.42%;
+}
+
+.cg-slideTitle {
+  margin: 0;
+  margin-top: 29px;
+  width: 100%;
+  max-width: 373px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 28px;
+  line-height: normal;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.cg-slide2 .cg-slideTitle {
+  margin-top: 72px;
+  max-width: 315px;
+}
+
+.cg-slide3 .cg-slideTitle {
+  margin-top: 63px;
+  max-width: 315px;
+}
+
+.cg-slide4 .cg-slideTitle {
+  margin-top: 67px;
+  max-width: 315px;
+}
+
+.cg-slideBody {
+  margin: 0;
+  margin-top: 6px;
+  width: 100%;
+  max-width: 354px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: normal;
+  color: rgba(255, 255, 255, 0.8);
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.cg-slide1 .cg-slideBody {
+  max-width: 315px;
+  margin-top: 6px;
+}
+
+.cg-slide2 .cg-slideBody {
+  max-width: 315px;
+}
+
+.cg-slide3 .cg-slideBody {
+  max-width: 315px;
+  margin-top: 6px;
+}
+
+.cg-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.cg-dots .cg-dotBtn {
+  pointer-events: auto;
+}
+
+.cg-dotBtn {
+  padding: 6px;
+  margin: -6px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.cg-dotBtn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+.cg-dot {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.cg-dot--active {
+  background: #fff;
+  border-color: #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 0 0 3px rgba(255, 255, 255, 0.35);
+}
+
+.cg-btnPrimary {
+  position: absolute;
+  left: 23px;
+  top: 709px;
+  width: 355px;
+  height: 48px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 30px;
+  background: #fff;
+  box-shadow: 0 0 5px 1px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cg-btnPrimary:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.cg-btnPrimaryLabel {
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  line-height: normal;
+  background: linear-gradient(90deg, #06567e 0%, #0a98de 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.cg-btnGhost {
+  position: absolute;
+  left: 23px;
+  top: 768px;
+  width: 355px;
+  height: 48px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #fff;
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0);
+  box-shadow: 0 0 5px 1px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cg-btnGhost:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.cg-btnGhostLabel {
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  line-height: normal;
+  color: #fff;
+}

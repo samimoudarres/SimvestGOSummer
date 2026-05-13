@@ -1,0 +1,248 @@
+.jp-root {
+  min-height: 100vh;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #e8e8e8;
+  padding: 24px 0 48px;
+  box-sizing: border-box;
+}
+
+.jp-phone {
+  position: relative;
+  width: 402px;
+  height: 874px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+.jp-back {
+  position: absolute;
+  left: 15px;
+  top: 46px;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #000;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.jp-back:focus-visible {
+  outline: 2px solid #0a9be3;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.jp-logo {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 47px;
+  margin: 0;
+  width: 199px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 35px;
+  line-height: normal;
+  background: linear-gradient(90deg, #05557d 0%, #099ae3 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.jp-avatarWrap {
+  position: absolute;
+  left: 166px;
+  top: 99px;
+  width: 73px;
+  height: 73px;
+}
+
+.jp-avatarBtn {
+  width: 73px;
+  height: 73px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.jp-avatarBtn:focus-visible {
+  outline: 2px solid #0a9be3;
+  outline-offset: 2px;
+}
+
+.jp-avatarImg {
+  width: 73px;
+  height: 73px;
+  border-radius: 999px;
+  object-fit: cover;
+  display: block;
+}
+
+.jp-avatarIcon {
+  width: 73px;
+  height: 73px;
+  border-radius: 999px;
+  background: #a0a0a0;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.jp-photoHint {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  top: 180px;
+  width: 180px;
+  margin: 0;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  color: #000;
+}
+
+.jp-form {
+  position: absolute;
+  left: 38px;
+  top: 214px;
+  width: 328px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jp-row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 19px;
+}
+
+.jp-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.jp-label {
+  margin: 0 0 6px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  color: #565656;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.jp-inputWrap {
+  position: relative;
+}
+
+.jp-input {
+  width: 100%;
+  height: 42px;
+  border-radius: 5px;
+  border: 1px solid #f0f4f7;
+  background: #f0f4f7;
+  box-sizing: border-box;
+  padding: 0 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  color: #000;
+}
+
+.jp-input::placeholder {
+  color: #919095;
+}
+
+.jp-input:focus-visible {
+  outline: 2px solid #0a9be3;
+  outline-offset: 1px;
+}
+
+.jp-input--pwd {
+  padding-right: 38px;
+}
+
+.jp-eye {
+  position: absolute;
+  right: 8px;
+  top: 9px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #9fa9b0;
+  cursor: pointer;
+}
+
+.jp-eye:focus-visible {
+  outline: 2px solid #0a9be3;
+  border-radius: 4px;
+}
+
+.jp-note {
+  margin: 1px 0 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #6f6f6f;
+}
+
+.jp-errors {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jp-error {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #b00020;
+}
+
+.jp-submit {
+  position: absolute;
+  left: 25px;
+  top: 793px;
+  width: 355px;
+  height: 49px;
+  border-radius: 30px;
+  border: 1px solid #fff;
+  box-shadow: 0 0 5px 1px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(90.075deg, #05557d 7.03%, #099ae3 100%);
+  color: #fff;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: normal;
+  cursor: pointer;
+}
+
+.jp-submit:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.jp-submit:focus-visible {
+  outline: 3px solid #099ae3;
+  outline-offset: 2px;
+}

@@ -1,0 +1,373 @@
+{
+  "version": 3,
+  "legacyHoldings": {
+    "nov-2024-stock-challenge": [
+      {
+        "ticker": "AAPL",
+        "shares": 12,
+        "avgCost": 185.25
+      },
+      {
+        "ticker": "SONY",
+        "shares": 40,
+        "avgCost": 24.3
+      },
+      {
+        "ticker": "GE",
+        "shares": 100,
+        "avgCost": 145
+      },
+      {
+        "ticker": "SPOT",
+        "shares": 15,
+        "avgCost": 310.5
+      },
+      {
+        "ticker": "NVDA",
+        "shares": 8,
+        "avgCost": 118
+      },
+      {
+        "ticker": "SSNLF",
+        "shares": 25,
+        "avgCost": 44.1
+      },
+      {
+        "ticker": "META",
+        "shares": 6,
+        "avgCost": 505
+      }
+    ],
+    "new": []
+  },
+  "users": {
+    "inproc_mp0drqth_yvgt4zxs1t": {
+      "nov-2024-stock-challenge": {
+        "cash": 99320,
+        "holdings": [
+          {
+            "ticker": "AAPL",
+            "shares": 1,
+            "avgCost": 180
+          },
+          {
+            "ticker": "MSFT",
+            "shares": 1,
+            "avgCost": 380
+          },
+          {
+            "ticker": "NVDA",
+            "shares": 1,
+            "avgCost": 120
+          }
+        ],
+        "lots": [
+          {
+            "ticker": "AAPL",
+            "shares": 1,
+            "entryPrice": 180,
+            "boughtAtIso": "2026-05-10T23:04:57.991Z"
+          },
+          {
+            "ticker": "MSFT",
+            "shares": 1,
+            "entryPrice": 380,
+            "boughtAtIso": "2026-05-10T23:04:58.069Z"
+          },
+          {
+            "ticker": "NVDA",
+            "shares": 1,
+            "entryPrice": 120,
+            "boughtAtIso": "2026-05-10T23:04:58.106Z"
+          }
+        ]
+      }
+    },
+    "inproc_mp0drrsw_bbla7xerrkf": {
+      "nov-2024-stock-challenge": {
+        "cash": 99320,
+        "holdings": [
+          {
+            "ticker": "AAPL",
+            "shares": 1,
+            "avgCost": 180
+          },
+          {
+            "ticker": "MSFT",
+            "shares": 1,
+            "avgCost": 380
+          },
+          {
+            "ticker": "NVDA",
+            "shares": 1,
+            "avgCost": 120
+          }
+        ],
+        "lots": [
+          {
+            "ticker": "AAPL",
+            "shares": 1,
+            "entryPrice": 180,
+            "boughtAtIso": "2026-05-10T23:04:59.265Z"
+          },
+          {
+            "ticker": "MSFT",
+            "shares": 1,
+            "entryPrice": 380,
+            "boughtAtIso": "2026-05-10T23:04:59.329Z"
+          },
+          {
+            "ticker": "NVDA",
+            "shares": 1,
+            "entryPrice": 120,
+            "boughtAtIso": "2026-05-10T23:04:59.388Z"
+          }
+        ]
+      }
+    },
+    "inproc_mp0drstr_pit5oh1svn9": {
+      "nov-2024-stock-challenge": {
+        "cash": 99320,
+        "holdings": [
+          {
+            "ticker": "AAPL",
+            "shares": 1,
+            "avgCost": 180
+          },
+          {
+            "ticker": "MSFT",
+            "shares": 1,
+            "avgCost": 380
+          },
+          {
+            "ticker": "NVDA",
+            "shares": 1,
+            "avgCost": 120
+          }
+        ],
+        "lots": [
+          {
+            "ticker": "AAPL",
+            "shares": 1,
+            "entryPrice": 180,
+            "boughtAtIso": "2026-05-10T23:05:00.593Z"
+          },
+          {
+            "ticker": "MSFT",
+            "shares": 1,
+            "entryPrice": 380,
+            "boughtAtIso": "2026-05-10T23:05:00.669Z"
+          },
+          {
+            "ticker": "NVDA",
+            "shares": 1,
+            "entryPrice": 120,
+            "boughtAtIso": "2026-05-10T23:05:00.723Z"
+          }
+        ]
+      }
+    },
+    "2b0b4ae1-1a66-496a-a341-f57c77d9777e": {
+      "nov-2024-stock-challenge": {
+        "cash": 90335.5829,
+        "holdings": [
+          {
+            "ticker": "XOM",
+            "shares": 1,
+            "avgCost": 144.2999
+          },
+          {
+            "ticker": "AAPL",
+            "shares": 1,
+            "avgCost": 293.8595
+          },
+          {
+            "ticker": "CEG",
+            "shares": 20,
+            "avgCost": 307.37
+          },
+          {
+            "ticker": "DRAM",
+            "shares": 20,
+            "avgCost": 55.58
+          },
+          {
+            "ticker": "X:BTCUSD",
+            "shares": 0.01,
+            "avgCost": 81728.27
+          },
+          {
+            "ticker": "GOOGL",
+            "shares": 3,
+            "avgCost": 383.325
+          }
+        ],
+        "lots": [
+          {
+            "ticker": "XOM",
+            "shares": 1,
+            "entryPrice": 144.2999,
+            "boughtAtIso": "2026-05-10T23:06:54.491Z"
+          },
+          {
+            "ticker": "AAPL",
+            "shares": 1,
+            "entryPrice": 293.8595,
+            "boughtAtIso": "2026-05-10T23:07:30.703Z"
+          },
+          {
+            "ticker": "CEG",
+            "shares": 10,
+            "entryPrice": 307.37,
+            "boughtAtIso": "2026-05-11T01:40:38.552Z"
+          },
+          {
+            "ticker": "CEG",
+            "shares": 10,
+            "entryPrice": 307.37,
+            "boughtAtIso": "2026-05-11T01:40:38.603Z"
+          },
+          {
+            "ticker": "DRAM",
+            "shares": 20,
+            "entryPrice": 55.58,
+            "boughtAtIso": "2026-05-11T17:12:49.097Z"
+          },
+          {
+            "ticker": "X:BTCUSD",
+            "shares": 0.01,
+            "entryPrice": 81728.27,
+            "boughtAtIso": "2026-05-12T00:13:04.292Z"
+          },
+          {
+            "ticker": "GOOGL",
+            "shares": 3,
+            "entryPrice": 383.325,
+            "boughtAtIso": "2026-05-12T17:23:17.942Z"
+          }
+        ]
+      },
+      "new": {
+        "cash": 87435.9624,
+        "holdings": [
+          {
+            "ticker": "X:BTCUSD",
+            "shares": 0.1,
+            "avgCost": 81728.27
+          },
+          {
+            "ticker": "NVDA",
+            "shares": 5,
+            "avgCost": 219.71
+          },
+          {
+            "ticker": "AAPL",
+            "shares": 3,
+            "avgCost": 293.8068666666666
+          },
+          {
+            "ticker": "SPY",
+            "shares": 1,
+            "avgCost": 739.28
+          },
+          {
+            "ticker": "PANW",
+            "shares": 5,
+            "avgCost": 214.59
+          },
+          {
+            "ticker": "META",
+            "shares": 1,
+            "avgCost": 599.01
+          }
+        ],
+        "lots": [
+          {
+            "ticker": "X:BTCUSD",
+            "shares": 0.1,
+            "entryPrice": 81728.27,
+            "boughtAtIso": "2026-05-12T02:50:01.113Z"
+          },
+          {
+            "ticker": "NVDA",
+            "shares": 5,
+            "entryPrice": 219.71,
+            "boughtAtIso": "2026-05-12T02:50:14.214Z"
+          },
+          {
+            "ticker": "AAPL",
+            "shares": 1,
+            "entryPrice": 292.5006,
+            "boughtAtIso": "2026-05-12T03:02:07.525Z"
+          },
+          {
+            "ticker": "SPY",
+            "shares": 1,
+            "entryPrice": 739.28,
+            "boughtAtIso": "2026-05-12T03:18:59.017Z"
+          },
+          {
+            "ticker": "AAPL",
+            "shares": 2,
+            "entryPrice": 294.46,
+            "boughtAtIso": "2026-05-12T17:24:04.796Z"
+          },
+          {
+            "ticker": "PANW",
+            "shares": 5,
+            "entryPrice": 214.59,
+            "boughtAtIso": "2026-05-12T17:35:30.215Z"
+          },
+          {
+            "ticker": "META",
+            "shares": 1,
+            "entryPrice": 599.01,
+            "boughtAtIso": "2026-05-12T17:48:24.225Z"
+          }
+        ]
+      }
+    },
+    "verify_mp2w91cy_281zj2psjjr": {
+      "nov-2024-stock-challenge": {
+        "cash": 99320,
+        "holdings": [
+          {
+            "ticker": "AAPL",
+            "shares": 1,
+            "avgCost": 180
+          },
+          {
+            "ticker": "MSFT",
+            "shares": 1,
+            "avgCost": 380
+          },
+          {
+            "ticker": "NVDA",
+            "shares": 1,
+            "avgCost": 120
+          }
+        ],
+        "lots": [
+          {
+            "ticker": "AAPL",
+            "shares": 1,
+            "entryPrice": 180,
+            "boughtAtIso": "2026-05-12T17:17:50.287Z"
+          },
+          {
+            "ticker": "MSFT",
+            "shares": 1,
+            "entryPrice": 380,
+            "boughtAtIso": "2026-05-12T17:17:50.958Z"
+          },
+          {
+            "ticker": "NVDA",
+            "shares": 1,
+            "entryPrice": 120,
+            "boughtAtIso": "2026-05-12T17:17:51.166Z"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,1377 @@
+/* Game challenge home — Figma node 19:7 (402px frame). */
+
+.gc-root {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #e8e8e8;
+  padding: 24px 0 48px;
+  box-sizing: border-box;
+}
+
+.gc-phone {
+  position: relative;
+  width: 402px;
+  height: 874px;
+  max-height: min(874px, calc(100vh - 48px));
+  background: #f7f7f7;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  overflow-x: hidden;
+  overflow-y: visible;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  /* Scroll areas use this so the last content clears the overlaid tab bar + trade FAB */
+  --gc-tabbar-scroll-pad: 120px;
+}
+
+.gc-phoneMain {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+}
+
+.gc-hostJoinBanner {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(90deg, #1e5bc4 0%, #2563eb 100%);
+  color: #fff;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.gc-hostJoinBannerText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gc-hostJoinBannerBtn {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.gc-hostJoinBannerBtn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/*
+ * Figma node 19:7 uses absolutely positioned blocks below the header. They must be
+ * positioned relative to this canvas so they contribute to scroll height; otherwise
+ * they anchor to .gc-phone (874px, overflow hidden) and everything below ~576px is clipped.
+ */
+.gc-phoneCanvas {
+  position: relative;
+  width: 402px;
+  min-height: 1120px;
+  padding-bottom: calc(var(--gc-tabbar-scroll-pad) + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.gc-phone:not(.gc-phone--template) .gc-phoneCanvas {
+  min-height: 1145px;
+}
+
+.gc-headerBand {
+  position: relative;
+  width: 402px;
+  height: 273px;
+  background: linear-gradient(
+    180deg,
+    var(--sv-chrome-h1, #f7b104) 0%,
+    var(--sv-chrome-h2, #f7b104) 19%,
+    var(--sv-chrome-h3, #965402) 100%
+  );
+}
+
+.gc-back {
+  position: absolute;
+  left: 15px;
+  top: 46px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gc-back img {
+  width: 24px;
+  height: 24px;
+  display: block;
+  object-fit: contain;
+}
+
+.gc-back:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.gc-headerMenu {
+  position: absolute;
+  left: 369px;
+  top: 43px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gc-headerMenu img {
+  /* Same vertical-ellipsis glyph as feed menu; viewBox 4×18 */
+  height: 20px;
+  width: auto;
+  aspect-ratio: 4 / 18;
+  object-fit: contain;
+}
+
+.gc-title {
+  position: absolute;
+  left: 23px;
+  top: 65px;
+  width: 365px;
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 32px;
+  line-height: normal;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-host {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 150px;
+  width: 255px;
+  margin: 0;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: normal;
+  color: #eaeaea;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-peopleRow {
+  position: absolute;
+  left: 20px;
+  top: 190px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.gc-peopleRow img {
+  border-radius: 100px;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+}
+
+.gc-peopleRow img + img {
+  margin-left: -10px;
+}
+
+.gc-peopleRow .gc-rosterFace + .gc-rosterFace {
+  margin-left: -10px;
+}
+
+.gc-peopleRow .gc-rosterFace {
+  border: 2px solid rgba(255, 255, 255, 0.35);
+}
+
+.gc-avatarSm {
+  width: 35.053px;
+  height: 36px;
+  border-radius: 46.5px;
+  object-fit: cover;
+  background: #e8e8e8;
+}
+
+.gc-avatarHost {
+  width: 36px;
+  height: 36px;
+  margin-right: 6px;
+  z-index: 2;
+}
+
+.gc-rosterFace {
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  border-radius: 46.5px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #e8e8e8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #333;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.gc-rosterFace img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gc-rosterInitial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.gc-invitePill {
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px 0 10px;
+  background: #fff;
+  border-radius: 30px;
+  border: 0;
+  cursor: pointer;
+}
+
+.gc-invitePill img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.gc-invitePill span {
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  color: #b26f03;
+}
+
+.gc-names {
+  position: absolute;
+  left: 20px;
+  top: 230px;
+  width: 360px;
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: #eaeaea;
+}
+
+.gc-names strong {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-names .gc-muted {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 400;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-composer {
+  position: absolute;
+  left: 8px;
+  top: 286px;
+  width: 381px;
+  height: 101px;
+  background: #fff;
+  border-radius: 11px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+  padding: 8px 12px 10px 56px;
+}
+
+.gc-composer--interactive {
+  height: auto;
+  min-height: 124px;
+  /* Avatar sits at left:14px with 48px width → keep text start clearly past 62px */
+  padding: 8px 12px 44px 72px;
+}
+
+.gc-composerInput {
+  display: block;
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 2px 76px 4px 0;
+  min-height: 44px;
+  max-height: 120px;
+  border: 0;
+  background: transparent;
+  resize: vertical;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #1c1c1c;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.gc-composerInput::placeholder {
+  color: #777;
+}
+
+.gc-composerEditorMount {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 2px 76px 4px 4px;
+  min-height: 44px;
+  max-height: 200px;
+  box-sizing: border-box;
+}
+
+.gc-composerPost {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 14px;
+  background: #05557d;
+  color: #fff;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.gc-composerPost:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.gc-composerPost:focus-visible {
+  outline: 2px solid #0a95db;
+  outline-offset: 2px;
+}
+
+.gc-composerErr {
+  margin: 0;
+  padding: 2px 4px 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #b00020;
+}
+
+.gc-composerActions--dim {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.gc-composerAvatarBtn {
+  position: absolute;
+  left: 14px;
+  top: 8px;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 100px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gc-composerAvatarBtn:focus-visible {
+  outline: 2px solid #0a95db;
+  outline-offset: 3px;
+}
+
+.gc-composerAvatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 100px;
+  object-fit: cover;
+  box-sizing: border-box;
+}
+
+.gc-composerPlaceholder {
+  margin: 0;
+  padding-top: 4px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 16px;
+  color: #777;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-composerActions {
+  position: absolute;
+  left: 15px;
+  bottom: 10px;
+  display: flex;
+  gap: 14px;
+}
+
+.gc-pillBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 25px;
+  padding: 0 10px;
+  border-radius: 30px;
+  border: 1px solid #bebebe;
+  background: transparent;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  color: #cbc5c5;
+  cursor: pointer;
+}
+
+.gc-pillBtn img {
+  width: 19px;
+  height: 19px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.gc-pillBtn--wide {
+  padding: 0 12px;
+}
+
+.gc-sectionTitle {
+  position: absolute;
+  left: 13px;
+  top: 407px;
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  line-height: normal;
+  background: linear-gradient(
+    90deg,
+    var(--sv-chrome-accent-a, #f7b104) 0%,
+    var(--sv-chrome-accent-b, #965402) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-gainsScroll {
+  position: absolute;
+  left: 4px;
+  top: 435px;
+  width: 398px;
+  height: 141px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.gc-gainsTrack {
+  position: relative;
+  width: auto;
+  min-width: 479px;
+  height: 131px;
+  padding: 5px 5px 0 5px;
+  box-sizing: border-box;
+}
+
+.gc-gainCard {
+  position: absolute;
+  top: 5px;
+  width: 111px;
+  height: 131px;
+  background: #fff;
+  border: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 15px;
+  box-shadow: 0 0 5px 1px rgba(0, 0, 0, 0.15);
+  text-align: center;
+  box-sizing: border-box;
+  padding-top: 16px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.gc-gainCard:focus-visible {
+  outline: 2px solid #0a95db;
+  outline-offset: 3px;
+}
+
+.gc-gainCard:nth-child(1) {
+  left: 5px;
+}
+.gc-gainCard:nth-child(2) {
+  left: 126px;
+}
+.gc-gainCard:nth-child(3) {
+  left: 247px;
+}
+.gc-gainCard:nth-child(4) {
+  left: 368px;
+}
+
+.gc-gainCard:nth-child(5) {
+  left: 489px;
+}
+
+.gc-gainCard img {
+  width: 64px;
+  height: 64px;
+  border-radius: 100px;
+  object-fit: cover;
+  display: block;
+  margin: 0 auto;
+}
+
+.gc-gainName {
+  margin: 8px 0 0;
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  color: #000;
+}
+
+.gc-gainPct {
+  margin: 2px 0 0;
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 12px;
+  color: #0fae37;
+}
+
+.gc-gainPct--down {
+  color: #c62828;
+}
+
+.gc-gainName--ellipsis {
+  max-width: 100px;
+  margin-left: auto;
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gc-activityHead {
+  position: absolute;
+  left: 0;
+  top: 598px;
+  width: 402px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px 0 22px;
+  box-sizing: border-box;
+}
+
+.gc-activityHead h2 {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-filterBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  color: #1c1c1c;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-filterBtnChevron {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transform: rotate(90deg);
+}
+
+.gc-filterBtnChevron img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.gc-filterBtnChevron--open {
+  transform: rotate(-90deg);
+}
+
+.gc-sortWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.gc-sortMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+  margin: 0;
+  padding: 6px 0;
+  min-width: 248px;
+  list-style: none;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-sizing: border-box;
+}
+
+.gc-sortItem {
+  display: block;
+  width: 100%;
+  border: 0;
+  margin: 0;
+  padding: 10px 16px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
+  color: #1c1c1c;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-sortItem:hover {
+  background: rgba(8, 124, 182, 0.08);
+}
+
+.gc-sortItem--on {
+  color: #05557d;
+  background: rgba(5, 85, 125, 0.06);
+}
+
+.gc-feedStack {
+  position: absolute;
+  left: 12px;
+  top: 626px;
+  width: 375px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 120px;
+  box-sizing: border-box;
+}
+
+.gc-feedLoad {
+  position: absolute;
+  left: 12px;
+  top: 626px;
+  width: 375px;
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: #777;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-phone:not(.gc-phone--template) .gc-sectionTitle {
+  top: 430px;
+}
+
+.gc-phone:not(.gc-phone--template) .gc-gainsScroll {
+  top: 458px;
+}
+
+.gc-phone:not(.gc-phone--template) .gc-activityHead {
+  top: 621px;
+}
+
+.gc-phone:not(.gc-phone--template) .gc-feedStack,
+.gc-phone:not(.gc-phone--template) .gc-feedLoad,
+.gc-phone:not(.gc-phone--template) .gc-placeholderCard {
+  top: 649px;
+}
+
+.gc-feedCard {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  min-height: 0;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  padding: 12px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gc-feedHeader {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.gc-feedAvatarWrap {
+  position: relative;
+  flex: 0 0 60px;
+  width: 60px;
+  height: 60px;
+}
+
+.gc-feedProfileHit {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 100px;
+}
+
+.gc-feedProfileHit:focus-visible {
+  outline: 2px solid #0a95db;
+  outline-offset: 3px;
+}
+
+.gc-feedAvatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 100px;
+  object-fit: cover;
+  display: block;
+}
+
+.gc-feedBadge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 60px;
+  height: 60px;
+  pointer-events: none;
+  object-fit: contain;
+}
+
+.gc-feedTextCol {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 4px;
+}
+
+.gc-feedMenu {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.gc-feedMenu img {
+  /* vector-ellipsis: viewBox 4×18 (tall); square box stretches dots */
+  height: 22px;
+  width: auto;
+  aspect-ratio: 4 / 18;
+  object-fit: contain;
+}
+
+.gc-feedByline {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+.gc-feedName {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-feedNameBtn {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  cursor: pointer;
+  text-align: left;
+}
+
+.gc-feedNameBtn:hover {
+  text-decoration: underline;
+}
+
+.gc-feedNameBtn:focus-visible {
+  outline: 2px solid #0a95db;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.gc-feedMeta {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 400;
+  font-size: 12px;
+  color: #777;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-feedTime {
+  margin: 4px 0 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #7a7a7a;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-trade {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 10px 8px 8px;
+  background: rgba(8, 124, 182, 0.15);
+  border-radius: 10px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+button.gc-trade {
+  border: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+button.gc-trade:focus-visible {
+  outline: 2px solid #0a95db;
+  outline-offset: 2px;
+}
+
+.gc-feedCard--text {
+  min-height: 0;
+}
+
+.gc-textBody {
+  margin: 0;
+  padding: 0 2px 2px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #1c1c1c;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.gc-trade__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.gc-trade__logo {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25);
+}
+
+.gc-trade__mid {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gc-trade__headline {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  line-height: 1.15;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.gc-trade__aside {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 108px;
+  max-width: 42%;
+}
+
+.gc-trade__pctRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gc-trade__pctRow img {
+  width: 23px;
+  height: 23px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.gc-trade__pctRow--up img {
+  transform: rotate(0deg);
+}
+
+.gc-trade__pctRow--down img {
+  transform: rotate(180deg);
+}
+
+.gc-trade__pctRow--na img {
+  opacity: 0.5;
+}
+
+.gc-trade__pct {
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+}
+
+.gc-trade__pct--up {
+  color: #0fae37;
+}
+
+.gc-trade__pct--down {
+  color: #d93025;
+}
+
+.gc-trade__pct--na {
+  color: #777;
+}
+
+.gc-trade__since {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  color: #777;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-trade__cols {
+  display: flex;
+  gap: 14px;
+  justify-content: flex-end;
+  text-align: right;
+  margin-top: 2px;
+}
+
+.gc-trade__metric {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 9px;
+  color: #000;
+}
+
+.gc-trade__metricLabel {
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: 7px;
+  color: #777;
+  margin-top: 2px;
+}
+
+.gc-trade__details {
+  width: 100%;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gc-trade__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.gc-trade__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 6px;
+}
+
+.gc-trade__value {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.gc-rationaleShell {
+  margin-top: 4px;
+  width: 100%;
+}
+
+.gc-rationaleHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-rationaleBox {
+  margin-top: 4px;
+  min-height: 0;
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-tabbar {
+  --gc-nav-muted: #6e6e6e;
+  --gc-nav-active: #000000;
+  --gc-trade-coin: 68px;
+  /* Top edge of white strip ≈ trade coin midline (aligns mount top). */
+  --gc-tabbar-white-h: calc(env(safe-area-inset-bottom, 0px) + 78px);
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
+  width: 100%;
+  min-height: 0;
+  background: transparent;
+  border-top: none;
+  box-shadow: none;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
+  /* Safe-area + cushion below labels; larger cushion lifts icon+label rows for more white under text */
+  padding: 4px 6px calc(env(safe-area-inset-bottom, 0px) + 22px);
+  gap: 2px;
+}
+
+/* White strip height ≈ up to the trade coin midline (half coin sits below this edge). */
+.gc-tabbar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--gc-tabbar-white-h);
+  background: #fff;
+  border-top: 1px solid #e8e8e8;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.07);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.gc-tabbar > * {
+  position: relative;
+  z-index: 1;
+}
+
+.gc-navItem {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 0;
+  padding: 0 2px 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 10px;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  color: var(--gc-nav-muted);
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.gc-navItem--active {
+  font-weight: 600;
+  color: var(--gc-nav-active);
+}
+
+.gc-navItem:not(.gc-navItem--active) img {
+  opacity: 0.82;
+}
+
+.gc-navItem--active img {
+  opacity: 1;
+  filter: brightness(0);
+}
+
+.gc-navItem img {
+  display: block;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.gc-navTradeCol {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 2px 0;
+}
+
+/*
+ * Mount height = lower half of coin only (short bar). Coin anchored to mount bottom so the
+ * white strip (::before top) meets the coin’s horizontal midline — upper half extrudes above.
+ */
+.gc-tradeFabMount {
+  position: relative;
+  width: 100%;
+  height: calc(var(--gc-trade-coin) / 2);
+  margin-bottom: 2px;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+.gc-tradeFab {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: var(--gc-trade-coin);
+  height: var(--gc-trade-coin);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  isolation: isolate;
+}
+
+/* Figma "nav glow" asset is a half-ellipse; use a circular halo instead */
+.gc-tradeFab::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--gc-trade-coin) - 2px);
+  height: calc(var(--gc-trade-coin) - 2px);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.14);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.gc-tradeFab__ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--gc-trade-coin) - 6px);
+  height: calc(var(--gc-trade-coin) - 6px);
+  object-fit: contain;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.gc-tradeFab__inner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--gc-trade-coin) - 14px);
+  height: calc(var(--gc-trade-coin) - 14px);
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.gc-tradeFab__dollar {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  /* mdi-dollar viewBox ~18.75×33.75 — square box elongates the glyph */
+  height: 27px;
+  width: auto;
+  aspect-ratio: 18.75 / 33.75;
+  object-fit: contain;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.gc-navTradeLabel {
+  margin-top: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 10px;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  color: var(--gc-nav-muted);
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.gc-navTradeCol--active .gc-navTradeLabel {
+  font-weight: 600;
+  color: var(--gc-nav-active);
+}
+
+/* --- Template variant --- */
+
+.gc-phone--template .gc-title {
+  font-size: 26px;
+}
+
+.gc-placeholderCard {
+  position: absolute;
+  left: 12px;
+  top: 626px;
+  width: 375px;
+  min-height: 200px;
+  border-radius: 10px;
+  border: 2px dashed #cfcfcf;
+  background: #fafafa;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+}
+
+.gc-placeholderCard p {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: #9a9a9a;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  max-width: 260px;
+  line-height: 1.4;
+}
+
+.gc-gainCard--ghost {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 0;
+}
+
+.gc-gainCard--ghost .gc-ghostCircle {
+  width: 64px;
+  height: 64px;
+  border-radius: 100px;
+  background: #f0f0f0;
+  border: 1px dashed #d0d0d0;
+}
+
+.gc-gainCard--ghost .gc-gainName {
+  color: #9a9a9a;
+  font-size: 13px;
+}
+
+.gc-gainCard--ghost .gc-gainPct {
+  color: #9a9a9a;
+}

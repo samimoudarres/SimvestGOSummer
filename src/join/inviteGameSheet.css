@@ -1,0 +1,205 @@
+/* Bottom invite sheet (Venmo-style share) — overlays full viewport */
+
+.invSheetOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.invSheet {
+  width: 100%;
+  max-width: 420px;
+  max-height: min(92vh, 780px);
+  overflow: auto;
+  background: #f2f2f7;
+  border-radius: 16px 16px 0 0;
+  padding: 10px 20px 28px;
+  box-sizing: border-box;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
+  position: relative;
+  animation: invSheetIn 0.22s ease-out;
+}
+
+@keyframes invSheetIn {
+  from {
+    transform: translateY(18px);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.invSheet__handle {
+  width: 44px;
+  height: 5px;
+  border-radius: 4px;
+  background: #c7c7cc;
+  margin: 4px auto 12px;
+}
+
+.invSheet__close {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  border: 0;
+  background: transparent;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #05557d;
+  cursor: pointer;
+  padding: 6px 4px;
+}
+
+.invSheet__eyebrow {
+  margin: 0 0 4px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #6d6d72;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.invSheet__gameTitle {
+  margin: 8px 0 4px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  line-height: 1.25;
+  color: #1c1c1c;
+  text-align: center;
+}
+
+.invSheet__codeLabel {
+  margin: 12px 0 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 13px;
+  color: #6d6d72;
+  text-align: center;
+}
+
+.invSheet__code {
+  margin: 4px 0 16px;
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #05557d;
+  text-align: center;
+}
+
+.invSheet__qrWrap {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 8px;
+}
+
+.invSheet__qr {
+  display: block;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.invSheet__qrPh {
+  width: 220px;
+  height: 220px;
+  border-radius: 12px;
+  background: #e5e5ea;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 14px;
+  color: #666;
+}
+
+.invSheet__hint {
+  margin: 0 0 18px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 13px;
+  color: #555;
+  text-align: center;
+}
+
+.invSheet__share {
+  display: block;
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: #05557d;
+  color: #fff;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.invSheet__share:active {
+  opacity: 0.92;
+}
+
+.invSheet__copy,
+.invSheet__print {
+  display: block;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+  color: #05557d;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+}
+
+.invSheet__print {
+  margin-bottom: 0;
+}
+
+.invSheet__status {
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 15px;
+  color: #555;
+  margin: 16px 0;
+}
+
+.invSheet__status--err {
+  color: #8b0000;
+}
+
+.invSheet__retry {
+  margin-top: 10px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: #05557d;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.invSheet__toast {
+  margin: 14px 0 0;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 13px;
+  color: #1c6b1c;
+}

@@ -1,0 +1,698 @@
+/* Stock detail — layout aligned to Figma-style references (402px phone). */
+
+.sd-root {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #e8e8e8;
+  padding: 24px 0 48px;
+  box-sizing: border-box;
+}
+
+.sd-phone {
+  position: relative;
+  width: 402px;
+  height: 874px;
+  max-height: min(874px, calc(100vh - 48px));
+  background: #f7f7f7;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  overflow-x: hidden;
+  overflow-y: visible;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  --gc-tabbar-scroll-pad: 120px;
+}
+
+.sd-phoneBody {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sd-headerBand {
+  position: relative;
+  flex: 0 0 auto;
+  width: 402px;
+  height: 114px;
+  background: linear-gradient(
+    180deg,
+    var(--sv-chrome-bar1, #f7b104) 0%,
+    var(--sv-chrome-bar2, #c98503) 55%,
+    var(--sv-chrome-bar3, #9f5d02) 100%
+  );
+}
+
+.sd-back {
+  position: absolute;
+  left: 15px;
+  top: 46px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sd-back img {
+  width: 24px;
+  height: 24px;
+}
+
+.sd-menu {
+  position: absolute;
+  left: 369px;
+  top: 43px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sd-menu img {
+  height: 20px;
+  width: auto;
+  aspect-ratio: 4 / 18;
+  object-fit: contain;
+}
+
+.sd-challengeTitle {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 40px;
+  width: 360px;
+  margin: 0;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 14px;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.sd-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 12px calc(var(--gc-tabbar-scroll-pad, 120px) + 16px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.sd-hero {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.sd-heroIcon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center;
+  background: #fff;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+
+.sd-heroIcon--ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 16px;
+  color: #555;
+}
+
+.sd-heroText {
+  flex: 1;
+  min-width: 0;
+}
+
+.sd-ticker {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 28px;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.sd-coName {
+  margin: 2px 0 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #444;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sd-priceRow {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.sd-lastPrice {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 26px;
+  color: #000;
+}
+
+.sd-change {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.sd-change--up {
+  color: #0fae37;
+}
+
+.sd-change--down {
+  color: #d93025;
+}
+
+.sd-chartCard {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.12);
+  padding: 12px 10px 10px;
+  margin-bottom: 14px;
+}
+
+.sd-rangeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.sd-rangePill {
+  border: 1px solid #c9c9c9;
+  background: #f0f0f0;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+}
+
+.sd-rangePill--active {
+  background: #fff;
+  border-color: #0a5a82;
+  color: #000;
+  box-shadow: 0 0 0 1px #0a95db inset;
+}
+
+.sd-chartSvgWrap {
+  position: relative;
+  width: 100%;
+  min-height: 170px;
+}
+
+.sd-chartFloatTip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 12px));
+  pointer-events: none;
+  z-index: 4;
+  padding: 7px 12px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #cfcfcf;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  text-align: center;
+  min-width: 120px;
+}
+
+.sd-chartFloatTip__price {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #000;
+  line-height: 1.2;
+}
+
+.sd-chartFloatTip__date {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: #555;
+  margin-top: 3px;
+  line-height: 1.25;
+}
+
+.sd-priceSvg {
+  width: 100%;
+  height: 170px;
+  display: block;
+}
+
+.sd-chartMsg {
+  margin: 0;
+  padding: 24px 8px;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: #666;
+}
+
+.sd-chartMsg--err {
+  color: #b00020;
+}
+
+.sd-chartHint {
+  margin: 8px 0 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: #777;
+}
+
+.sd-chartScale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  color: #999;
+}
+
+.sd-about {
+  margin-bottom: 14px;
+}
+
+.sd-aboutTitle {
+  margin: 0 0 8px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  color: #000;
+}
+
+.sd-aboutBody {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #222;
+}
+
+.sd-readMore {
+  margin-top: 6px;
+  border: 0;
+  padding: 0;
+  background: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0a95db;
+  cursor: pointer;
+}
+
+.sd-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+  margin-top: 12px;
+}
+
+.sd-kvLab {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #777;
+}
+
+.sd-kvVal {
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: #000;
+  margin-top: 2px;
+}
+
+.sd-statCard {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.12);
+  padding: 14px 14px 12px;
+  margin-bottom: 14px;
+}
+
+.sd-statTitle {
+  margin: 0 0 12px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  color: #004d61;
+}
+
+.sd-statRow {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 10px 0;
+  border-bottom: 1px solid #ececec;
+}
+
+.sd-statRow:last-child {
+  border-bottom: 0;
+}
+
+.sd-statLab {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #000;
+}
+
+.sd-statVal {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #000;
+}
+
+.sd-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.sd-dotBtn {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  background: #cfcfcf;
+  cursor: pointer;
+}
+
+.sd-dotBtn--on {
+  background: #000;
+}
+
+.sd-finCard {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.12);
+  padding: 14px 12px 14px;
+  margin-bottom: 12px;
+}
+
+.sd-finTitle {
+  margin: 0 0 12px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  color: #0a3d55;
+}
+
+.sd-finSub {
+  margin: -4px 0 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #666;
+}
+
+.sd-finEmpty {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #666;
+}
+
+.sd-finToggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 14px;
+  width: fit-content;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid #0a5a82;
+}
+
+.sd-finToggleBtn {
+  border: 0;
+  padding: 8px 18px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #ececec;
+  color: #000;
+}
+
+.sd-finToggleBtn--on {
+  background: #fff;
+}
+
+.sd-finBars {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px;
+  min-height: 180px;
+  padding: 0 4px;
+}
+
+.sd-finCol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.sd-finStack {
+  height: 128px;
+  width: 100%;
+  max-width: 56px;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0;
+}
+
+.sd-finGreen {
+  width: 100%;
+  background: #0fae37;
+  border-radius: 0 0 10px 10px;
+}
+
+.sd-finGreen--solo {
+  border-radius: 10px;
+}
+
+.sd-finGrey {
+  width: 100%;
+  background: #c5c5c5;
+  border-radius: 10px 10px 0 0;
+}
+
+.sd-finYearPill {
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: #f3f3f3;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #000;
+}
+
+.sd-finNums {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sd-finRev {
+  color: #777;
+}
+
+.sd-finNet {
+  color: #0fae37;
+}
+
+.sd-finCaption {
+  font-size: 10px;
+  font-weight: 500;
+  color: #888;
+}
+
+.sd-finLegend {
+  margin-top: 12px;
+  display: flex;
+  gap: 16px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #333;
+}
+
+.sd-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.sd-dot--green {
+  background: #0fae37;
+}
+
+.sd-dot--grey {
+  background: #c5c5c5;
+}
+
+.sd-meta {
+  margin-top: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  color: #999;
+  text-align: center;
+}
+
+.sd-err {
+  padding: 40px 16px;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  color: #a40000;
+}
+
+.sd-load {
+  padding: 48px;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  color: #555;
+}
+
+/* Follow + Buy — Figma 270:5197 */
+.sd-actionRow {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 0 2px;
+  box-sizing: border-box;
+}
+
+.sd-actionFollow,
+.sd-actionBuy {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border-radius: 20px;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.sd-actionFollow {
+  border: 3px solid #05557d;
+  background: #fff;
+}
+
+.sd-actionFollowGradient {
+  display: inline-block;
+  font-weight: 800;
+  font-size: 20px;
+  line-height: 1;
+  background-image: linear-gradient(90deg, #06567e 0%, #0a98de 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.sd-actionFollow--on {
+  border: 2px solid #1a3254;
+  background: #fff;
+  color: #0a98de;
+}
+
+.sd-actionFollowFollowingText {
+  font-weight: 800;
+  font-size: 17px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: inherit;
+}
+
+.sd-actionFollowCheck {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.sd-actionFollow:focus-visible {
+  outline: 2px solid #0a95db;
+  outline-offset: 2px;
+}
+
+.sd-actionBuy {
+  border: 3px solid #05557d;
+  background: #05557d;
+  color: #fff;
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.03em;
+  box-shadow: 0 0 10px 1px rgba(5, 85, 125, 0.4);
+}
+
+.sd-actionBuy:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.sd-actionBuy:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  box-shadow: none;
+}

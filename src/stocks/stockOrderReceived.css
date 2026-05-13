@@ -1,0 +1,331 @@
+/* Order received — Figma 363:1310 (default) & 384:1218 (keyboard + Share). */
+
+.ou-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 130;
+  background: rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.ou-sheet {
+  position: relative;
+  width: 402px;
+  height: min(812px, calc(100% - 12px));
+  max-height: calc(100vh - 72px);
+  margin-top: auto;
+  background: #f7f7f7;
+  border: 6px solid #05557d;
+  border-radius: 30px;
+  box-shadow: 0px -1px 20px 2px rgba(37, 163, 226, 0.8);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ou-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 24px 18px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ou-checkWrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 10px;
+}
+
+.ou-checkImg {
+  width: 86px;
+  height: 86px;
+  display: block;
+}
+
+.ou-title {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 32px;
+  line-height: 1.1;
+  color: #000;
+  text-align: center;
+  max-width: 310px;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.ou-sub {
+  margin: 12px 0 0;
+  max-width: 326px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #000;
+  opacity: 0.8;
+  text-align: center;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.ou-rationaleHead {
+  align-self: stretch;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 28px 0 0 10px;
+}
+
+.ou-bulb {
+  width: 23px;
+  height: 26px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.ou-rationaleLab {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.2;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.ou-textShell {
+  position: relative;
+  width: 344px;
+  max-width: 100%;
+  height: 126px;
+  margin: 10px auto 0;
+  box-sizing: border-box;
+}
+
+.ou-textBg {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ou-textBg img {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  display: block;
+  pointer-events: none;
+}
+
+.ou-textarea {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px 12px 19px;
+  border: none;
+  background: transparent;
+  resize: none;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #000;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.ou-textarea::placeholder {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+.ou-textarea:focus {
+  outline: none;
+}
+
+.ou-spacer {
+  flex: 0 0 auto;
+  min-height: 12px;
+}
+
+.ou-footer {
+  flex-shrink: 0;
+  padding: 0 17px 14px;
+  background: #f7f7f7;
+  position: relative;
+}
+
+.ou-activity {
+  position: absolute;
+  left: 28px;
+  bottom: 18px;
+  width: 35px;
+  height: 35px;
+  pointer-events: none;
+}
+
+.ou-activity img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ou-pillGhost {
+  height: 40px;
+  margin: 0 0 6px;
+  border-radius: 20px;
+  border: 3px solid #f7f7f7;
+  background: #f7f7f7;
+  box-sizing: border-box;
+}
+
+.ou-dashBtn {
+  display: flex;
+  width: 100%;
+  max-width: 347px;
+  margin: 0 auto;
+  height: 48px;
+  border: 3px solid #05557d;
+  border-radius: 50px;
+  background: #05557d;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+.ou-dashBtnInner {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  line-height: 1;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.ou-shareBtn {
+  display: flex;
+  width: 100%;
+  max-width: 347px;
+  margin: 0 auto 10px;
+  height: 37px;
+  border: 3px solid #05557d;
+  border-radius: 50px;
+  background: rgba(255, 255, 255, 0);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+.ou-shareBtnInner {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  line-height: 1;
+  color: #05557d;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.ou-keyboard {
+  flex-shrink: 0;
+  width: 100%;
+  background: #d1d3d9;
+  backdrop-filter: blur(54.366px);
+  -webkit-backdrop-filter: blur(54.366px);
+  padding: 8px 3px 6px;
+  box-sizing: border-box;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ou-keyRow {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.ou-key {
+  min-width: 30px;
+  height: 42px;
+  flex: 1 1 30px;
+  max-width: 34px;
+  border-radius: 4.6px;
+  background: #fff;
+  box-shadow: 0px 1px 0px 0px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  font-size: 20px;
+  font-weight: 400;
+  color: #000;
+  user-select: none;
+}
+
+.ou-key--wide {
+  flex: 1.4 1 42px;
+  max-width: 52px;
+  background: #abb0bc;
+  font-size: 14px;
+}
+
+.ou-key--space {
+  flex: 4 1 auto;
+  max-width: none;
+  font-size: 14px;
+}
+
+.ou-keyboardTools {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 28px 2px;
+}
+
+.ou-keyboardTools span {
+  font-size: 12px;
+  color: #555;
+}
+
+.ou-homeBar {
+  height: 34px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+}
+
+.ou-homeBarInner {
+  width: 134px;
+  height: 5px;
+  border-radius: 100px;
+  background: #000;
+}
+
+.ou-keyboardOpen .ou-scroll {
+  padding-top: 12px;
+}
+
+.ou-keyboardOpen .ou-checkWrap {
+  margin-top: 0;
+}
+
+.ou-keyboardOpen .ou-rationaleHead {
+  margin-top: 18px;
+}
