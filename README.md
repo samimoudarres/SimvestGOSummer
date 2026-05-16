@@ -2,6 +2,15 @@
 
 Stock simulation and investing games — React + Vite client, Express API.
 
+**Repository:** [github.com/samimoudarres/SimvestGOSummer](https://github.com/samimoudarres/SimvestGOSummer)
+
+### Production API (required before App Store / Play Store)
+
+1. [Render](https://render.com) → **New** → **Blueprint** → connect **SimvestGOSummer** (uses `render.yaml` in this repo).
+2. In Render, set **`MASSIVE_API_KEY`** (from [massive.com](https://massive.com)); redeploy if needed.
+3. Copy your Render URL (e.g. `https://simvest-api.onrender.com`) into **`.env.capacitor`** as `VITE_API_ORIGIN`, then run **`npm run cap:sync:release`**.
+4. Store listings: privacy policy URL → `https://YOUR-HOST/legal/privacy-policy.txt` (same host serves `public/legal/` when `SIMVEST_SERVE_DIST=true`).
+
 ## Prerequisites
 
 - **Node.js** 20 or newer (see `package.json` → `engines`). This repo includes `.nvmrc` (`22`) so [nvm](https://github.com/nvm-sh/nvm) users can run `nvm use` to match the environment used for release builds.
