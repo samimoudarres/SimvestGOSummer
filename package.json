@@ -21,7 +21,8 @@
     "test:trade": "tsx server/scripts/verifyTradeFlow.ts",
     "test:ledger": "tsx server/scripts/verifyLedgerInProcess.ts",
     "test:join-invite": "tsx server/scripts/verifyJoinInvite.ts",
-    "verify:massive-live": "tsx server/scripts/verifyMassiveLiveLag.ts"
+    "verify:massive-live": "tsx server/scripts/verifyMassiveLiveLag.ts",
+    "icons:generate": "node scripts/generateAppIcons.mjs"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.3.4",
@@ -33,6 +34,7 @@
     "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
+    "sharp": "^0.34.5",
     "tsx": "^4.21.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.10",
