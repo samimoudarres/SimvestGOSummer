@@ -1,4 +1,5 @@
 import path from 'node:path'
+import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import dotenv from 'dotenv'
 import express from 'express'
@@ -7,20 +8,28 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.join(__dirname, '..', '.env') })
 import cors from 'cors'
 import { gameHostLine, gameTitle, slugToVariant } from '../src/challenge/gameMeta'
+import { sanitizeLoadScreenEmoji } from '../src/game/loadScreenEmoji.ts'
 import { emptyPerformDashboard } from '../src/perform/performDummy'
 import { sendBrandingIcon } from './branding'
 import { massiveGet, MassiveApiError } from './massiveClient'
 import {
-  getFollowTickers,
-  isFollowing,
+  getAllFollowTickersForUser,
+  getFollowTickersForGame,
+  isFollowingForGame,
   normalizeUserId,
-  setFollowing,
+  setFollowingForGame,
 } from './followsService'
 import {
   getComposerContextForUser,
   resolvePostingGameSlugForUser,
 } from './activityComposerService'
+import {
+  addAuthorNotifyPreference,
+  listWatchedAuthorIdsForViewer,
+  removeAuthorNotifyPreference,
+} from './activityAuthorNotifyService'
 import { createActivityPost, type CreateActivityPostInput } from './activityPostService'
+import { plainFromRichSegments, parseActivityRichInput } from './activityRichInput'
 import { castPollVote, getPollTallies } from './feedPollVotesService'
 import { hydrateGameFeedPosts } from './gameFeedHydration'
 import {
@@ -28,9 +37,19 @@ import {
   getFeedPostById,
   listPostsForGame,
   listRecentActivityPosts,
+  updateFeedPostRichBody,
   updateFeedPostRationale,
 } from './gameFeedService'
+import {
+  addPostComment,
+  hydratePostLikers,
+  listHydratedComments,
+  listPostLikeUserIds,
+  toggleCommentLike,
+  togglePostLike,
+} from './feedPostSocialService'
 import { fetchHydratedHomeActivityForUser } from './homeActivityFeed'
+import { buildSuggestedGames } from './suggestedGamesService'
 import {
   fetchGameLeaderboardPayload,
   parseLeaderboardSort,
@@ -43,23 +62,59 @@ import {
   getPerformDashboard,
   saveHoldingsForGame,
 } from './portfolioService'
-import { deriveLegacyUserId, ensureUserProfilesBatch, upsertProfileFromTradeContext } from './userProfileService'
-import { ensureGameJoinedAt, listGameSlugsJoinedByUser, listUserIdsJoinedGame } from './gameMembershipService'
+import {
+  deriveLegacyUserId,
+  ensureUserProfilesBatch,
+  getUserPublicProfile,
+  upsertProfileFromTradeContext,
+} from './userProfileService'
+import { savePushSubscriptionForViewer } from './pushSubscriptionService'
+import { getVapidPublicKey, initVapidKeys } from './vapidKeysService'
+import {
+  ensureGameJoinedAt,
+  getGameJoinedAtIso,
+  reconcileMembershipFile,
+} from './gameMembershipService'
+import { listParticipantIdsForGame } from './gameParticipantIds'
 import { buildJoinWelcomeDto } from './joinWelcomeService'
+import { ensureGameAccess } from './gameAccessService'
+import {
+  changeGameDuration,
+  endGameNow,
+  listActiveGamePlayers,
+  removeUserFromGame,
+  resetGameScopedStoresForRepublish,
+} from './gameLifecycleService'
+import {
+  archivePublishedNewSlotBeforeRepublish,
+  prepareNewSlotForHostDraft,
+} from './gameSlugMigrationService'
 import {
   approveJoinRequest,
   countPendingForGame,
   createJoinRequestIfNeeded,
+  listAllPendingJoinRequestsForHost,
   listPendingJoinRequestsForHost,
   rejectJoinRequest,
+  viewerIdsMatch,
 } from './gameJoinRequestsService'
 import {
   getRuntimeRules,
+  joinCodeFromHttpQuery,
+  listAllRuntimeRules,
+  normalizeSixDigitJoinCode,
   upsertRuntimeRules,
   validateCreateSettingsInput,
   ensureJoinCodeOnRuntimeIfMissing,
+  buildFreshNewTemplateDraftForViewer,
+  shouldResetStoresForNewSlugPublish,
 } from './gameRuntimeRulesService'
-import { validateBuyAgainstGameRules } from './gameTradeRulesService'
+import { resolveProfileAvatarUrl } from '../src/user/resolveProfileAvatarUrl.ts'
+import {
+  validateBuyAgainstGameRules,
+  validateTradeTimingAgainstGameRules,
+  validateGameOpenForFeedMutations,
+} from './gameTradeRulesService'
 import { fetchPlayerGameProfile } from './profilePerformService'
 import {
   buildPerformCompareChart,
@@ -68,12 +123,29 @@ import {
   parsePerformChartRange,
 } from './performCompareService'
 import { applyTradeToUserLedger } from './userGameStateService'
+import { listParticipationSlugsForUser } from './userParticipationSlugs'
 import {
+  GAME_SETUP_DEFAULT_AVATAR_URL,
+  gameProfileAvatarUrl,
+  gameProfileDisplayLabel,
   getSetupProfileForUserGame,
   loadAllSetupProfilesByKey,
   saveSetupProfile,
   validateSetupProfileInput,
 } from './userSetupProfileService'
+import { verifyLoginCredentials } from './authService'
+import {
+  createUserAccount,
+  getAccountByUserId,
+  toAccountPublicView,
+  updateAccountContact,
+  updateAccountPassword,
+  updateAccountProfile,
+  validateFullNameInput,
+  type AccountContactKind,
+} from './userAccountService'
+import { consumeNameDraft, createNameDraft } from './signupDraftService'
+import { mergeAnonymousViewerIntoAccount } from './viewerIdMergeService'
 import { fetchTradeBrowse, fetchTradeRecentRows, fetchTradeSearch, isTradeCategory } from './tradeService'
 import {
   fetchStockBars,
@@ -87,7 +159,7 @@ import {
 
 const app = express()
 app.use(cors())
-app.use(express.json({ limit: '5mb' }))
+app.use(express.json({ limit: '22mb' }))
 
 function userIdFromHeader(req: express.Request): string | null {
   const raw = req.headers['x-simvest-user-id']
@@ -122,12 +194,12 @@ function userIdFromRawUrl(req: express.Request): string | null {
   }
 }
 
-/** Prefer explicit ?uid= — client sets it on games APIs; fixes proxies stripping or rewriting X-Simvest-User-Id */
+/** Prefer header over `?uid=` so a stale bookmarked query cannot override the active session after login. */
 function userIdFromReq(req: express.Request): string | null {
   const h = userIdFromHeader(req)
   const q = userIdFromQuery(req)
   const fromRaw = userIdFromRawUrl(req)
-  return q ?? h ?? fromRaw
+  return h ?? q ?? fromRaw
 }
 
 function bodyToActivityInput(b: Record<string, unknown>): CreateActivityPostInput {
@@ -189,6 +261,45 @@ function gameSlugParam(req: express.Request, res: express.Response): string | nu
   return slug
 }
 
+async function resolveHostDisplayNameForGame(gameSlug: string, hostUserId: string | null): Promise<string> {
+  if (!hostUserId) return ''
+  const setup = await getSetupProfileForUserGame(hostUserId, gameSlug)
+  const setupName = setup ? `${setup.firstName} ${setup.lastName}`.trim() : ''
+  if (setupName) return setupName
+
+  const profile = await getUserPublicProfile(hostUserId)
+  const profileName = profile?.displayName?.trim() ?? ''
+  return profileName === 'You' ? '' : profileName
+}
+
+async function requireGameAccessForResponse(
+  res: express.Response,
+  gameSlug: string,
+  userId: string | null,
+  opts: { autoJoinPublic?: boolean; autoJoinHost?: boolean } = {},
+): Promise<boolean> {
+  /* Default `autoJoinPublic` to `false`: simply reading a public game (a
+   * leaderboard, a stock chart, a feed peek) must NEVER silently write a
+   * membership row. The only paths that create membership are the explicit
+   * join flow (`/api/games/:slug/profile/setup` -> `ensureGameJoinedAt`)
+   * and host auto-join (host opens their own game). This keeps the
+   * "Your Games" stack and home activity feed honest: a user only appears
+   * in a game they actually joined.
+   *
+   * Host auto-join stays enabled so a host who finishes the create-game
+   * wizard immediately becomes a member of their own game without an extra
+   * step. */
+  const access = await ensureGameAccess({
+    gameSlug,
+    userId,
+    autoJoinPublic: opts.autoJoinPublic ?? false,
+    autoJoinHost: opts.autoJoinHost ?? true,
+  })
+  if (access.ok) return true
+  res.status(access.status).json({ error: access.error })
+  return false
+}
+
 async function postMeActivityHandler(req: express.Request, res: express.Response): Promise<void> {
   const uid = userIdFromReq(req)
   if (!uid) {
@@ -204,7 +315,7 @@ async function postMeActivityHandler(req: express.Request, res: express.Response
       typeof b.gameSlug === 'string' && b.gameSlug.trim().length > 0
         ? normalizeGameSlugParam(b.gameSlug.trim())
         : ''
-    if (hint) await ensureGameJoinedAt(uid, hint)
+    if (hint && !(await requireGameAccessForResponse(res, hint, uid))) return
     const slug = await resolvePostingGameSlugForUser(uid, hint || undefined)
     if (!slug) {
       res.status(400).json({
@@ -212,7 +323,12 @@ async function postMeActivityHandler(req: express.Request, res: express.Response
       })
       return
     }
-    await ensureGameJoinedAt(uid, slug)
+    if (!(await requireGameAccessForResponse(res, slug, uid))) return
+    const postClosed = await validateGameOpenForFeedMutations(slug)
+    if (postClosed) {
+      res.status(403).json({ error: postClosed })
+      return
+    }
     const ctx = await getComposerContextForUser(uid, slug)
     if (!ctx) {
       res.status(500).json({ error: 'Could not load composer profile' })
@@ -255,10 +371,10 @@ app.get('/api/health', (_req, res) => {
 
 /** Resolve a six-digit join code to the welcome payload (player count is live from membership). */
 app.get('/api/join/welcome', async (req, res) => {
-  const code = typeof req.query.code === 'string' ? req.query.code.trim() : ''
+  const code = joinCodeFromHttpQuery(req.query.code)
   res.setHeader('Cache-Control', 'private, no-store')
   try {
-    const payload = await buildJoinWelcomeDto(code)
+    const payload = await buildJoinWelcomeDto(code ?? '')
     if (!payload) {
       res.status(404).json({ error: 'Unknown game code' })
       return
@@ -268,6 +384,244 @@ app.get('/api/join/welcome', async (req, res) => {
     res.status(500).json({
       error: err instanceof Error ? err.message : 'Join welcome failed',
     })
+  }
+})
+
+/* Per-IP rate limiting for auth endpoints — keeps password probing cheap to
+ * block but lets honest users retry without friction.
+ *
+ * Two independent buckets:
+ *   - `login`: tighter (10/min). Brute-force resistance is the only goal.
+ *   - `signup`: looser (40/min). Legit signup is a one-shot per user, so
+ *     this is really just a guardrail against abusive scripts seeding huge
+ *     volumes of fake accounts. */
+type RateBucketName = 'login' | 'signup' | 'accountWrite'
+type RateAttemptWindow = { windowStart: number; count: number }
+const RATE_BUCKETS: Record<RateBucketName, Map<string, RateAttemptWindow>> = {
+  login: new Map(),
+  signup: new Map(),
+  /* `accountWrite` covers settings-screen mutations that verify the user's
+   * current password (contact/password changes). Brute-forcing the password
+   * via this endpoint should be just as slow as via /api/auth/login. */
+  accountWrite: new Map(),
+}
+const RATE_WINDOW_MS = 60_000
+const RATE_MAX_PER_WINDOW: Record<RateBucketName, number> = {
+  login: 10,
+  signup: 40,
+  accountWrite: 20,
+}
+
+function requestIpKey(req: express.Request): string {
+  const fwd = req.headers['x-forwarded-for']
+  const fwdStr = Array.isArray(fwd) ? fwd[0] : fwd
+  if (typeof fwdStr === 'string' && fwdStr.length > 0) return fwdStr.split(',')[0]!.trim()
+  return req.ip || req.socket.remoteAddress || 'unknown'
+}
+
+function rateLimitHit(bucket: RateBucketName, ipKey: string): boolean {
+  const now = Date.now()
+  const map = RATE_BUCKETS[bucket]
+  const cur = map.get(ipKey)
+  if (!cur || now - cur.windowStart > RATE_WINDOW_MS) {
+    map.set(ipKey, { windowStart: now, count: 1 })
+    return false
+  }
+  cur.count += 1
+  return cur.count > RATE_MAX_PER_WINDOW[bucket]
+}
+
+/** Backwards-compatible alias — `/api/auth/login` still calls this. */
+function loginRateLimitHit(ipKey: string): boolean {
+  return rateLimitHit('login', ipKey)
+}
+
+/* Best-effort sweep so the maps don't grow forever under churn. */
+setInterval(() => {
+  const cutoff = Date.now() - RATE_WINDOW_MS * 5
+  for (const map of Object.values(RATE_BUCKETS)) {
+    for (const [ip, win] of map) {
+      if (win.windowStart < cutoff) map.delete(ip)
+    }
+  }
+}, RATE_WINDOW_MS).unref?.()
+
+/**
+ * Sign in to an existing Simvest account.
+ *
+ * Body: `{ usernameOrEmail: string; password: string }`
+ *
+ * Returns `{ user: { userId, username, displayName, avatarUrl } }` on success
+ * so the client can swap its local `simvest-user-id-v1` to the real account
+ * id immediately and the next `/api/me/*` call hydrates the user's data.
+ *
+ * On any miss — unknown identifier OR wrong password — we return a single
+ * generic 401 error message so an attacker can't tell whether the username
+ * exists. The matching `/api/auth/login` shape is intentional: this is the
+ * only login surface; create-account remains the per-game join setup flow.
+ */
+app.post('/api/auth/login', async (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store')
+  const ipKey = requestIpKey(req)
+  if (loginRateLimitHit(ipKey)) {
+    res.status(429).json({ error: 'Too many login attempts. Please wait a minute and try again.' })
+    return
+  }
+
+  const body = (req.body ?? {}) as {
+    usernameOrEmail?: unknown
+    password?: unknown
+    previousViewerId?: unknown
+  }
+  const identifier = typeof body.usernameOrEmail === 'string' ? body.usernameOrEmail : ''
+  const password = typeof body.password === 'string' ? body.password : ''
+
+  try {
+    const result = await verifyLoginCredentials(identifier, password)
+    if (result.ok) {
+      try {
+        await mergeAnonymousViewerIntoAccount(body.previousViewerId, result.user.userId)
+      } catch (err) {
+        console.error('[viewerIdMerge] login merge failed:', err)
+      }
+      res.json({
+        user: {
+          userId: result.user.userId,
+          username: result.user.username,
+          displayName: result.user.displayName,
+          avatarUrl: result.user.avatarUrl,
+        },
+      })
+      return
+    }
+    /* Collapse all soft-fail reasons to one user-visible message — never leak
+     * whether the identifier exists. `missing-*` is still rendered the same
+     * way to keep server responses uniform; the client form blocks empty
+     * submits, so we only get here for actual mismatches. */
+    res.status(401).json({ error: 'Username or password is incorrect' })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Login failed' })
+  }
+})
+
+/**
+ * Begin a multi-step signup. Persists the user's full name on the server so
+ * the client can post just `{ draftId, contact, password }` on step 2 without
+ * having to round-trip the name back. Returns an opaque `draftId` + its
+ * expiry. The draft is single-use and self-purges after 30 minutes.
+ */
+app.post('/api/auth/signup/start', async (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store')
+  const ipKey = requestIpKey(req)
+  if (rateLimitHit('signup', ipKey)) {
+    res.status(429).json({ error: 'Too many requests. Please wait a moment and try again.' })
+    return
+  }
+
+  const body = (req.body ?? {}) as { firstName?: unknown; lastName?: unknown }
+  const firstName = typeof body.firstName === 'string' ? body.firstName : ''
+  const lastName = typeof body.lastName === 'string' ? body.lastName : ''
+
+  const errors = validateFullNameInput(firstName, lastName)
+  if (errors.length > 0) {
+    res.status(400).json({ error: 'Validation failed', errors })
+    return
+  }
+
+  try {
+    const draft = createNameDraft(firstName, lastName)
+    res.json({
+      draftId: draft.draftId,
+      expiresAt: new Date(draft.expiresAt).toISOString(),
+    })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Signup start failed' })
+  }
+})
+
+/**
+ * Finish signup. Consumes the draft (single-use), validates contact +
+ * password, writes a new account row, and returns the canonical `userId` so
+ * the client can immediately swap to it and call `/api/me/*` as the new user.
+ *
+ * - Password rule: ≥5 chars AND must contain at least one letter AND at least
+ *   one digit. Enforced in `validateSignupCompleteInput`.
+ * - Contact uniqueness is enforced per `contactKind`; duplicates 409 the
+ *   request with a "try logging in" message.
+ */
+app.post('/api/auth/signup/complete', async (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store')
+  const ipKey = requestIpKey(req)
+  if (rateLimitHit('signup', ipKey)) {
+    res.status(429).json({ error: 'Too many requests. Please wait a moment and try again.' })
+    return
+  }
+
+  const body = (req.body ?? {}) as {
+    draftId?: unknown
+    contactKind?: unknown
+    contact?: unknown
+    password?: unknown
+    previousViewerId?: unknown
+  }
+  const draftId = typeof body.draftId === 'string' ? body.draftId : ''
+  const contactKind =
+    body.contactKind === 'email' || body.contactKind === 'phone'
+      ? (body.contactKind as AccountContactKind)
+      : null
+  const contact = typeof body.contact === 'string' ? body.contact : ''
+  const password = typeof body.password === 'string' ? body.password : ''
+
+  if (!contactKind) {
+    res.status(400).json({
+      error: 'Validation failed',
+      errors: [{ field: 'contactKind', message: 'Pick email or phone' }],
+    })
+    return
+  }
+
+  const draft = consumeNameDraft(draftId)
+  if (!draft) {
+    res.status(410).json({
+      error:
+        'Your signup session expired. Please go back to the start and enter your name again.',
+    })
+    return
+  }
+
+  try {
+    const result = await createUserAccount({
+      firstName: draft.firstName,
+      lastName: draft.lastName,
+      contactKind,
+      contact,
+      password,
+    })
+    if (!result.ok) {
+      /* Conflict on duplicate contact, 400 otherwise. */
+      const isDup = result.errors.some((e) =>
+        /already exists/i.test(e.message),
+      )
+      res.status(isDup ? 409 : 400).json({ error: 'Validation failed', errors: result.errors })
+      return
+    }
+    const account = result.account
+    try {
+      await mergeAnonymousViewerIntoAccount(body.previousViewerId, account.userId)
+    } catch (err) {
+      console.error('[viewerIdMerge] signup merge failed:', err)
+    }
+    res.json({
+      user: {
+        userId: account.userId,
+        username: account.contact,
+        displayName: account.displayName,
+        avatarUrl: account.avatarUrl,
+        contactKind: account.contactKind,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Signup failed' })
   }
 })
 
@@ -319,17 +673,102 @@ app.post('/api/games/:slug/profile/setup', async (req, res) => {
     email?: string | null
     password?: string
     avatarUrl?: string
+    useDefaultGameAvatar?: boolean
   }
+
+  /**
+   * The join-setup form now only collects what's truly game-specific:
+   * `username` and `avatarUrl`. Everything else (firstName, lastName, contact)
+   * is auto-derived from the caller's identity so we don't ask them for the
+   * same data twice. Precedence:
+   *   1. Explicit body value (legacy callers, or future "edit your name"
+   *      surfaces that re-collect everything).
+   *   2. Caller's account row in `user-accounts.json` (the normal post-signup
+   *      path).
+   *   3. The caller's existing setup row for THIS game (in case they're
+   *      updating photo/username and a previous setup row already had them).
+   *   4. Any other existing setup row owned by this user — handles the
+   *      legacy case where someone joined a game before accounts existed and
+   *      is now joining a second game without an account.
+   */
+  const bodyFirst = typeof b.firstName === 'string' ? b.firstName : ''
+  const bodyLast = typeof b.lastName === 'string' ? b.lastName : ''
+  const bodyEmail = typeof b.email === 'string' ? b.email : null
+  const bodyPhone = typeof b.phone === 'string' ? b.phone : null
+
+  const account = await getAccountByUserId(uid)
+  const existingForGame = await getSetupProfileForUserGame(uid, slug)
+
+  let legacyFallback: { firstName: string; lastName: string; email: string | null; phone: string | null } | null = null
+  if (!account && (!bodyFirst || !bodyLast || (!bodyEmail && !bodyPhone))) {
+    /* Look for the freshest setup row for this user across all games — used
+     * as a last resort when both the body and the account store are silent. */
+    const all = await loadAllSetupProfilesByKey()
+    let best: { row: typeof existingForGame; updatedAtIso: string } | null = null
+    for (const row of all.values()) {
+      if (row.userId !== uid) continue
+      const stamp = row.updatedAtIso ?? ''
+      if (!best || stamp > best.updatedAtIso) best = { row, updatedAtIso: stamp }
+    }
+    if (best?.row) {
+      legacyFallback = {
+        firstName: best.row.firstName,
+        lastName: best.row.lastName,
+        email: best.row.email,
+        phone: best.row.phone,
+      }
+    }
+  }
+
+  const firstName =
+    bodyFirst ||
+    account?.firstName ||
+    existingForGame?.firstName ||
+    legacyFallback?.firstName ||
+    ''
+  const lastName =
+    bodyLast ||
+    account?.lastName ||
+    existingForGame?.lastName ||
+    legacyFallback?.lastName ||
+    ''
+
+  const accountEmail = account?.contactKind === 'email' ? account.contact : null
+  const accountPhone = account?.contactKind === 'phone' ? account.contact : null
+  const email = bodyEmail ?? accountEmail ?? existingForGame?.email ?? legacyFallback?.email ?? null
+  const phone = bodyPhone ?? accountPhone ?? existingForGame?.phone ?? legacyFallback?.phone ?? null
+
+  /* If the form sent a username/avatar we use it; otherwise fall back to the
+   * existing setup row so a re-save without those fields doesn't blank them. */
+  const username =
+    (typeof b.username === 'string' && b.username.trim() ? b.username : existingForGame?.username) ?? ''
+  const useDefaultGameAvatar = b.useDefaultGameAvatar === true
+  const bodyAvatar = typeof b.avatarUrl === 'string' ? b.avatarUrl.trim() : ''
+
+  let avatarUrl: string
+  if (useDefaultGameAvatar) {
+    avatarUrl = GAME_SETUP_DEFAULT_AVATAR_URL
+  } else if (bodyAvatar) {
+    avatarUrl = bodyAvatar
+  } else {
+    avatarUrl = (existingForGame?.avatarUrl ?? '').trim()
+  }
+
   const input = {
     userId: uid,
     gameSlug: slug,
-    firstName: typeof b.firstName === 'string' ? b.firstName : '',
-    lastName: typeof b.lastName === 'string' ? b.lastName : '',
-    username: typeof b.username === 'string' ? b.username : '',
-    phone: typeof b.phone === 'string' ? b.phone : null,
-    email: typeof b.email === 'string' ? b.email : null,
+    firstName,
+    lastName,
+    username,
+    phone,
+    email,
     password: typeof b.password === 'string' ? b.password : '',
-    avatarUrl: typeof b.avatarUrl === 'string' ? b.avatarUrl : '',
+    /* If we're not re-collecting a password, preserve the existing hash so
+     * legacy login still works for that row. (Account-based login is the
+     * primary path; this is just belt-and-suspenders for users with no
+     * account yet.) */
+    passwordHash: existingForGame?.passwordHash,
+    avatarUrl,
   }
   const errors = validateSetupProfileInput(input)
   if (errors.length > 0) {
@@ -344,7 +783,7 @@ app.post('/api/games/:slug/profile/setup', async (req, res) => {
     })
     const rules = await getRuntimeRules(slug)
     const isPrivate = rules?.visibility === 'private'
-    const isHost = Boolean(rules?.hostUserId && rules.hostUserId === uid)
+    const isHost = Boolean(rules?.hostUserId && viewerIdsMatch(rules.hostUserId, uid))
 
     if (isPrivate && !isHost) {
       await createJoinRequestIfNeeded({
@@ -414,15 +853,53 @@ app.get('/api/games/:slug/create-settings', async (req, res) => {
       })
       return
     }
-    const isHost = rules.hostUserId === uid
+    /* While the shared `new` row is an unpublished draft owned by someone else,
+     * non-hosts must not see that host's working title/settings — give a fresh
+     * template for another creator. Once `setupComplete`, the same slug is a
+     * live published game (join code, real title); joiners must see real rules. */
+    if (slug === 'new' && rules.hostUserId && rules.hostUserId !== uid && !rules.setupComplete) {
+      const resolvedHostName = await resolveHostDisplayNameForGame(slug, uid)
+      const draft = buildFreshNewTemplateDraftForViewer(uid, resolvedHostName)
+      res.json({
+        settings: {
+          ...draft,
+          hostDisplayName: resolvedHostName || draft.hostDisplayName,
+        },
+        isHost: true,
+        pendingJoinCount: 0,
+      })
+      return
+    }
+    const isHost = viewerIdsMatch(rules.hostUserId, uid)
     const pendingJoinCount = isHost ? await countPendingForGame(slug) : 0
+    const resolvedHostName = await resolveHostDisplayNameForGame(slug, rules.hostUserId)
     res.json({
-      settings: rules,
+      settings: {
+        ...rules,
+        hostDisplayName: resolvedHostName || rules.hostDisplayName,
+      },
       isHost,
       pendingJoinCount,
     })
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Could not load create settings' })
+  }
+})
+
+/** Archive a live publish on `new` and seed a blank draft before the create wizard edits. */
+app.post('/api/games/new/begin-draft', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+  try {
+    const hostName = await resolveHostDisplayNameForGame('new', uid)
+    const archivedSlug = await prepareNewSlotForHostDraft(uid, hostName)
+    res.json({ ok: true, archivedSlug })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Could not begin draft' })
   }
 })
 
@@ -440,16 +917,53 @@ app.put('/api/games/:slug/create-settings', async (req, res) => {
     return
   }
   try {
+    if (slug === 'new' && parsed.value.forceNewGameInstance !== true) {
+      const hostName = await resolveHostDisplayNameForGame(slug, uid)
+      await prepareNewSlotForHostDraft(uid, hostName)
+    }
     const prev = await getRuntimeRules(slug)
     if (prev && prev.hostUserId && prev.hostUserId !== uid) {
-      res.status(403).json({ error: 'Only the game host can change these settings.' })
-      return
+      if (slug !== 'new') {
+        res.status(403).json({ error: 'Only the game host can change these settings.' })
+        return
+      }
+    }
+    const shouldResetStores = shouldResetStoresForNewSlugPublish(slug, {
+      setupComplete: parsed.value.setupComplete === true,
+      forceNewGameInstance: parsed.value.forceNewGameInstance,
+      prev,
+      editorUserId: uid,
+    })
+    if (shouldResetStores && slug === 'new') {
+      await archivePublishedNewSlotBeforeRepublish()
+    }
+    if (shouldResetStores) {
+      await resetGameScopedStoresForRepublish(slug)
     }
     const saved = await upsertRuntimeRules(slug, parsed.value, uid)
+    if (shouldResetStores) {
+      await ensureGameJoinedAt(uid, slug)
+    }
     res.json({ ok: true, settings: saved })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Save failed'
     res.status(400).json({ error: msg })
+  }
+})
+
+/** All pending join requests for games this viewer hosts (home inbox / notifications). */
+app.get('/api/me/host/join-requests', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+  try {
+    const requests = await listAllPendingJoinRequestsForHost(uid)
+    res.json({ requests })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'List failed' })
   }
 })
 
@@ -485,6 +999,131 @@ app.post('/api/games/:slug/join-requests/:requestId/approve', async (req, res) =
   res.json({ ok: true })
 })
 
+app.get('/api/games/:slug/players', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  const rules = await getRuntimeRules(slug)
+  if (!rules || !rules.hostUserId || rules.hostUserId !== uid) {
+    res.status(403).json({ error: 'Only the game host can view the player list.' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+  try {
+    const players = await listActiveGamePlayers(slug)
+    res.json({ players })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Players failed' })
+  }
+})
+
+app.post('/api/games/:slug/end', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  const result = await endGameNow(slug, uid)
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error })
+    return
+  }
+  res.json({ ok: true, endsAtIso: result.endsAtIso })
+})
+
+app.put('/api/games/:slug/duration', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const presetRaw = typeof body.durationPreset === 'string' ? body.durationPreset.trim() : ''
+  const preset = (['1d', '1w', '1m', '1y', 'custom'] as const).find((p) => p === presetRaw)
+  if (!preset) {
+    res.status(400).json({ error: 'Pick a duration (1d, 1w, 1m, 1y, or custom).' })
+    return
+  }
+  const customRaw = typeof body.customEndsOn === 'string' ? body.customEndsOn.trim() : ''
+  const customEndsOn = preset === 'custom' && /^\d{4}-\d{2}-\d{2}$/.test(customRaw) ? customRaw : null
+  if (preset === 'custom' && !customEndsOn) {
+    res.status(400).json({ error: 'Custom duration needs a YYYY-MM-DD end date.' })
+    return
+  }
+  const result = await changeGameDuration({
+    gameSlug: slug,
+    hostUserId: uid,
+    durationPreset: preset,
+    customEndsOn,
+  })
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error })
+    return
+  }
+  res.json({ ok: true, endsAtIso: result.endsAtIso })
+})
+
+app.post('/api/games/:slug/kick', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  const rules = await getRuntimeRules(slug)
+  if (!rules || !rules.hostUserId || rules.hostUserId !== uid) {
+    res.status(403).json({ error: 'Only the game host can remove players.' })
+    return
+  }
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const targetRaw = typeof body.userId === 'string' ? body.userId.trim() : ''
+  const target = normalizeUserId(targetRaw) ?? targetRaw
+  if (!target || target.length < 8) {
+    res.status(400).json({ error: 'Invalid player id.' })
+    return
+  }
+  if (target === uid) {
+    res.status(400).json({ error: 'You cannot remove yourself. Use End game instead.' })
+    return
+  }
+  try {
+    const summary = await removeUserFromGame(target, slug)
+    res.json({ ok: true, summary })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Kick failed' })
+  }
+})
+
+app.post('/api/games/:slug/leave', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  const rules = await getRuntimeRules(slug)
+  if (rules?.hostUserId === uid) {
+    res.status(400).json({ error: 'You are the host. Use End game to close this challenge.' })
+    return
+  }
+  try {
+    const summary = await removeUserFromGame(uid, slug)
+    res.json({ ok: true, summary })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Leave failed' })
+  }
+})
+
 app.post('/api/games/:slug/join-requests/:requestId/reject', async (req, res) => {
   const uid = userIdFromReq(req)
   if (!uid) {
@@ -500,6 +1139,178 @@ app.post('/api/games/:slug/join-requests/:requestId/reject', async (req, res) =>
   res.json({ ok: true })
 })
 
+/* ------------------------------------------------------------------------- */
+/* Account read + settings mutations                                         */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * Return the current viewer's account so the settings screen can hydrate
+ * name / contact / display name / avatar. Responds 404 when the viewer id
+ * has no `user-accounts.json` row (legacy guest sessions) so the client can
+ * gracefully prompt the user to sign up.
+ */
+app.get('/api/me/account', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing or invalid X-Simvest-User-Id header' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+  try {
+    const account = await getAccountByUserId(uid)
+    if (!account) {
+      res.status(404).json({ error: 'No Simvest account for this session.' })
+      return
+    }
+    res.json({ account: toAccountPublicView(account) })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Account read failed' })
+  }
+})
+
+/**
+ * Patch mutable profile fields (names, display name, avatar). Mirrors
+ * `displayName` and `avatarUrl` to the public profile store so they show up
+ * on activity posts, the leaderboard, etc. without a manual re-render.
+ */
+app.patch('/api/me/account/profile', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing or invalid X-Simvest-User-Id header' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const firstName = typeof body.firstName === 'string' ? body.firstName : undefined
+  const lastName = typeof body.lastName === 'string' ? body.lastName : undefined
+  const displayName = typeof body.displayName === 'string' ? body.displayName : undefined
+  const avatarUrl = typeof body.avatarUrl === 'string' ? body.avatarUrl : undefined
+
+  try {
+    const result = await updateAccountProfile(uid, { firstName, lastName, displayName, avatarUrl })
+    if (!result.ok) {
+      res.status(result.status ?? 400).json({ error: 'Validation failed', errors: result.errors })
+      return
+    }
+    /* Mirror to user-profiles so activity feed / leaderboard / composer all
+     * pick up the new display name + avatar immediately. */
+    await upsertProfileFromTradeContext(uid, {
+      displayName: result.account.displayName,
+      avatarUrl: result.account.avatarUrl,
+    })
+    res.json({ account: toAccountPublicView(result.account) })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Profile update failed' })
+  }
+})
+
+/**
+ * Replace the login contact (email OR phone). Requires the current password —
+ * same security gate as a password change. Rate-limited on `accountWrite`.
+ */
+app.patch('/api/me/account/contact', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing or invalid X-Simvest-User-Id header' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+
+  const ipKey = requestIpKey(req)
+  if (rateLimitHit('accountWrite', ipKey)) {
+    res.status(429).json({ error: 'Too many account updates. Please wait a minute and try again.' })
+    return
+  }
+
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const contactKind: AccountContactKind | null =
+    body.contactKind === 'email' || body.contactKind === 'phone'
+      ? (body.contactKind as AccountContactKind)
+      : null
+  const contact = typeof body.contact === 'string' ? body.contact : ''
+  const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : ''
+
+  if (!contactKind) {
+    res.status(400).json({
+      error: 'Validation failed',
+      errors: [{ field: 'contactKind', message: 'Pick email or phone' }],
+    })
+    return
+  }
+
+  try {
+    const result = await updateAccountContact(uid, { contactKind, contact, currentPassword })
+    if (!result.ok) {
+      res.status(result.status ?? 400).json({ error: 'Validation failed', errors: result.errors })
+      return
+    }
+    res.json({ account: toAccountPublicView(result.account) })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Contact update failed' })
+  }
+})
+
+/**
+ * Replace the account password. Verifies the current password first; new
+ * password must satisfy the same strength rule as signup. Rate-limited on
+ * `accountWrite`.
+ */
+app.patch('/api/me/account/password', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing or invalid X-Simvest-User-Id header' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+
+  const ipKey = requestIpKey(req)
+  if (rateLimitHit('accountWrite', ipKey)) {
+    res.status(429).json({ error: 'Too many account updates. Please wait a minute and try again.' })
+    return
+  }
+
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : ''
+  const newPassword = typeof body.newPassword === 'string' ? body.newPassword : ''
+
+  try {
+    const result = await updateAccountPassword(uid, { currentPassword, newPassword })
+    if (!result.ok) {
+      res.status(result.status ?? 400).json({ error: 'Validation failed', errors: result.errors })
+      return
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Password update failed' })
+  }
+})
+
+/**
+ * Suggestions for the home-screen empty state. Returns up to three live public
+ * games per request (see `SUGGESTED_PAGE_SIZE` in `suggestedGamesService`), plus
+ * `totalEligible` so the client can offer rotation via `?offset=` (stride 3).
+ *
+ * Auth is optional — without a `uid` we still return suggestions (just without
+ * the "exclude games you already joined" filter), which is useful during the
+ * signup-screen → home transition before localStorage settles.
+ */
+app.get('/api/games/suggested', async (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store')
+  const uid = userIdFromReq(req)
+  const offsetRaw = firstQueryString(req, 'offset')
+  const parsed = offsetRaw !== undefined ? Number.parseInt(offsetRaw, 10) : 0
+  const offset = Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0
+  try {
+    const payload = await buildSuggestedGames(uid, offset)
+    res.json(payload)
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : 'Suggested games failed',
+    })
+  }
+})
+
 /** Client sends stable id from localStorage (`X-Simvest-User-Id`) to scope follows per device/user. */
 app.get('/api/me/games', async (req, res) => {
   const uid = userIdFromReq(req)
@@ -511,15 +1322,29 @@ app.get('/api/me/games', async (req, res) => {
   }
   res.setHeader('Cache-Control', 'private, no-store')
   try {
-    const slugs = await listGameSlugsJoinedByUser(uid)
+    const slugs = await listParticipationSlugsForUser(uid)
     const games: {
       slug: string
       title: string
       subtitle: string
       cardTheme: Awaited<ReturnType<typeof getHomeCardThemeForSlug>>
+      /** Host’s load-screen decor (one grapheme); from runtime rules per slug. */
+      loadScreenEmoji: string
+      status: 'live' | 'finished'
+      endsAtIso: string | null
+      isHost: boolean
+      pendingJoinRequestCount: number
+      sortRecencyMs: number
     }[] = []
     for (const slug of slugs) {
       const rules = await getRuntimeRules(slug)
+      const joinedAtIso = await getGameJoinedAtIso(uid, slug)
+      let sortRecencyMs = 0
+      for (const iso of [rules?.startsAtIso, rules?.updatedAtIso, joinedAtIso]) {
+        if (typeof iso !== 'string' || iso.length < 10) continue
+        const t = Date.parse(iso)
+        if (Number.isFinite(t) && t > sortRecencyMs) sortRecencyMs = t
+      }
       const def = await getGameDefinitionBySlug(slug)
       const variant = slugToVariant(slug)
       const title =
@@ -530,16 +1355,43 @@ app.get('/api/me/games', async (req, res) => {
           : slug === 'new'
             ? gameTitle('template')
             : slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
+      const resolvedHostName = rules ? await resolveHostDisplayNameForGame(slug, rules.hostUserId) : ''
       const subtitle =
-        (rules?.hostDisplayName && rules.hostDisplayName.trim()
-          ? `Hosted by ${rules.hostDisplayName.trim()}`
+        ((resolvedHostName || rules?.hostDisplayName?.trim())
+          ? `Hosted by ${(resolvedHostName || rules?.hostDisplayName?.trim())}`
           : null) ||
         (def?.welcomeTagline && def.welcomeTagline.trim()) ||
         (slug === 'nov-2024-stock-challenge' || slug === 'new' ? gameHostLine(variant) : 'Tap to open')
       const cardTheme = await getHomeCardThemeForSlug(slug)
-      games.push({ slug, title, subtitle, cardTheme })
+      const endsAtIso =
+        typeof rules?.endsAtIso === 'string' && rules.endsAtIso.length >= 10 ? rules.endsAtIso : null
+      const endMs = endsAtIso ? new Date(endsAtIso).getTime() : NaN
+      const status: 'live' | 'finished' =
+        Number.isFinite(endMs) && Date.now() > endMs ? 'finished' : 'live'
+      const loadScreenEmoji = sanitizeLoadScreenEmoji(rules?.loadScreenEmoji ?? '🍁')
+      const isHost = viewerIdsMatch(rules?.hostUserId, uid)
+      const pendingJoinRequestCount =
+        isHost && rules?.visibility === 'private' ? await countPendingForGame(slug) : 0
+      games.push({
+        slug,
+        title,
+        subtitle,
+        cardTheme,
+        loadScreenEmoji,
+        status,
+        endsAtIso,
+        isHost,
+        pendingJoinRequestCount,
+        sortRecencyMs,
+      })
     }
-    res.json({ games })
+    games.sort((a, b) => {
+      if (b.sortRecencyMs !== a.sortRecencyMs) return b.sortRecencyMs - a.sortRecencyMs
+      return a.slug.localeCompare(b.slug)
+    })
+    res.json({
+      games: games.map(({ sortRecencyMs: _sortRecencyMs, ...row }) => row),
+    })
   } catch (err) {
     res.status(500).json({
       error: err instanceof Error ? err.message : 'My games failed',
@@ -554,38 +1406,62 @@ app.get('/api/me/following', async (req, res) => {
     return
   }
   try {
-    const tickers = await getFollowTickers(uid)
+    const tickers = await getAllFollowTickersForUser(uid)
     res.json({ tickers })
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Follow list failed' })
   }
 })
 
-app.get('/api/me/following/:ticker', async (req, res) => {
+app.get('/api/games/:slug/me/following', async (req, res) => {
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
   const uid = userIdFromReq(req)
   if (!uid) {
     res.status(401).json({ error: 'Missing or invalid X-Simvest-User-Id header' })
     return
   }
+  if (!(await requireGameAccessForResponse(res, slug, uid))) return
+  res.setHeader('Cache-Control', 'private, no-store')
+  try {
+    const tickers = await getFollowTickersForGame(uid, slug)
+    res.json({ tickers })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Follow list failed' })
+  }
+})
+
+app.get('/api/games/:slug/me/following/:ticker', async (req, res) => {
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing or invalid X-Simvest-User-Id header' })
+    return
+  }
+  if (!(await requireGameAccessForResponse(res, slug, uid))) return
   const t = resolveMassiveTicker(decodeURIComponent(String(req.params.ticker ?? '')))
   if (!t) {
     res.status(400).json({ error: 'Invalid ticker' })
     return
   }
   try {
-    const following = await isFollowing(uid, t)
+    const following = await isFollowingForGame(uid, slug, t)
     res.json({ following })
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Follow status failed' })
   }
 })
 
-app.put('/api/me/following/:ticker', async (req, res) => {
+app.put('/api/games/:slug/me/following/:ticker', async (req, res) => {
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
   const uid = userIdFromReq(req)
   if (!uid) {
     res.status(401).json({ error: 'Missing or invalid X-Simvest-User-Id header' })
     return
   }
+  if (!(await requireGameAccessForResponse(res, slug, uid))) return
   const t = resolveMassiveTicker(decodeURIComponent(String(req.params.ticker ?? '')))
   const following = Boolean((req.body as { following?: boolean })?.following)
   if (!t) {
@@ -593,7 +1469,7 @@ app.put('/api/me/following/:ticker', async (req, res) => {
     return
   }
   try {
-    const result = await setFollowing(uid, t, following)
+    const result = await setFollowingForGame(uid, slug, t, following)
     if (!result.ok) {
       res.status(400).json({ error: 'Invalid ticker' })
       return
@@ -620,6 +1496,102 @@ app.get('/api/me/activity/feed', async (req, res) => {
     res.status(500).json({
       error: err instanceof Error ? err.message : 'Home activity failed',
     })
+  }
+})
+
+app.get('/api/me/activity/notify-authors', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+  try {
+    const ids = await listWatchedAuthorIdsForViewer(uid)
+    const authors = await Promise.all(
+      ids.map(async (id) => {
+        const p = await getUserPublicProfile(id)
+        return {
+          userId: id,
+          displayName: p?.displayName ?? id.slice(0, 8),
+          avatarUrl: p?.avatarUrl ?? '/figma-assets/blank-avatar.svg',
+        }
+      }),
+    )
+    res.json({ authorUserIds: ids, authors })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load preferences' })
+  }
+})
+
+app.post('/api/me/activity/notify-authors', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  const authorUserId = typeof (req.body as { authorUserId?: string })?.authorUserId === 'string'
+    ? (req.body as { authorUserId: string }).authorUserId.trim()
+    : ''
+  if (authorUserId.length < 8) {
+    res.status(400).json({ error: 'Invalid author' })
+    return
+  }
+  try {
+    await addAuthorNotifyPreference(uid, authorUserId)
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Could not save preference' })
+  }
+})
+
+app.delete('/api/me/activity/notify-authors/:authorId', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  const authorId = decodeURIComponent(String(req.params.authorId ?? '')).trim()
+  if (authorId.length < 8) {
+    res.status(400).json({ error: 'Invalid author' })
+    return
+  }
+  try {
+    await removeAuthorNotifyPreference(uid, authorId)
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Could not update preference' })
+  }
+})
+
+app.get('/api/me/push/vapid-public', (_req, res) => {
+  const publicKey = getVapidPublicKey()
+  res.setHeader('Cache-Control', 'private, no-store')
+  res.json({ publicKey })
+})
+
+app.post('/api/me/push/subscribe', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  const sub = (req.body ?? {}) as { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
+  if (typeof sub.endpoint !== 'string' || !sub.endpoint.trim()) {
+    res.status(400).json({ error: 'Invalid subscription' })
+    return
+  }
+  try {
+    await savePushSubscriptionForViewer(uid, {
+      endpoint: sub.endpoint.trim(),
+      keys: {
+        p256dh: typeof sub.keys?.p256dh === 'string' ? sub.keys.p256dh : undefined,
+        auth: typeof sub.keys?.auth === 'string' ? sub.keys.auth : undefined,
+      },
+    })
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Could not save subscription' })
   }
 })
 
@@ -669,6 +1641,23 @@ app.get('/api/games/:slug/invite', async (req, res) => {
   if (!slug) return
   res.setHeader('Cache-Control', 'public, max-age=30')
   try {
+    // Prefer live runtime rules whenever the host has published — especially for the shared
+    // `new` slot, which also exists as a static template in game-definitions.json with a
+    // placeholder join code that must not override the unique issued code.
+    const rt = await getRuntimeRules(slug)
+    if (rt?.setupComplete) {
+      const existing = normalizeSixDigitJoinCode(rt.joinCode)
+      const withCode = existing ? rt : await ensureJoinCodeOnRuntimeIfMissing(slug)
+      const outCode = normalizeSixDigitJoinCode(withCode?.joinCode)
+      if (withCode && outCode) {
+        res.json({
+          slug,
+          joinCode: outCode,
+          displayTitle: withCode.gameDisplayName.trim() || slug,
+        })
+        return
+      }
+    }
     const def = await getGameDefinitionBySlug(slug)
     if (def) {
       res.json({
@@ -677,18 +1666,6 @@ app.get('/api/games/:slug/invite', async (req, res) => {
         displayTitle: def.displayTitle,
       })
       return
-    }
-    const rt = await getRuntimeRules(slug)
-    if (rt?.setupComplete) {
-      const withCode = rt.joinCode && /^\d{6}$/.test(rt.joinCode) ? rt : await ensureJoinCodeOnRuntimeIfMissing(slug)
-      if (withCode?.joinCode && /^\d{6}$/.test(withCode.joinCode)) {
-        res.json({
-          slug,
-          joinCode: withCode.joinCode,
-          displayTitle: withCode.gameDisplayName.trim() || slug,
-        })
-        return
-      }
     }
     res.status(404).json({ error: 'Unknown game' })
   } catch (err) {
@@ -701,9 +1678,9 @@ app.get('/api/games/:slug/invite', async (req, res) => {
 app.get('/api/games/:slug/members-preview', async (req, res) => {
   const slug = gameSlugParam(req, res)
   if (!slug) return
-  res.setHeader('Cache-Control', 'private, max-age=15')
+  res.setHeader('Cache-Control', 'private, no-store')
   try {
-    const ids = await listUserIdsJoinedGame(slug)
+    const ids = await listParticipantIdsForGame(slug)
     const total = ids.length
     const slice = ids.slice(0, 8)
     const profileMap = await ensureUserProfilesBatch(slice)
@@ -711,10 +1688,11 @@ app.get('/api/games/:slug/members-preview', async (req, res) => {
     const members = slice.map((userId) => {
       const setup = setups.get(`${userId}:::${slug}`)
       const prof = profileMap.get(userId)
-      const displayName = setup
-        ? `${setup.firstName} ${setup.lastName}`.trim()
-        : (prof?.displayName ?? 'Player')
-      const avatarUrl = setup?.avatarUrl ?? prof?.avatarUrl ?? ''
+      const gameLabel = gameProfileDisplayLabel(setup)
+      const displayName = gameLabel ?? prof?.displayName?.trim() ?? 'Player'
+      const avatarUrl = resolveProfileAvatarUrl(
+        gameProfileAvatarUrl(setup, prof?.avatarUrl) || prof?.avatarUrl || '',
+      )
       return { userId, displayName, avatarUrl }
     })
     res.json({ totalPlayers: total, members })
@@ -729,7 +1707,7 @@ app.get('/api/games/:slug/feed', async (req, res) => {
   const slug = gameSlugParam(req, res)
   if (!slug) return
   const feedViewer = userIdFromReq(req)
-  if (feedViewer) await ensureGameJoinedAt(feedViewer, slug)
+  if (!(await requireGameAccessForResponse(res, slug, feedViewer))) return
   res.setHeader('Cache-Control', 'private, no-store')
   try {
     const feedPosts = await listPostsForGame(slug)
@@ -750,6 +1728,12 @@ app.post('/api/games/:slug/feed/posts/:postId/poll/vote', async (req, res) => {
   }
   const slug = gameSlugParam(req, res)
   if (!slug) return
+  if (!(await requireGameAccessForResponse(res, slug, uid))) return
+  const voteClosed = await validateGameOpenForFeedMutations(slug)
+  if (voteClosed) {
+    res.status(403).json({ error: voteClosed })
+    return
+  }
   const postId = decodeURIComponent(String(req.params.postId ?? ''))
   const optionId =
     typeof (req.body as { optionId?: string })?.optionId === 'string'
@@ -782,6 +1766,175 @@ app.post('/api/games/:slug/feed/posts/:postId/poll/vote', async (req, res) => {
     res.status(500).json({
       error: err instanceof Error ? err.message : 'Vote failed',
     })
+  }
+})
+
+app.post('/api/games/:slug/feed/posts/:postId/social/like', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({
+      error: 'Missing viewer id (X-Simvest-User-Id header or ?uid= query)',
+    })
+    return
+  }
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  if (!(await requireGameAccessForResponse(res, slug, uid))) return
+  const socialClosed = await validateGameOpenForFeedMutations(slug)
+  if (socialClosed) {
+    res.status(403).json({ error: socialClosed })
+    return
+  }
+  const postId = decodeURIComponent(String(req.params.postId ?? ''))
+  if (!postId) {
+    res.status(400).json({ error: 'Missing post' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+  try {
+    const r = await togglePostLike(slug, postId, uid)
+    if ('error' in r) {
+      res.status(404).json({ error: r.error })
+      return
+    }
+    res.json(r)
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Like failed' })
+  }
+})
+
+app.get('/api/games/:slug/feed/posts/:postId/social/likes', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({
+      error: 'Missing viewer id (X-Simvest-User-Id header or ?uid= query)',
+    })
+    return
+  }
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  if (!(await requireGameAccessForResponse(res, slug, uid))) return
+  const postId = decodeURIComponent(String(req.params.postId ?? ''))
+  if (!postId) {
+    res.status(400).json({ error: 'Missing post' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+  try {
+    const post = await getFeedPostById(postId)
+    if (!post || canonicalGameSlugKey(post.gameSlug) !== canonicalGameSlugKey(slug)) {
+      res.status(404).json({ error: 'Post not found' })
+      return
+    }
+    const ids = await listPostLikeUserIds(slug, postId)
+    const users = await hydratePostLikers(slug, ids)
+    res.json({ users })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load likes' })
+  }
+})
+
+app.get('/api/games/:slug/feed/posts/:postId/social/comments', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({
+      error: 'Missing viewer id (X-Simvest-User-Id header or ?uid= query)',
+    })
+    return
+  }
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  if (!(await requireGameAccessForResponse(res, slug, uid))) return
+  const postId = decodeURIComponent(String(req.params.postId ?? ''))
+  if (!postId) {
+    res.status(400).json({ error: 'Missing post' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+  try {
+    const post = await getFeedPostById(postId)
+    if (!post || canonicalGameSlugKey(post.gameSlug) !== canonicalGameSlugKey(slug)) {
+      res.status(404).json({ error: 'Post not found' })
+      return
+    }
+    const comments = await listHydratedComments(slug, postId, uid)
+    res.json({ comments })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load comments' })
+  }
+})
+
+app.post('/api/games/:slug/feed/posts/:postId/social/comments', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({
+      error: 'Missing viewer id (X-Simvest-User-Id header or ?uid= query)',
+    })
+    return
+  }
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  if (!(await requireGameAccessForResponse(res, slug, uid))) return
+  const socialClosed = await validateGameOpenForFeedMutations(slug)
+  if (socialClosed) {
+    res.status(403).json({ error: socialClosed })
+    return
+  }
+  const postId = decodeURIComponent(String(req.params.postId ?? ''))
+  const body = req.body as { text?: string; parentId?: string | null }
+  const text = typeof body?.text === 'string' ? body.text : ''
+  const parentRaw = body?.parentId
+  const parentId =
+    typeof parentRaw === 'string' && parentRaw.trim().length > 0 ? parentRaw.trim() : null
+  if (!postId) {
+    res.status(400).json({ error: 'Missing post' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+  try {
+    const r = await addPostComment(slug, postId, uid, text, parentId)
+    if ('error' in r) {
+      res.status(400).json({ error: r.error })
+      return
+    }
+    res.json({ ok: true, comment: r.comment })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Comment failed' })
+  }
+})
+
+app.post('/api/games/:slug/feed/posts/:postId/social/comments/:commentId/like', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({
+      error: 'Missing viewer id (X-Simvest-User-Id header or ?uid= query)',
+    })
+    return
+  }
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  if (!(await requireGameAccessForResponse(res, slug, uid))) return
+  const socialClosed = await validateGameOpenForFeedMutations(slug)
+  if (socialClosed) {
+    res.status(403).json({ error: socialClosed })
+    return
+  }
+  const postId = decodeURIComponent(String(req.params.postId ?? ''))
+  const commentId = decodeURIComponent(String(req.params.commentId ?? ''))
+  if (!postId || !commentId) {
+    res.status(400).json({ error: 'Missing post or comment' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+  try {
+    const r = await toggleCommentLike(slug, postId, commentId, uid)
+    if ('error' in r) {
+      res.status(404).json({ error: r.error })
+      return
+    }
+    res.json(r)
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Comment like failed' })
   }
 })
 
@@ -824,6 +1977,7 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
     })
     return
   }
+  if (!(await requireGameAccessForResponse(res, slug, uid))) return
 
   const rawT = String(b.ticker ?? '')
   const t = normalizeCryptoCompositeTicker(rawT) ?? normalizeTicker(rawT)
@@ -849,9 +2003,20 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
   }
 
   if (action === 'buy') {
-    const ruleErr = await validateBuyAgainstGameRules(slug, rawT)
+    const timingErr = await validateTradeTimingAgainstGameRules(slug)
+    if (timingErr) {
+      res.status(400).json({ error: timingErr })
+      return
+    }
+    const ruleErr = await validateBuyAgainstGameRules(slug, rawT, uid)
     if (ruleErr) {
       res.status(400).json({ error: ruleErr })
+      return
+    }
+  } else {
+    const timingErr = await validateTradeTimingAgainstGameRules(slug)
+    if (timingErr) {
+      res.status(400).json({ error: timingErr })
       return
     }
   }
@@ -872,28 +2037,21 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
     return
   }
 
-  await ensureGameJoinedAt(uid, slug)
-
   const symLabel = String(b.displayTicker ?? t).toUpperCase()
   const tradeTitle = action === 'buy' ? `I'm buying ${symLabel}` : `I'm selling ${symLabel}`
   const rationale = typeof b.rationale === 'string' ? b.rationale.trim().slice(0, 2000) : ''
-  await upsertProfileFromTradeContext(uid, {
-    displayName: (typeof b.authorName === 'string' && b.authorName.trim()) || undefined,
-    avatarUrl:
-      typeof b.authorAvatar === 'string' && b.authorAvatar.startsWith('/')
-        ? b.authorAvatar
-        : typeof b.authorAvatar === 'string' && b.authorAvatar.startsWith('http')
-          ? b.authorAvatar
-          : undefined,
-  })
+  /** Do not trust client `authorAvatar` / `authorName` — they were Figma placeholders and could overwrite real account data. */
+  await upsertProfileFromTradeContext(uid, {})
   const liveProfile = await fetchPlayerGameProfile(slug, uid)
+
+  const unwoundCostBasis = action === 'sell' && 'unwoundCostBasis' in led ? led.unwoundCostBasis : undefined
 
   const post = await appendGameFeedPost({
     postKind: 'trade',
     userId: uid,
     gameSlug: slug,
     author: liveProfile?.profile.displayName ?? 'You',
-    avatar: liveProfile?.profile.avatarUrl ?? '/figma-assets/challenge/composer-avatar.png',
+    avatar: resolveProfileAvatarUrl(liveProfile?.profile.avatarUrl),
     timestampIso: nowIso,
     tradeTitle,
     tickerSymbol: symLabel,
@@ -906,23 +2064,129 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
     rationale,
     purchasePrice: fillPrice,
     side: action,
+    ...(typeof unwoundCostBasis === 'number' && Number.isFinite(unwoundCostBasis)
+      ? { costBasis: unwoundCostBasis }
+      : {}),
   })
 
-  res.json({ ok: true, postId: post.id })
+  const sellExtras =
+    action === 'sell' &&
+    typeof unwoundCostBasis === 'number' &&
+    Number.isFinite(unwoundCostBasis) &&
+    unwoundCostBasis > 0
+      ? {
+          costBasis: unwoundCostBasis,
+          realizedPnlDollars: orderTotal - unwoundCostBasis,
+          realizedPnlPct: ((orderTotal - unwoundCostBasis) / unwoundCostBasis) * 100,
+        }
+      : {}
+
+  res.json({ ok: true, postId: post.id, ...sellExtras })
 })
 
-/** Optional: add rationale to the activity post created when the trade was placed. */
-app.patch('/api/games/:slug/feed/posts/:postId', async (req, res) => {
+/**
+ * Lightweight ownership read for the stock detail screen — used to flip the BUY button to TRADE
+ * and to power the sell sheet (max sellable shares + value at market).
+ */
+app.get('/api/games/:slug/stocks/:ticker/position', async (req, res) => {
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
   const uid = userIdFromReq(req)
   if (!uid) {
     res.status(401).json({ error: 'Missing viewer id' })
     return
   }
+  if (!(await requireGameAccessForResponse(res, slug, uid))) return
+
+  const rawT = String(req.params.ticker ?? '')
+  const t = normalizeCryptoCompositeTicker(rawT) ?? normalizeTicker(rawT)
+  if (!t) {
+    res.status(400).json({ error: 'Invalid ticker' })
+    return
+  }
+
+  res.setHeader('Cache-Control', 'private, no-store')
+  try {
+    const { getUserLedger, getUserLots } = await import('./userGameStateService')
+    const ledger = await getUserLedger(uid, slug)
+    const lots = await getUserLots(uid, slug)
+    const symLots = lots.filter((l) => normalizeTicker(l.ticker) === t)
+    const shares = symLots.reduce((s, l) => s + l.shares, 0)
+    const costBasis = symLots.reduce((s, l) => s + l.shares * l.entryPrice, 0)
+    const avgCost = shares > 1e-9 ? costBasis / shares : 0
+    res.json({
+      gameSlug: slug,
+      ticker: t,
+      shares,
+      avgCost,
+      costBasis,
+      cashAvailable: Number.isFinite(ledger.cash) ? ledger.cash : 0,
+    })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Position lookup failed' })
+  }
+})
+
+/** Update activity post body (text) or trade rationale — author only. */
+app.patch('/api/games/:slug/feed/posts/:postId', async (req, res) => {
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  const editClosed = await validateGameOpenForFeedMutations(slug)
+  if (editClosed) {
+    res.status(403).json({ error: editClosed })
+    return
+  }
   const postId = decodeURIComponent(String(req.params.postId ?? ''))
+  const post = await getFeedPostById(postId)
+  if (!post || canonicalGameSlugKey(post.gameSlug) !== canonicalGameSlugKey(slug)) {
+    res.status(404).json({ error: 'Post not found' })
+    return
+  }
+  const kind = post.postKind ?? 'trade'
+  if (kind === 'poll') {
+    res.status(400).json({ error: 'Polls cannot be edited' })
+    return
+  }
+
+  const body = req.body as { rationale?: string; plainText?: string; segments?: unknown }
+  const hasRichPatch = body.segments !== undefined || typeof body.plainText === 'string'
+
+  if (kind === 'text' && hasRichPatch) {
+    let parsed = parseActivityRichInput({ segments: body.segments, plainText: body.plainText })
+    if (
+      !parsed.ok &&
+      post.attachmentImageUrl &&
+      !body.segments &&
+      typeof body.plainText === 'string' &&
+      body.plainText.trim() === ''
+    ) {
+      parsed = { ok: true, segments: [{ type: 'text', text: '' }] }
+    }
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error })
+      return
+    }
+    const rationale = plainFromRichSegments(parsed.segments).trim() || (post.attachmentImageUrl ? ' ' : '')
+    const result = await updateFeedPostRichBody(postId, uid, parsed.segments, rationale)
+    if (!result.ok) {
+      res.status(result.error === 'Post not found' ? 404 : 403).json({ error: result.error })
+      return
+    }
+    res.json({ ok: true })
+    return
+  }
+
   const rationale =
-    typeof (req.body as { rationale?: string })?.rationale === 'string'
-      ? (req.body as { rationale: string }).rationale.trim().slice(0, 2000)
-      : ''
+    typeof body.rationale === 'string' ? body.rationale.trim().slice(0, 2000) : ''
+  if (!hasRichPatch && typeof body.rationale !== 'string') {
+    res.status(400).json({ error: 'Nothing to update' })
+    return
+  }
   const result = await updateFeedPostRationale(postId, uid, rationale)
   if (!result.ok) {
     res.status(result.error === 'Post not found' ? 404 : 403).json({ error: result.error })
@@ -934,6 +2198,7 @@ app.patch('/api/games/:slug/feed/posts/:postId', async (req, res) => {
 app.get('/api/games/:slug/users/:userId/profile', async (req, res) => {
   const slug = gameSlugParam(req, res)
   if (!slug) return
+  if (!(await requireGameAccessForResponse(res, slug, userIdFromReq(req)))) return
   const rawId = decodeURIComponent(String(req.params.userId ?? ''))
   try {
     const payload = await fetchPlayerGameProfile(slug, rawId)
@@ -952,6 +2217,7 @@ app.get('/api/games/:slug/users/:userId/profile', async (req, res) => {
 app.get('/api/games/:slug/users/:userId/net-worth-chart', async (req, res) => {
   const slug = gameSlugParam(req, res)
   if (!slug) return
+  if (!(await requireGameAccessForResponse(res, slug, userIdFromReq(req)))) return
   const rawId = decodeURIComponent(String(req.params.userId ?? ''))
   const userIdRaw = rawId.trim()
   const userId = /^[a-zA-Z0-9_.-]{8,128}$/.test(userIdRaw)
@@ -981,7 +2247,7 @@ app.get('/api/games/:slug/leaderboard', async (req, res) => {
   const slugResolved = gameSlugParam(req, res)
   if (!slugResolved) return
   const uid = userIdFromReq(req)
-  if (uid) await ensureGameJoinedAt(uid, slugResolved)
+  if (!(await requireGameAccessForResponse(res, slugResolved, uid))) return
   const sortParam =
     typeof req.query.sort === 'string' && req.query.sort.trim().length > 0
       ? req.query.sort
@@ -1002,7 +2268,7 @@ app.get('/api/games/:slug/perform', async (req, res) => {
   const slugResolved = gameSlugParam(req, res)
   if (!slugResolved) return
   const uid = userIdFromReq(req)
-  if (uid) await ensureGameJoinedAt(uid, slugResolved)
+  if (!(await requireGameAccessForResponse(res, slugResolved, uid))) return
   res.setHeader('Cache-Control', 'private, no-store')
   try {
     res.json(await getPerformDashboard(slugResolved, uid))
@@ -1015,7 +2281,7 @@ app.get('/api/games/:slug/perform/compare/candidates', async (req, res) => {
   const slugResolved = gameSlugParam(req, res)
   if (!slugResolved) return
   const uid = userIdFromReq(req)
-  if (uid) await ensureGameJoinedAt(uid, slugResolved)
+  if (!(await requireGameAccessForResponse(res, slugResolved, uid))) return
   res.setHeader('Cache-Control', 'private, no-store')
   try {
     res.json(await fetchPerformCompareCandidates(slugResolved, uid))
@@ -1030,7 +2296,7 @@ app.get('/api/games/:slug/perform/compare', async (req, res) => {
   const slugResolved = gameSlugParam(req, res)
   if (!slugResolved) return
   const uid = userIdFromReq(req)
-  if (uid) await ensureGameJoinedAt(uid, slugResolved)
+  if (!(await requireGameAccessForResponse(res, slugResolved, uid))) return
   res.setHeader('Cache-Control', 'private, no-store')
   const range = parsePerformChartRange(firstQueryString(req, 'range')?.trim())
   const withRaw = firstQueryString(req, 'with') ?? ''
@@ -1047,8 +2313,9 @@ app.get('/api/games/:slug/portfolio', async (req, res) => {
   const slugResolved = gameSlugParam(req, res)
   if (!slugResolved) return
   const uid = userIdFromReq(req)
-  if (uid) await ensureGameJoinedAt(uid, slugResolved)
-  res.setHeader('Cache-Control', 'private, no-store')
+  if (!(await requireGameAccessForResponse(res, slugResolved, uid))) return
+  res.setHeader('Cache-Control', 'private, no-store, must-revalidate')
+  res.setHeader('Pragma', 'no-cache')
   try {
     const payload = await fetchPortfolioPayload(slugResolved, uid)
     res.json(payload)
@@ -1058,12 +2325,19 @@ app.get('/api/games/:slug/portfolio', async (req, res) => {
 })
 
 app.get('/api/games/:slug/trade/browse', async (req, res) => {
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  if (!(await requireGameAccessForResponse(res, slug, userIdFromReq(req)))) return
   res.setHeader('Cache-Control', 'private, no-store, must-revalidate')
   res.setHeader('Pragma', 'no-cache')
   const raw = String(req.query.category ?? 'popular').toLowerCase()
   const category = isTradeCategory(raw) ? raw : 'popular'
   try {
-    const payload = await fetchTradeBrowse(category)
+    const uid = userIdFromReq(req)
+    const payload = await fetchTradeBrowse(slug, uid, category)
+    /* Browse/search lists are for discovery; `validateBuyAgainstGameRules` still blocks
+     * disallowed buys (e.g. crypto in a stocks-only game). Filtering rows here hid entire
+     * categories (empty crypto tab) and confused the trade UI. */
     res.json(payload)
   } catch (err) {
     if (err instanceof MassiveApiError) {
@@ -1078,9 +2352,11 @@ app.get('/api/games/:slug/trade/browse', async (req, res) => {
 
 /** Query `recents` = comma-separated tickers (each URI-encoded if needed). Query `q` = search text. */
 app.get('/api/games/:slug/trade/search', async (req, res) => {
+  const slug = gameSlugParam(req, res)
+  if (!slug) return
+  if (!(await requireGameAccessForResponse(res, slug, userIdFromReq(req)))) return
   res.setHeader('Cache-Control', 'private, no-store, must-revalidate')
   res.setHeader('Pragma', 'no-cache')
-  void req.params.slug
   const recentsRaw = String(req.query.recents ?? '').trim()
   if (recentsRaw.length > 0) {
     const symbols = recentsRaw
@@ -1206,7 +2482,70 @@ app.get('/api/stocks/:ticker/bars', async (req, res) => {
   }
 })
 
+const distDir = path.join(__dirname, '..', 'dist')
+const simvestServeDist =
+  process.env.SIMVEST_SERVE_DIST === '1' || process.env.SIMVEST_SERVE_DIST === 'true'
+
+if (simvestServeDist) {
+  if (!fs.existsSync(distDir)) {
+    console.warn(
+      `[simvest] SIMVEST_SERVE_DIST is enabled but ${distDir} does not exist (run npm run build first).`,
+    )
+  } else {
+    console.log(`[simvest] Serving SPA + static assets from ${distDir}`)
+    app.use(express.static(distDir, { index: false }))
+    app.use((req, res, next) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        next()
+        return
+      }
+      if (req.path.startsWith('/api')) {
+        next()
+        return
+      }
+      res.sendFile(path.join(distDir, 'index.html'), (err) => {
+        if (err) next(err)
+      })
+    })
+  }
+}
+
+/**
+ * Boot-time housekeeping: drop orphaned membership rows whose game slug no longer
+ * exists in runtime rules (safe cleanup only — never strips players from live games).
+ */
+async function runStartupReconciles(): Promise<void> {
+  try {
+    const rules = await listAllRuntimeRules()
+    const hostsByGameSlug = new Map<string, string | null>()
+    for (const { slug, rules: r } of rules) {
+      hostsByGameSlug.set(slug, r.hostUserId)
+    }
+    const result = await reconcileMembershipFile({
+      hostsByGameSlug,
+    })
+    if (result.removed > 0) {
+      console.log(
+        `[startup] membership reconcile dropped ${result.removed} orphaned row(s); kept ${result.kept}.`,
+      )
+    }
+  } catch (err) {
+    console.warn(
+      '[startup] membership reconcile skipped:',
+      err instanceof Error ? err.message : err,
+    )
+  }
+}
+
 const port = Number(process.env.PORT ?? 3001)
-app.listen(port, () => {
-  console.log(`Simvest API listening on http://localhost:${port}`)
+const host = process.env.SIMVEST_LISTEN_HOST?.trim() || '0.0.0.0'
+app.listen(port, host, () => {
+  console.log(`Simvest API listening on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (bound ${host})`)
+  void runStartupReconciles()
+  void initVapidKeys().catch((err) => {
+    console.warn(
+      '[simvest] Web Push init skipped:',
+      err instanceof Error ? err.message : err,
+    )
+  })
 })

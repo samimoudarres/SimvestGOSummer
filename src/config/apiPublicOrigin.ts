@@ -1,67 +1,84 @@
 import { Capacitor } from '@capacitor/core'
 
-/**
- * When the app runs inside Capacitor, `fetch('/api/…')` resolves against the WebView origin
- * (`https://localhost`), not your Express server — API paths must use an absolute origin.
- *
- * - **Web / Vite dev:** leave `VITE_API_ORIGIN` unset; requests stay same-origin (or proxied).
- * - **Native release:** set `VITE_API_ORIGIN` (see `.env.capacitor.example`).
- * - **Emulator / Simulator dev:** if unset, use host defaults so `npm run dev:server` works.
- */
-function nativeDevApiOriginFallback(): string {
-  if (typeof window === 'undefined') return ''
-  try {
-    if (!Capacitor.isNativePlatform()) return ''
-    const platform = Capacitor.getPlatform()
-    /* Android emulator → host machine. Physical device: set VITE_API_ORIGIN to http://<PC-LAN-IP>:3001 */
-    if (platform === 'android') return 'http://10.0.2.2:3001'
-    /* iOS Simulator → Mac. Physical device: set VITE_API_ORIGIN to http://<Mac-LAN-IP>:3001 */
-    if (platform === 'ios') return 'http://127.0.0.1:3001'
-  } catch {
-    /* Not running under Capacitor */
-  }
-  return ''
+/** Baked at build time when set in `.env` / `.env.capacitor` (empty string if unset). */
+function viteApiOriginFromEnv(): string {
+  const raw = import.meta.env.VITE_API_ORIGIN
+  if (typeof raw !== 'string') return ''
+  return raw.trim().replace(/\/+$/, '')
 }
 
 /**
- * Desktop web often sets `VITE_API_ORIGIN=http://localhost:3001` — that works in the browser.
- * On Android (emulator or device), `localhost` is the phone/emulator itself, not your PC.
- * Rewrite loopback hosts to the emulator bridge unless already overridden.
+ * True when UI runs inside the Capacitor WebView (not desktop browser).
+ * `sv-capacitor` is added on `<html>` in `main.tsx` before React mounts — reliable
+ * even if `Capacitor.isNativePlatform()` is unavailable during early module init.
  */
-function normalizeOriginForCapacitorAndroid(origin: string): string {
+export function isCapacitorShell(): boolean {
+  if (typeof document !== 'undefined') {
+    if (document.documentElement.classList.contains('sv-capacitor')) return true
+    const { protocol, hostname } = window.location
+    if (hostname === 'localhost' && protocol === 'https:') return true
+  }
   try {
-    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') return origin
-    const parsed = new URL(/^https?:\/\//i.test(origin) ? origin : `http://${origin}`)
-    const h = parsed.hostname.toLowerCase()
-    if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]') {
-      parsed.hostname = '10.0.2.2'
-      return parsed.origin.replace(/\/+$/, '')
-    }
+    return Capacitor.isNativePlatform()
+  } catch {
+    return false
+  }
+}
+
+function capacitorPlatform(): 'android' | 'ios' | 'web' {
+  try {
+    const p = Capacitor.getPlatform()
+    if (p === 'android' || p === 'ios') return p
   } catch {
     /* ignore */
   }
-  return origin.replace(/\/+$/, '')
+  return 'web'
+}
+
+/** Dev API on the host machine (Express `npm run dev:server`, port 3001). */
+export function defaultNativeDevApiOrigin(): string {
+  return capacitorPlatform() === 'ios' ? 'http://127.0.0.1:3001' : 'http://10.0.2.2:3001'
+}
+
+/** Map baked / env origins to the host address each native platform can reach. */
+function normalizeOriginForNativePlatform(origin: string): string {
+  if (!isCapacitorShell()) return origin.replace(/\/+$/, '')
+  const platform = capacitorPlatform()
+  try {
+    const parsed = new URL(/^https?:\/\//i.test(origin) ? origin : `http://${origin}`)
+    const h = parsed.hostname.toLowerCase()
+    if (platform === 'android') {
+      if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]') parsed.hostname = '10.0.2.2'
+    } else if (platform === 'ios') {
+      if (h === '10.0.2.2') parsed.hostname = '127.0.0.1'
+    }
+    return parsed.origin.replace(/\/+$/, '')
+  } catch {
+    return origin.replace(/\/+$/, '')
+  }
 }
 
 /**
- * Production API URL when the UI is **not** same-origin with `/api` (e.g. Capacitor WebView).
- *
- * Example (HTTPS in prod): `VITE_API_ORIGIN=https://simvest.example.com`
+ * Absolute API origin for `/api/*` when the UI is not same-origin with Express
+ * (Capacitor WebView). Empty on desktop web with Vite proxy / same-host deploy.
  */
 export function apiPublicOrigin(): string {
-  const raw = import.meta.env.VITE_API_ORIGIN
-  if (typeof raw === 'string' && raw.trim()) {
-    const trimmed = raw.trim().replace(/\/+$/, '')
-    return normalizeOriginForCapacitorAndroid(trimmed)
-  }
-  return nativeDevApiOriginFallback().replace(/\/+$/, '')
+  const fromEnv = viteApiOriginFromEnv()
+  if (fromEnv) return normalizeOriginForNativePlatform(fromEnv)
+  if (isCapacitorShell()) return defaultNativeDevApiOrigin()
+  return ''
 }
 
-/** Prepends `apiPublicOrigin()` when non-empty and `pathOrUrl` is a root-relative `'/…'` path. */
+/** Prepends `apiPublicOrigin()` when needed; never leaves `/api/...` relative on native. */
 export function resolveApiUrl(pathOrUrl: string): string {
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl
-  const origin = apiPublicOrigin()
-  if (!origin || !pathOrUrl.startsWith('/')) return pathOrUrl
+  if (!pathOrUrl.startsWith('/')) return pathOrUrl
+
+  let origin = apiPublicOrigin()
+  if (!origin && isCapacitorShell()) {
+    origin = defaultNativeDevApiOrigin()
+  }
+  if (!origin) return pathOrUrl
   return `${origin}${pathOrUrl}`
 }
 

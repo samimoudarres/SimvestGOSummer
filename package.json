@@ -3,22 +3,34 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:client\"",
     "dev:client": "wait-on tcp:127.0.0.1:3001 && vite",
     "dev:server": "tsx watch server/index.ts",
     "build": "tsc && vite build",
+    "build:capacitor": "tsc && vite build --mode capacitor",
+    "build:capacitor:local": "tsc && vite build --mode capacitor-dev",
+    "cap:sync": "npm run build:capacitor:local && npx cap sync",
+    "cap:sync:release": "npm run build:capacitor && npx cap sync",
+    "cap:copy": "npm run build && npx cap copy",
+    "qa:phase7-automation": "npm run build && npm run test:ledger && npm run test:join-invite",
     "preview": "vite preview",
     "test:trade": "tsx server/scripts/verifyTradeFlow.ts",
     "test:ledger": "tsx server/scripts/verifyLedgerInProcess.ts",
-    "test:join-invite": "tsx server/scripts/verifyJoinInvite.ts"
+    "test:join-invite": "tsx server/scripts/verifyJoinInvite.ts",
+    "verify:massive-live": "tsx server/scripts/verifyMassiveLiveLag.ts"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.4",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
     "tsx": "^4.21.0",
@@ -27,6 +39,11 @@
     "wait-on": "^9.0.5"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/ios": "^8.3.4",
+    "@capacitor/status-bar": "^8.0.2",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -34,6 +51,7 @@
     "qrcode": "^1.5.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-router-dom": "^7.15.0"
+    "react-router-dom": "^7.15.0",
+    "web-push": "^3.6.7"
   }
 }
