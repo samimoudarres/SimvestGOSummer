@@ -1,0 +1,128 @@
+/* Full-screen privacy policy overlay — matches auth headers (blue band + Nunito). */
+
+.pp-modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  background: rgba(3, 29, 49, 0.55);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px)
+    env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
+}
+
+@media (min-width: 440px) {
+  .pp-modalBackdrop {
+    padding: calc(24px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
+      calc(24px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+    align-items: center;
+  }
+}
+
+.pp-modalShell {
+  width: 100%;
+  max-width: 402px;
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+  box-sizing: border-box;
+}
+
+@media (min-width: 440px) {
+  .pp-modalShell {
+    max-height: min(874px, calc(100dvh - 48px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+    border-radius: 20px;
+    overflow: hidden;
+  }
+}
+
+.pp-modalHeader {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  padding: 14px 12px 14px 8px;
+  background: linear-gradient(180deg, #0a8fce 0%, #07689a 100%);
+  color: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.pp-modalClose {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pp-modalClose:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.pp-modalClose:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.pp-modalTitle {
+  margin: 0;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.pp-modalHeaderSpacer {
+  display: block;
+  width: 40px;
+  height: 40px;
+}
+
+.pp-modalBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 18px 28px;
+  box-sizing: border-box;
+}
+
+.pp-modalLoading,
+.pp-modalError {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #333;
+}
+
+.pp-modalError {
+  color: #a3261c;
+  font-weight: 700;
+}
+
+.pp-modalPre {
+  margin: 0;
+  padding: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: #111;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}

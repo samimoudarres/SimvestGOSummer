@@ -1,0 +1,277 @@
+/* Login entry screen — 402×874 mobile frame, matched to the Figma frames
+ * (4 carousel slides + a white action card behind the Sign up / Log in buttons).
+ * The SIMVEST wordmark uses the same `Nunito Sans` settings as the create-game intro
+ * so the brand reads identically across both entry surfaces. */
+
+.li-root {
+  min-height: 100vh;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #e8e8e8;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) calc(48px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
+}
+
+.li-phone {
+  position: relative;
+  width: 402px;
+  height: 874px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #031d31;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+.li-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(120, 220, 255, 0.42) 0, rgba(120, 220, 255, 0) 240px),
+    radial-gradient(circle at 14% 78%, rgba(0, 166, 232, 0.28) 0, rgba(0, 166, 232, 0) 180px),
+    linear-gradient(180deg, #0a8fce 0%, #07689a 32%, #054066 64%, #03283f 100%);
+}
+
+.li-logo {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 47px;
+  margin: 0;
+  width: 199px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 35px;
+  line-height: normal;
+  color: #fff;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.li-carouselWrap {
+  position: absolute;
+  left: 0;
+  top: 110px;
+  z-index: 2;
+  width: 402px;
+  height: 564px;
+}
+
+.li-carousel {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.li-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.li-slide {
+  flex: 0 0 402px;
+  width: 402px;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  box-sizing: border-box;
+  padding: 0 24px 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.li-artShell {
+  width: 292px;
+  height: 286px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 18px 24px rgba(2, 34, 56, 0.25));
+}
+
+.li-artShell img {
+  display: block;
+  width: 292px;
+  height: 286px;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.li-slideTitle {
+  margin: 0;
+  margin-top: 36px;
+  max-width: 344px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 28px;
+  line-height: 1.14;
+  color: #fff;
+  text-wrap: balance;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.li-slideBody {
+  margin: 0;
+  margin-top: 14px;
+  max-width: 332px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.36;
+  color: rgba(255, 255, 255, 0.82);
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+/* Bottom dots — sit on the blue background just above the white action card. */
+.li-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 268px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.li-dotBtn {
+  pointer-events: auto;
+  padding: 6px;
+  margin: -6px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.li-dotBtn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+.li-dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.li-dot--active {
+  background: #fff;
+}
+
+/* White action card behind the two buttons — matches the rest of the app's
+ * card-with-rounded-top pattern. */
+.li-actionCard {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 196px;
+  height: auto;
+  padding: 22px 21px 20px;
+  box-sizing: border-box;
+  background: #ffffff;
+  border-radius: 28px 28px 0 0;
+  box-shadow: 0 -8px 24px rgba(2, 34, 56, 0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 5;
+}
+
+.li-legalRow {
+  margin: 4px 0 0;
+  padding: 0 8px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #5a7389;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.li-legalRow--stacked {
+  margin-top: 4px;
+}
+
+.li-legalBtn {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #0a8fce;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.li-legalBtn:hover {
+  color: #07689a;
+}
+
+.li-legalBtn:focus-visible {
+  outline: 2px solid #0a8fce;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.li-btn {
+  width: 100%;
+  height: 50px;
+  margin: 0;
+  padding: 0;
+  border-radius: 30px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 20px;
+  line-height: normal;
+  font-weight: 800;
+}
+
+.li-btn:active {
+  transform: translateY(1px);
+}
+
+.li-btn:focus-visible {
+  outline: 2px solid #0a8fce;
+  outline-offset: 3px;
+}
+
+.li-btn--primary {
+  border: 0;
+  background: linear-gradient(90deg, #0a98de 0%, #06567e 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(10, 152, 222, 0.32);
+}
+
+.li-btn--secondary {
+  border: 1.5px solid #b9deef;
+  background: #ffffff;
+  color: #0a8fce;
+}

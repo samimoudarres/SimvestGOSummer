@@ -1,0 +1,33 @@
+# Local / single-machine run of the production-shaped stack (SPA + /api on port 3001).
+# TLS still belongs on your reverse proxy or cloud load balancer.
+#
+# Prerequisites: copy `.env.example` → `.env` and set `MASSIVE_API_KEY` (same as local dev).
+#
+#   docker compose up --build
+#   docker compose up --build -d   # detached
+#
+# Faster image builds (skips Phase 7 gate inside Dockerfile — dev-only):
+#   SKIP_QUALITY_CHECKS=1 docker compose build
+
+services:
+  simvest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SKIP_QUALITY_CHECKS: ${SKIP_QUALITY_CHECKS:-0}
+    ports:
+      - "${SIMVEST_DOCKER_PORT:-3001}:3001"
+    env_file:
+      - .env
+
+  # Optional: public HTTPS URL for testing native builds (Try Cloudflare). Not for production.
+  # Run: docker compose --profile tunnel up -d --build
+  tunnel:
+    profiles: ["tunnel"]
+    image: cloudflare/cloudflared:latest
+    depends_on:
+      simvest:
+        condition: service_started
+    command: tunnel --no-autoupdate --url http://simvest:3001
+    restart: unless-stopped

@@ -1,0 +1,440 @@
+/* Shared styling for the Simvest signup flow (name → credentials → success).
+ *
+ * Mirrors `simvestLoginForm.css` — same 402×874 phone frame, same gradient
+ * header band, same primary gradient pill button — so the auth surface feels
+ * like one coherent experience whether the user is logging in or signing up. */
+
+/* Phone frame ----------------------------------------------------------- */
+
+.su-root {
+  min-height: 100vh;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #e8e8e8;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) calc(48px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
+}
+
+.su-phone {
+  position: relative;
+  width: 402px;
+  min-height: 874px;
+  background: #ffffff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header ---------------------------------------------------------------- */
+
+.su-header {
+  position: relative;
+  height: 96px;
+  padding: 38px 18px 18px;
+  background: linear-gradient(180deg, #0a8fce 0%, #07689a 100%);
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  color: #fff;
+}
+
+.su-back {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 120ms ease;
+}
+
+.su-back:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.su-back:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.su-headerTitle {
+  margin: 0;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.2px;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.su-headerSpacer {
+  display: block;
+  width: 36px;
+}
+
+/* Body ------------------------------------------------------------------ */
+
+.su-form {
+  flex: 1;
+  padding: 28px 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.su-prompt {
+  margin: 0 0 6px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1.2;
+  color: #07406a;
+  letter-spacing: 0.1px;
+}
+
+.su-subprompt {
+  margin: -8px 0 4px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
+  color: #6b8aa1;
+}
+
+.su-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.su-label {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: #07406a;
+  letter-spacing: 0.2px;
+}
+
+.su-input {
+  appearance: none;
+  width: 100%;
+  height: 50px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1.5px solid #cfdfee;
+  background: #f6fafe;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #07406a;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.su-input:focus {
+  outline: none;
+  border-color: #0a8fce;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(10, 143, 206, 0.16);
+}
+
+.su-input:disabled {
+  opacity: 0.7;
+}
+
+.su-input::placeholder {
+  color: #8aa8c0;
+  font-weight: 500;
+}
+
+.su-input--invalid {
+  border-color: #e3635b;
+  background: #fff7f6;
+}
+
+.su-input--invalid:focus {
+  box-shadow: 0 0 0 4px rgba(227, 99, 91, 0.18);
+}
+
+/* Password show/hide eye ------------------------------------------------ */
+
+.su-passwordWrap {
+  position: relative;
+  display: block;
+}
+
+.su-input--password {
+  padding-right: 52px;
+  letter-spacing: 0.05em;
+}
+
+.su-eye {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: #5d7c95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.su-eye:hover {
+  background: #eef5fb;
+  color: #07406a;
+}
+
+.su-eye:focus-visible {
+  outline: 2px solid #0a8fce;
+  outline-offset: 2px;
+}
+
+/* Segmented Email / Phone toggle --------------------------------------- */
+
+.su-segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  background: #eef5fb;
+  border-radius: 14px;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.su-segmentBtn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+  padding: 10px 8px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #5d7c95;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.su-segmentBtn--active {
+  background: #ffffff;
+  color: #07406a;
+  box-shadow: 0 2px 6px rgba(2, 34, 56, 0.1);
+}
+
+.su-segmentBtn:focus-visible {
+  outline: 2px solid #0a8fce;
+  outline-offset: 2px;
+}
+
+/* Validation help text ------------------------------------------------- */
+
+.su-help {
+  margin: 4px 0 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #6b8aa1;
+}
+
+.su-help--bad {
+  color: #b13f37;
+}
+
+/* Inline (field-level) error chip ------------------------------------- */
+
+.su-fieldError {
+  margin: 2px 0 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #a3261c;
+}
+
+/* Top-level error banner ------------------------------------------------ */
+
+.su-error {
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fdecec;
+  border: 1px solid #f3b8b8;
+  color: #a3261c;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.su-legalRow {
+  margin: 8px 0 0;
+  padding: 0 8px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #5a7389;
+}
+
+.su-legalRow--success {
+  margin-top: 0;
+}
+
+.su-legalBtn {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #0a8fce;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.su-legalBtn:hover {
+  color: #07689a;
+}
+
+.su-legalRow--stacked {
+  margin-top: 4px;
+}
+
+.su-legalBtn:focus-visible {
+  outline: 2px solid #0a8fce;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Footer copy + primary submit ----------------------------------------- */
+
+.su-spacer {
+  flex: 1;
+}
+
+.su-footerCopy {
+  margin: 8px 0 0;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #6b8aa1;
+}
+
+.su-submit {
+  margin-top: 16px;
+  width: 100%;
+  height: 52px;
+  border-radius: 30px;
+  border: 0;
+  background: linear-gradient(90deg, #0a98de 0%, #06567e 100%);
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(10, 152, 222, 0.32);
+  transition: transform 80ms ease, opacity 120ms ease, box-shadow 120ms ease;
+}
+
+.su-submit:hover:not(:disabled) {
+  box-shadow: 0 10px 22px rgba(10, 152, 222, 0.38);
+}
+
+.su-submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.su-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.su-submit:focus-visible {
+  outline: 2px solid #06567e;
+  outline-offset: 3px;
+}
+
+/* Success screen ------------------------------------------------------- */
+
+.su-successBody {
+  flex: 1;
+  padding: 64px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 18px;
+}
+
+.su-checkBadge {
+  width: 110px;
+  height: 110px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0a98de 0%, #06567e 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 16px 30px rgba(10, 152, 222, 0.32);
+}
+
+.su-checkBadge svg {
+  width: 56px;
+  height: 56px;
+  color: #ffffff;
+}
+
+.su-successTitle {
+  margin: 8px 0 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 28px;
+  line-height: 1.15;
+  color: #07406a;
+}
+
+.su-successBody p {
+  margin: 0;
+  max-width: 320px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.4;
+  color: #5d7c95;
+}
+
+.su-successFooter {
+  padding: 0 24px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.su-successFooter .su-submit {
+  margin-top: 0;
+}
+
+.su-successFooter .su-legalRow--success {
+  margin-top: 14px;
+}
+
+.su-successFooter .su-legalRow--success.su-legalRow--stacked {
+  margin-top: 6px;
+}

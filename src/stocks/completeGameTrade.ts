@@ -1,9 +1,16 @@
-import { challengeAssets as a } from '../challenge/challengeAssets'
 import { simvestFetch } from '../api/simvestFetch'
 import { getSimvestUserId } from '../user/simvestUserId'
 import type { CompletedTradeSnapshot } from './tradeOrderTypes'
 
-export type TradeCompleteResult = { ok: true; postId: string } | { ok: false; error: string }
+export type TradeCompleteResult =
+  | {
+      ok: true
+      postId: string
+      costBasis?: number
+      realizedPnlDollars?: number
+      realizedPnlPct?: number
+    }
+  | { ok: false; error: string }
 
 /** Persists ledger + activity when user confirms an order (Place Order). */
 export async function postTradeComplete(
@@ -29,20 +36,36 @@ export async function postTradeComplete(
         marketCapLabel: trade.marketCapLabel,
         revenueLabel: trade.revenueLabel,
         rationale: rationale.trim().slice(0, 2000),
-        authorName: 'You',
-        authorAvatar: a.composerAvatar,
       }),
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Network error'
     return { ok: false, error: msg || 'Could not reach server' }
   }
-  const body = (await res.json().catch(() => ({}))) as { postId?: string; error?: string }
+  const body = (await res.json().catch(() => ({}))) as {
+    postId?: string
+    error?: string
+    costBasis?: number
+    realizedPnlDollars?: number
+    realizedPnlPct?: number
+  }
   if (!res.ok) {
     return { ok: false, error: typeof body.error === 'string' ? body.error : 'Trade failed' }
   }
   if (typeof body.postId !== 'string' || body.postId.length < 1) {
     return { ok: false, error: 'Missing post id' }
   }
-  return { ok: true, postId: body.postId }
+  return {
+    ok: true,
+    postId: body.postId,
+    ...(typeof body.costBasis === 'number' && Number.isFinite(body.costBasis)
+      ? { costBasis: body.costBasis }
+      : {}),
+    ...(typeof body.realizedPnlDollars === 'number' && Number.isFinite(body.realizedPnlDollars)
+      ? { realizedPnlDollars: body.realizedPnlDollars }
+      : {}),
+    ...(typeof body.realizedPnlPct === 'number' && Number.isFinite(body.realizedPnlPct)
+      ? { realizedPnlPct: body.realizedPnlPct }
+      : {}),
+  }
 }

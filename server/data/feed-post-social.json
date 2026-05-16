@@ -1,0 +1,27 @@
+{
+  "postLikes": {
+    "nov-2024-stock-challenge:::5de410b1-f216-4eeb-9e90-c1948814878e": [],
+    "new:::48999d1f-b73d-4f12-9f52-503739bb6dd4": [
+      "62763c02-781d-4d73-b87b-a4642caf4ef4"
+    ],
+    "live-601757:::a8fefd55-2a19-4833-b0dd-b6b0ff4a030f": [
+      "ac5088a4-d7a2-411f-a246-3ed88e3f7817"
+    ]
+  },
+  "comments": {
+    "new:::48999d1f-b73d-4f12-9f52-503739bb6dd4": [
+      {
+        "id": "4391c1e5-7281-475c-a1bb-13043f6fe83c",
+        "userId": "62763c02-781d-4d73-b87b-a4642caf4ef4",
+        "text": "amazing",
+        "createdAtIso": "2026-05-16T02:57:01.261Z",
+        "parentId": null
+      }
+    ]
+  },
+  "commentLikes": {
+    "new:::48999d1f-b73d-4f12-9f52-503739bb6dd4:::4391c1e5-7281-475c-a1bb-13043f6fe83c": [
+      "62763c02-781d-4d73-b87b-a4642caf4ef4"
+    ]
+  }
+}

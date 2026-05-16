@@ -1,32 +1,17 @@
 import { hydrateGameFeedPosts, type HydratedFeedApiPost } from './gameFeedHydration'
 import type { GameFeedPost } from './gameFeedService'
-import { listGameSlugsWhereUserHasFeedPosts, listPostsForGame } from './gameFeedService'
-import { listGameSlugsJoinedByUser } from './gameMembershipService'
-import { canonicalGameSlugKey } from './gameSlugNormalize'
-import { listGameSlugsWithUserLedger } from './userGameStateService'
+import { listPostsForGame } from './gameFeedService'
+import { listParticipationSlugsForUser } from './userParticipationSlugs'
 
 /**
- * Aggregate feed posts from every game this user participates in:
- * joins from membership file + any game slug that has ledger rows for them.
+ * Aggregate feed posts from every game this user participates in.
+ *
+ * Suggestions are NOT participation. Slugs come from `listParticipationSlugsForUser`
+ * (joined games, ledger games, and games where this user has a persisted feed row)
+ * so home activity matches `/api/me/games` and survives membership-only glitches.
  */
 export async function fetchHydratedHomeActivityForUser(viewerUserId: string): Promise<HydratedFeedApiPost[]> {
-  const joined = await listGameSlugsJoinedByUser(viewerUserId)
-  const ledger = await listGameSlugsWithUserLedger(viewerUserId)
-  const slugSet = new Set<string>()
-  for (const s of joined) {
-    const t = canonicalGameSlugKey(s)
-    if (t) slugSet.add(t)
-  }
-  for (const s of ledger) {
-    const t = canonicalGameSlugKey(s)
-    if (t) slugSet.add(t)
-  }
-  for (const s of await listGameSlugsWhereUserHasFeedPosts(viewerUserId)) {
-    const t = canonicalGameSlugKey(s)
-    if (t) slugSet.add(t)
-  }
-
-  const slugs = [...slugSet].sort((a, b) => a.localeCompare(b))
+  const slugs = await listParticipationSlugsForUser(viewerUserId)
 
   const merged: GameFeedPost[] = []
   for (const slug of slugs) {

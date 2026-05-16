@@ -1,6 +1,8 @@
+import { randomBytes } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { runSerializedByKey } from './fsMutationQueue'
 import type { TradeCategoryId } from './tradeService'
 import { isTradeCategory } from './tradeService'
 import { listGameDefinitions } from './gameDefinitionsStore'
@@ -61,6 +63,23 @@ function isAssetsMode(s: string): s is AssetsMode {
   return s === 'all' || s === 'stocks_only' || s === 'crypto_only' || s === 'category'
 }
 
+/** Crypto is paused — host create-game saves must not enable crypto trading. */
+function normalizeAssetsModeForHostSettings(
+  am: AssetsMode,
+  assetsCategory: TradeCategoryId | null,
+): { assetsMode: AssetsMode; assetsCategory: TradeCategoryId | null } {
+  if (am === 'crypto_only' || am === 'all') {
+    return { assetsMode: 'stocks_only', assetsCategory: null }
+  }
+  if (am === 'category') {
+    if (assetsCategory === 'crypto') {
+      return { assetsMode: 'stocks_only', assetsCategory: null }
+    }
+    return { assetsMode: 'category', assetsCategory }
+  }
+  return { assetsMode: 'stocks_only', assetsCategory: null }
+}
+
 function isVisibility(s: string): s is VisibilityMode {
   return s === 'public' || s === 'private'
 }
@@ -94,12 +113,82 @@ export function computeGameEndIso(
   }
 }
 
+/**
+ * In-memory defaults for the shared `new` template when the persisted row belongs
+ * to another user. The client can edit and save without seeing someone else's title.
+ */
+export function buildFreshNewTemplateDraftForViewer(viewerUserId: string, hostLineLabel: string): GameRuntimeRules {
+  const startsAtIso = new Date().toISOString()
+  const endsAtIso = computeGameEndIso(startsAtIso, '1m', null)
+  if (!endsAtIso) {
+    throw new Error('Could not compute default end date for new template draft.')
+  }
+  const label = hostLineLabel.trim().slice(0, 80)
+  return {
+    hostUserId: viewerUserId,
+    gameDisplayName: '',
+    durationPreset: '1m',
+    customEndsOn: null,
+    startsAtIso,
+    endsAtIso,
+    assetsMode: 'all',
+    assetsCategory: null,
+    visibility: 'public',
+    themePaletteId: defaultPaletteIdForSlug('new'),
+    loadScreenEmoji: sanitizeLoadScreenEmoji('🍁'),
+    hostDisplayName: label,
+    setupComplete: false,
+    joinCode: null,
+    updatedAtIso: new Date().toISOString(),
+  }
+}
+
 export function calendarDaysBetween(startIso: string, endIso: string | null): number | null {
   if (!endIso) return null
   const a = new Date(startIso).getTime()
   const b = new Date(endIso).getTime()
   if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return null
   return Math.max(1, Math.ceil((b - a) / MS_DAY))
+}
+
+/** Accepts JSON `joinCode` as string or number; always returns a 6-digit string or null. */
+export function normalizeSixDigitJoinCode(raw: unknown): string | null {
+  if (typeof raw === 'string') {
+    const t = raw.trim()
+    return /^\d{6}$/.test(t) ? t : null
+  }
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const n = Math.floor(raw)
+    if (!Number.isFinite(n) || n < 0 || n > 999999) return null
+    const s = String(n).padStart(6, '0')
+    return /^\d{6}$/.test(s) ? s : null
+  }
+  return null
+}
+
+/** Express may pass `code` as string, number, or repeated query as string[]. */
+export function joinCodeFromHttpQuery(raw: unknown): string | null {
+  if (raw === undefined || raw === null) return null
+  if (Array.isArray(raw)) return joinCodeFromHttpQuery(raw[0])
+  if (typeof raw === 'number' && Number.isFinite(raw)) return normalizeSixDigitJoinCode(raw)
+  if (typeof raw === 'string') {
+    const digits = raw.replace(/[^\d]/g, '')
+    if (digits.length === 6) return digits
+    return normalizeSixDigitJoinCode(raw)
+  }
+  return null
+}
+
+function randomSixDigitJoinCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
+
+function allocateJoinCodeFromTaken(taken: Set<string>): string {
+  for (let i = 0; i < 400; i++) {
+    const c = randomSixDigitJoinCode()
+    if (!taken.has(c)) return c
+  }
+  throw new Error('Could not allocate a unique join code')
 }
 
 function parseRules(raw: unknown, gameSlug: string): GameRuntimeRules | null {
@@ -139,10 +228,7 @@ function parseRules(raw: unknown, gameSlug: string): GameRuntimeRules | null {
   const hostDisplayName =
     typeof o.hostDisplayName === 'string' ? o.hostDisplayName.trim().slice(0, 80) : ''
   const setupComplete = o.setupComplete === true
-  let joinCode: string | null = null
-  if (typeof o.joinCode === 'string' && /^\d{6}$/.test(o.joinCode.trim())) {
-    joinCode = o.joinCode.trim()
-  }
+  const joinCode = normalizeSixDigitJoinCode(o.joinCode)
   if (!gameDisplayName || !durationPreset || !assetsMode || !visibility || !startsAtIso || !updatedAtIso) return null
   if (assetsMode === 'category' && !assetsCategory) return null
   if (durationPreset === 'custom' && (!customEndsOn || !/^\d{4}-\d{2}-\d{2}$/.test(customEndsOn))) return null
@@ -165,7 +251,7 @@ function parseRules(raw: unknown, gameSlug: string): GameRuntimeRules | null {
   }
 }
 
-async function readFile(): Promise<RulesFile> {
+async function readFileRaw(): Promise<RulesFile> {
   try {
     const raw = await fs.readFile(RULES_PATH, 'utf8')
     return JSON.parse(raw) as RulesFile
@@ -174,73 +260,153 @@ async function readFile(): Promise<RulesFile> {
   }
 }
 
-async function writeFile(data: RulesFile): Promise<void> {
+async function writeFileRaw(data: RulesFile): Promise<void> {
   await fs.writeFile(RULES_PATH, JSON.stringify(data, null, 2), 'utf8')
 }
 
 export async function getRuntimeRules(gameSlug: string): Promise<GameRuntimeRules | null> {
-  const f = await readFile()
-  const raw = f.bySlug?.[gameSlug]
-  return parseRules(raw, gameSlug)
+  return runSerializedByKey(RULES_PATH, async () => {
+    const f = await readFileRaw()
+    const raw = f.bySlug?.[gameSlug]
+    const parsed = parseRules(raw, gameSlug)
+    if (parsed) return parsed
+    if (!raw || typeof raw !== 'object') return null
+    const o = raw as Record<string, unknown>
+    if (o.setupComplete !== true) return null
+    const repaired = attemptRepairRuntimeRawForParse(raw)
+    if (!repaired) return null
+    return parseRules(repaired, gameSlug)
+  })
 }
 
-function randomSixDigitJoinCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000))
+/**
+ * Enumerate every runtime-rules row that parses cleanly. Used by
+ * `suggestedGamesService` to surface live public games on a fresh user's
+ * home screen. Filtering (visibility / setupComplete / timeline window) is
+ * left to callers so each surface can apply its own selection criteria.
+ */
+export async function listAllRuntimeRules(): Promise<Array<{ slug: string; rules: GameRuntimeRules }>> {
+  return runSerializedByKey(RULES_PATH, async () => {
+    const f = await readFileRaw()
+    const out: Array<{ slug: string; rules: GameRuntimeRules }> = []
+    for (const [slug, raw] of Object.entries(f.bySlug ?? {})) {
+      const rules = parseRules(raw, slug)
+      if (rules) out.push({ slug, rules })
+    }
+    return out
+  })
 }
 
-async function loadTakenJoinCodes(): Promise<Set<string>> {
+async function loadTakenJoinCodes(rulesFile: RulesFile): Promise<Set<string>> {
   const taken = new Set<string>()
   for (const g of await listGameDefinitions()) {
-    if (g.joinCode) taken.add(g.joinCode)
+    const c = normalizeSixDigitJoinCode(g.joinCode)
+    if (c) taken.add(c)
   }
-  const f = await readFile()
-  for (const raw of Object.values(f.bySlug ?? {})) {
+  for (const raw of Object.values(rulesFile.bySlug ?? {})) {
     if (!raw || typeof raw !== 'object') continue
-    const jc = (raw as Record<string, unknown>).joinCode
-    if (typeof jc === 'string' && /^\d{6}$/.test(jc.trim())) taken.add(jc.trim())
+    const c = normalizeSixDigitJoinCode((raw as Record<string, unknown>).joinCode)
+    if (c) taken.add(c)
   }
   return taken
 }
 
 export async function allocateUniqueJoinCodeForGame(): Promise<string> {
-  const taken = await loadTakenJoinCodes()
-  for (let i = 0; i < 400; i++) {
-    const c = randomSixDigitJoinCode()
-    if (!taken.has(c)) {
-      taken.add(c)
-      return c
+  return runSerializedByKey(RULES_PATH, async () => {
+    const f = await readFileRaw()
+    const taken = await loadTakenJoinCodes(f)
+    return allocateJoinCodeFromTaken(taken)
+  })
+}
+
+/**
+ * If a published row has a valid join code on disk but fails strict parse (corrupt optional
+ * fields), coerce minimal required fields so join-by-code still resolves.
+ */
+function attemptRepairRuntimeRawForParse(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = { ...(raw as Record<string, unknown>) }
+  if (typeof o.gameDisplayName !== 'string' || !o.gameDisplayName.trim()) {
+    o.gameDisplayName = 'Game'
+  }
+  if (typeof o.durationPreset !== 'string' || !isDurationPreset(o.durationPreset)) {
+    o.durationPreset = '1m'
+  }
+  if (typeof o.assetsMode !== 'string' || !isAssetsMode(o.assetsMode)) {
+    o.assetsMode = 'all'
+  }
+  if (typeof o.visibility !== 'string' || !isVisibility(o.visibility)) {
+    o.visibility = 'public'
+  }
+  if (typeof o.startsAtIso !== 'string' || !o.startsAtIso.trim()) {
+    o.startsAtIso = new Date().toISOString()
+  }
+  if (typeof o.updatedAtIso !== 'string' || !o.updatedAtIso.trim()) {
+    o.updatedAtIso = new Date().toISOString()
+  }
+  if (o.assetsMode === 'category') {
+    if (typeof o.assetsCategory !== 'string' || !isTradeCategory(o.assetsCategory)) {
+      o.assetsMode = 'all'
+      o.assetsCategory = null
     }
   }
-  throw new Error('Could not allocate a unique join code')
+  if (o.durationPreset === 'custom') {
+    if (typeof o.customEndsOn !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(o.customEndsOn)) {
+      o.durationPreset = '1m'
+      o.customEndsOn = null
+    }
+  }
+  return o
 }
 
 /** Resolve a host-published runtime game by its persisted join code (not the static `new` template code). */
 export async function findRuntimeRulesByJoinCode(
   codeRaw: string,
 ): Promise<{ slug: string; rules: GameRuntimeRules } | null> {
-  const code = typeof codeRaw === 'string' ? codeRaw.trim() : ''
-  if (!/^\d{6}$/.test(code)) return null
-  const f = await readFile()
-  const by = f.bySlug ?? {}
-  for (const [slug, raw] of Object.entries(by)) {
-    const rules = parseRules(raw, slug)
-    if (rules?.joinCode === code && rules.setupComplete) return { slug, rules }
-  }
-  return null
+  const code = joinCodeFromHttpQuery(codeRaw) ?? normalizeSixDigitJoinCode(codeRaw)
+  if (!code) return null
+  return runSerializedByKey(RULES_PATH, async () => {
+    const f = await readFileRaw()
+    const by = f.bySlug ?? {}
+    for (const [slug, raw] of Object.entries(by)) {
+      const rules = parseRules(raw, slug)
+      const rowCode = normalizeSixDigitJoinCode(rules?.joinCode ?? null)
+      if (rules?.setupComplete && rowCode === code) return { slug, rules }
+    }
+    for (const [slug, raw] of Object.entries(by)) {
+      if (!raw || typeof raw !== 'object') continue
+      const o = raw as Record<string, unknown>
+      if (o.setupComplete !== true) continue
+      const rawRowCode =
+        joinCodeFromHttpQuery(o.joinCode ?? '') ?? normalizeSixDigitJoinCode(o.joinCode)
+      if (rawRowCode !== code) continue
+      const repaired = attemptRepairRuntimeRawForParse(raw)
+      if (!repaired) continue
+      const rules = parseRules(repaired, slug)
+      if (rules?.setupComplete && normalizeSixDigitJoinCode(rules.joinCode) === code) {
+        return { slug, rules }
+      }
+    }
+    return null
+  })
 }
 
 /** Backfill join code for games published before `joinCode` was added (idempotent). */
 export async function ensureJoinCodeOnRuntimeIfMissing(gameSlug: string): Promise<GameRuntimeRules | null> {
-  const cur = await getRuntimeRules(gameSlug)
-  if (!cur?.setupComplete) return cur
-  if (cur.joinCode && /^\d{6}$/.test(cur.joinCode)) return cur
-  const code = await allocateUniqueJoinCodeForGame()
-  const f = await readFile()
-  const bySlug = { ...(f.bySlug ?? {}) }
-  const next: GameRuntimeRules = { ...cur, joinCode: code, updatedAtIso: new Date().toISOString() }
-  bySlug[gameSlug] = next
-  await writeFile({ version: 1, bySlug })
-  return next
+  return runSerializedByKey(RULES_PATH, async () => {
+    const f = await readFileRaw()
+    const raw = f.bySlug?.[gameSlug]
+    const cur = parseRules(raw, gameSlug)
+    if (!cur?.setupComplete) return cur
+    if (normalizeSixDigitJoinCode(cur.joinCode)) return cur
+    const taken = await loadTakenJoinCodes(f)
+    const code = allocateJoinCodeFromTaken(taken)
+    const bySlug = { ...(f.bySlug ?? {}) }
+    const next: GameRuntimeRules = { ...cur, joinCode: code, updatedAtIso: new Date().toISOString() }
+    bySlug[gameSlug] = next
+    await writeFileRaw({ version: 1, bySlug })
+    return next
+  })
 }
 
 export type CreateSettingsInput = {
@@ -254,6 +420,8 @@ export type CreateSettingsInput = {
   loadScreenEmoji?: string
   hostDisplayName?: string
   setupComplete?: boolean
+  /** When true with `setupComplete` on slug `new`, clears stale per-game stores and resets the timeline. */
+  forceNewGameInstance?: boolean
 }
 
 export function validateCreateSettingsInput(
@@ -279,16 +447,21 @@ export function validateCreateSettingsInput(
       return { ok: false, error: 'Custom duration requires an end date (YYYY-MM-DD).' }
     }
   }
-  const am = typeof b.assetsMode === 'string' ? b.assetsMode : ''
-  if (!isAssetsMode(am)) {
+  const amRaw = typeof b.assetsMode === 'string' ? b.assetsMode : ''
+  if (!isAssetsMode(amRaw)) {
     return { ok: false, error: 'Invalid assets mode.' }
   }
   let assetsCategory: TradeCategoryId | null = null
-  if (am === 'category') {
+  if (amRaw === 'category') {
     const c = typeof b.assetsCategory === 'string' ? b.assetsCategory : ''
     if (!isTradeCategory(c)) return { ok: false, error: 'Pick a stock category when filtering by category.' }
     assetsCategory = c
   }
+  const { assetsMode: am, assetsCategory: normalizedCategory } = normalizeAssetsModeForHostSettings(
+    amRaw,
+    assetsCategory,
+  )
+  assetsCategory = normalizedCategory
   const vis = typeof b.visibility === 'string' ? b.visibility : ''
   if (!isVisibility(vis)) {
     return { ok: false, error: 'Invalid visibility.' }
@@ -327,6 +500,12 @@ export function validateCreateSettingsInput(
     setupComplete = b.setupComplete
   }
 
+  let forceNewGameInstance: boolean | undefined
+  if (b.forceNewGameInstance !== undefined && b.forceNewGameInstance !== null) {
+    if (typeof b.forceNewGameInstance !== 'boolean') return { ok: false, error: 'Invalid forceNewGameInstance flag.' }
+    forceNewGameInstance = b.forceNewGameInstance ? true : undefined
+  }
+
   return {
     ok: true,
     value: {
@@ -340,8 +519,75 @@ export function validateCreateSettingsInput(
       loadScreenEmoji,
       hostDisplayName,
       setupComplete,
+      forceNewGameInstance,
     },
   }
+}
+
+/** Unique slug for a published challenge leaving the shared `new` slot (join code is unique). */
+export async function pickPermanentSlugForArchive(rules: GameRuntimeRules): Promise<string> {
+  return runSerializedByKey(RULES_PATH, async () => {
+    const f = await readFileRaw()
+    const bySlug = f.bySlug ?? {}
+    const code = normalizeSixDigitJoinCode(rules.joinCode)
+    const base = code ? `live-${code}` : `live-${randomBytes(6).toString('hex')}`
+    let candidate = base
+    let n = 0
+    while (bySlug[candidate] && n < 500) {
+      n += 1
+      candidate = `${base}-${n}`
+    }
+    return candidate
+  })
+}
+
+/** Copy runtime rules from the shared `new` slot to a permanent slug before wiping `new` stores. */
+/** Replace the shared `new` row with an unpublished draft (after archiving a live publish). */
+export async function seedNewSlotDraftRow(hostUserId: string, hostDisplayName: string): Promise<GameRuntimeRules> {
+  return runSerializedByKey(RULES_PATH, async () => {
+    const f = await readFileRaw()
+    const draft = buildFreshNewTemplateDraftForViewer(hostUserId, hostDisplayName)
+    const bySlug = { ...(f.bySlug ?? {}), new: draft }
+    await writeFileRaw({ version: 1, bySlug })
+    return draft
+  })
+}
+
+export async function archiveRuntimeRulesRow(fromSlug: string, toSlug: string): Promise<void> {
+  if (!fromSlug || !toSlug || fromSlug === toSlug) return
+  return runSerializedByKey(RULES_PATH, async () => {
+    const f = await readFileRaw()
+    const bySlug = { ...(f.bySlug ?? {}) }
+    const raw = bySlug[fromSlug]
+    if (!raw || typeof raw !== 'object') return
+    bySlug[toSlug] = { ...(raw as Record<string, unknown>) }
+    await writeFileRaw({ version: 1, bySlug })
+  })
+}
+
+/**
+ * When the shared template slug `new` is (re)published with `setupComplete: true`, we may need to
+ * wipe all on-disk rows keyed by that slug before saving new runtime rules. This predicate must stay
+ * identical to the `completingPublish` branch inside `upsertRuntimeRules` so store resets and
+ * timeline/join-code refresh never drift.
+ */
+export function shouldResetStoresForNewSlugPublish(
+  gameSlug: string,
+  opts: {
+    setupComplete: boolean
+    forceNewGameInstance?: boolean
+    prev: GameRuntimeRules | null
+    editorUserId: string
+  },
+): boolean {
+  if (gameSlug !== 'new' || !opts.setupComplete) return false
+  const { prev, editorUserId, forceNewGameInstance } = opts
+  return (
+    forceNewGameInstance === true ||
+    !prev ||
+    !prev.setupComplete ||
+    (prev.hostUserId != null && prev.hostUserId !== editorUserId)
+  )
 }
 
 export async function upsertRuntimeRules(
@@ -349,47 +595,87 @@ export async function upsertRuntimeRules(
   input: CreateSettingsInput,
   editorUserId: string,
 ): Promise<GameRuntimeRules> {
-  const f = await readFile()
-  const bySlug = { ...(f.bySlug ?? {}) }
-  const prev = parseRules(bySlug[gameSlug], gameSlug)
-  const startsAtIso = prev?.startsAtIso ?? new Date().toISOString()
-  const endsAtIso = computeGameEndIso(startsAtIso, input.durationPreset, input.customEndsOn)
-  if (!endsAtIso) {
-    throw new Error('Could not compute game end date from the selected duration.')
-  }
-  const hostUserId = prev?.hostUserId ?? editorUserId
-  const themePaletteId =
-    input.themePaletteId ?? prev?.themePaletteId ?? defaultPaletteIdForSlug(gameSlug)
-  const loadScreenEmoji =
-    input.loadScreenEmoji !== undefined
-      ? sanitizeLoadScreenEmoji(input.loadScreenEmoji)
-      : (prev?.loadScreenEmoji ?? sanitizeLoadScreenEmoji('🍁'))
-  const hostDisplayName =
-    input.hostDisplayName !== undefined ? input.hostDisplayName.trim().slice(0, 80) : (prev?.hostDisplayName ?? '')
-  const setupComplete = input.setupComplete ?? prev?.setupComplete ?? false
-  let joinCode: string | null = prev?.joinCode ?? null
-  if (joinCode && !/^\d{6}$/.test(joinCode)) joinCode = null
-  if (setupComplete && !joinCode) {
-    joinCode = await allocateUniqueJoinCodeForGame()
-  }
-  const next: GameRuntimeRules = {
-    hostUserId,
-    gameDisplayName: input.gameDisplayName,
-    durationPreset: input.durationPreset,
-    customEndsOn: input.durationPreset === 'custom' ? input.customEndsOn : null,
-    startsAtIso,
-    endsAtIso,
-    assetsMode: input.assetsMode,
-    assetsCategory: input.assetsMode === 'category' ? input.assetsCategory : null,
-    visibility: input.visibility,
-    themePaletteId,
-    loadScreenEmoji,
-    hostDisplayName,
-    setupComplete,
-    joinCode,
-    updatedAtIso: new Date().toISOString(),
-  }
-  bySlug[gameSlug] = next
-  await writeFile({ version: 1, bySlug })
-  return next
+  return runSerializedByKey(RULES_PATH, async () => {
+    const f = await readFileRaw()
+    const bySlug = { ...(f.bySlug ?? {}) }
+    const prev = parseRules(bySlug[gameSlug], gameSlug)
+    /** Another user occupied `new`: current editor becomes host and gets a fresh timeline. */
+    const newSlotTakeover =
+      gameSlug === 'new' && prev && prev.hostUserId != null && prev.hostUserId !== editorUserId
+    const completingPublish = shouldResetStoresForNewSlugPublish(gameSlug, {
+      setupComplete: input.setupComplete === true,
+      forceNewGameInstance: input.forceNewGameInstance,
+      prev,
+      editorUserId,
+    })
+    const freshTimeline = Boolean(newSlotTakeover || completingPublish)
+    const startsAtIso = freshTimeline ? new Date().toISOString() : (prev?.startsAtIso ?? new Date().toISOString())
+    const endsAtIso = computeGameEndIso(startsAtIso, input.durationPreset, input.customEndsOn)
+    if (!endsAtIso) {
+      throw new Error('Could not compute game end date from the selected duration.')
+    }
+    const hostUserId =
+      gameSlug === 'new' && prev && prev.hostUserId !== editorUserId
+        ? editorUserId
+        : (prev?.hostUserId ?? editorUserId)
+    const themePaletteId =
+      input.themePaletteId ?? prev?.themePaletteId ?? defaultPaletteIdForSlug(gameSlug)
+    const loadScreenEmoji =
+      input.loadScreenEmoji !== undefined
+        ? sanitizeLoadScreenEmoji(input.loadScreenEmoji)
+        : (prev?.loadScreenEmoji ?? sanitizeLoadScreenEmoji('🍁'))
+    const hostDisplayName =
+      input.hostDisplayName !== undefined ? input.hostDisplayName.trim().slice(0, 80) : (prev?.hostDisplayName ?? '')
+    const setupComplete = input.setupComplete ?? prev?.setupComplete ?? false
+    let joinCode: string | null = freshTimeline ? null : (prev?.joinCode ?? null)
+    joinCode = normalizeSixDigitJoinCode(joinCode)
+    if (setupComplete && !joinCode) {
+      const taken = await loadTakenJoinCodes({ version: 1, bySlug })
+      joinCode = allocateJoinCodeFromTaken(taken)
+    }
+    const next: GameRuntimeRules = {
+      hostUserId,
+      gameDisplayName: input.gameDisplayName,
+      durationPreset: input.durationPreset,
+      customEndsOn: input.durationPreset === 'custom' ? input.customEndsOn : null,
+      startsAtIso,
+      endsAtIso,
+      assetsMode: input.assetsMode,
+      assetsCategory: input.assetsMode === 'category' ? input.assetsCategory : null,
+      visibility: input.visibility,
+      themePaletteId,
+      loadScreenEmoji,
+      hostDisplayName,
+      setupComplete,
+      joinCode,
+      updatedAtIso: new Date().toISOString(),
+    }
+    bySlug[gameSlug] = next
+    await writeFileRaw({ version: 1, bySlug })
+    return next
+  })
+}
+
+/**
+ * Patch `endsAtIso` for one slug (e.g. “end game now”). Serialized with every other rules-store write.
+ */
+export async function forceGameEndIsoInStore(gameSlug: string, endsAtIso: string): Promise<void> {
+  await runSerializedByKey(RULES_PATH, async () => {
+    try {
+      const f = await readFileRaw()
+      const row = f.bySlug?.[gameSlug]
+      if (!row || typeof row !== 'object') return
+      const bySlug = {
+        ...(f.bySlug ?? {}),
+        [gameSlug]: {
+          ...(row as Record<string, unknown>),
+          endsAtIso,
+          updatedAtIso: new Date().toISOString(),
+        },
+      }
+      await writeFileRaw({ version: 1, bySlug })
+    } catch {
+      /* no rules file on disk — nothing to force */
+    }
+  })
 }

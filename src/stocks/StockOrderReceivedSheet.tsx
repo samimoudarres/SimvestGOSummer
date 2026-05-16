@@ -1,17 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-function useShowDecorativeKeyboard(): boolean {
-  const [v, setV] = useState(false)
-  useEffect(() => {
-    const mq = window.matchMedia('(hover: hover) and (pointer: fine)')
-    const sync = () => setV(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-  return v
-}
-import { challengeAssets as a } from '../challenge/challengeAssets'
 import { simvestFetch } from '../api/simvestFetch'
 import { getSimvestUserId } from '../user/simvestUserId'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
@@ -24,12 +12,6 @@ const OU_TEXTAREA_BG =
   'https://www.figma.com/api/mcp/asset/8d3b9a7e-e232-439d-a87c-4f7d6a84570b'
 const OU_BULB_SM =
   'https://www.figma.com/api/mcp/asset/50cc6b0f-1bbb-4d1c-a377-19f70e9e7920'
-const OU_ACTIVITY =
-  'https://www.figma.com/api/mcp/asset/040a89a6-e376-4ad6-84f3-a8648d63427e'
-
-const KEY_TOP = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P']
-const KEY_MID = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L']
-const KEY_BOT = ['Z', 'X', 'C', 'V', 'B', 'N', 'M']
 
 export type StockOrderReceivedSheetProps = {
   open: boolean
@@ -39,40 +21,20 @@ export type StockOrderReceivedSheetProps = {
 
 export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderReceivedSheetProps) {
   const [rationale, setRationale] = useState('')
-  const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const taRef = useRef<HTMLTextAreaElement>(null)
-  const shellRef = useRef<HTMLDivElement>(null)
-  const showDecorativeKeyboard = useShowDecorativeKeyboard()
 
   useEffect(() => {
     if (!open) {
       setRationale('')
-      setKeyboardOpen(false)
       setSubmitting(false)
     }
   }, [open])
 
   useEffect(() => {
-    if (!open || !keyboardOpen || !showDecorativeKeyboard) return
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (shellRef.current?.contains(t)) return
-      if (taRef.current?.contains(t)) return
-      const kb = (e.target as HTMLElement | null)?.closest?.('.ou-keyboard')
-      if (kb) return
-      setKeyboardOpen(false)
-      taRef.current?.blur()
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [open, keyboardOpen, showDecorativeKeyboard])
-
-  useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setKeyboardOpen(false)
         taRef.current?.blur()
       }
     }
@@ -131,8 +93,6 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
             marketCapLabel: trade.marketCapLabel,
             revenueLabel: trade.revenueLabel,
             rationale: rationale.trim(),
-            authorName: 'You',
-            authorAvatar: a.composerAvatar,
           }),
         })
         const body = await res.json().catch(() => ({}))
@@ -154,12 +114,33 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
 
   const hasRationale = rationale.trim().length > 0
 
+  const isSell = trade?.draft.action === 'sell'
+  const realizedPositive = isSell && (trade?.realizedPnlDollars ?? 0) >= 0
+  const realizedSummary = useMemo(() => {
+    if (!trade || !isSell) return null
+    const dollars = trade.realizedPnlDollars
+    const pct = trade.realizedPnlPct
+    if (dollars == null || !Number.isFinite(dollars) || pct == null || !Number.isFinite(pct)) return null
+    const sign = dollars >= 0 ? '+' : '-'
+    const usd = `$${Math.abs(dollars).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const pctStr = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
+    return { dollars, pct, label: `${sign}${usd} (${pctStr})` }
+  }, [trade, isSell])
+
   if (!open || !trade) return null
+
+  const headerTitle = isSell ? 'Sale Received!' : 'Order Received!'
+  const headerSub = isSell
+    ? `Your sale was completed and your cash balance has been updated for the ${trade.gameTitle}.`
+    : `Your order will be reflected in your portfolio for the ${trade.gameTitle}`
+  const placeholder = isSell
+    ? 'I sold Apple because the earnings call signaled slowing iPhone demand…'
+    : 'I bought Apple because I think their earnings call showed...'
 
   return (
     <div className="ou-overlay" role="presentation">
       <div
-        className={`ou-sheet${keyboardOpen && showDecorativeKeyboard ? ' ou-keyboardOpen' : ''}`}
+        className="ou-sheet"
         role="dialog"
         aria-modal="true"
         aria-labelledby="ou-title"
@@ -170,30 +151,60 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
             <img className="ou-checkImg" src={OU_CHECK} alt="" width={86} height={86} />
           </div>
           <h2 className="ou-title" id="ou-title">
-            Order Received!
+            {headerTitle}
           </h2>
-          <p className="ou-sub">
-            Your order will be reflected in your portfolio for the {trade.gameTitle}
-          </p>
+          <p className="ou-sub">{headerSub}</p>
+
+          {isSell && realizedSummary ? (
+            <div
+              className={`ou-sellSummary${realizedPositive ? ' ou-sellSummary--up' : ' ou-sellSummary--down'}`}
+              role="status"
+            >
+              <div className="ou-sellSummaryRow">
+                <span className="ou-sellSummaryLab">Sold</span>
+                <span className="ou-sellSummaryVal">
+                  {trade.shares.toLocaleString('en-US', { maximumFractionDigits: 6 })} {trade.displayTicker} @{' '}
+                  ${trade.fillPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="ou-sellSummaryRow">
+                <span className="ou-sellSummaryLab">Proceeds</span>
+                <span className="ou-sellSummaryVal">
+                  ${trade.orderTotal.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+              <div className="ou-sellSummaryRow ou-sellSummaryRow--realized">
+                <span className="ou-sellSummaryLab">Realized {realizedPositive ? 'gain' : 'loss'}</span>
+                <span className="ou-sellSummaryVal">{realizedSummary.label}</span>
+              </div>
+            </div>
+          ) : null}
 
           <div className="ou-rationaleHead">
             <img className="ou-bulb" src={OU_BULB_SM} alt="" width={23} height={26} />
             <span className="ou-rationaleLab">Share rationale for your post:</span>
           </div>
 
-          <div className="ou-textShell" ref={shellRef}>
+          <div className="ou-textShell">
             <div className="ou-textBg" aria-hidden>
               <img src={OU_TEXTAREA_BG} alt="" />
             </div>
             <textarea
               ref={taRef}
               className="ou-textarea"
-              placeholder="I bought Apple because I think their earnings call showed..."
+              placeholder={placeholder}
               value={rationale}
               maxLength={2000}
               rows={4}
+              inputMode="text"
+              enterKeyHint="done"
+              autoComplete="off"
+              autoCorrect="on"
+              spellCheck
               onChange={(e) => setRationale(e.target.value)}
-              onFocus={() => setKeyboardOpen(true)}
             />
           </div>
 
@@ -201,7 +212,6 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
         </div>
 
         <div className="ou-footer">
-          <img className="ou-activity" src={OU_ACTIVITY} alt="" aria-hidden />
           <div className="ou-pillGhost" aria-hidden />
           <button
             type="button"
@@ -214,50 +224,6 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
             </span>
           </button>
         </div>
-
-        {keyboardOpen && showDecorativeKeyboard ? (
-          <div className="ou-keyboard" aria-hidden>
-            <div className="ou-keyRow">
-              {KEY_TOP.map((k) => (
-                <span key={k} className="ou-key">
-                  {k}
-                </span>
-              ))}
-            </div>
-            <div className="ou-keyRow" style={{ paddingLeft: 16, paddingRight: 16 }}>
-              {KEY_MID.map((k) => (
-                <span key={k} className="ou-key">
-                  {k}
-                </span>
-              ))}
-            </div>
-            <div className="ou-keyRow" style={{ paddingLeft: 4, paddingRight: 4, gap: 4 }}>
-              <span className="ou-key ou-key--wide" aria-hidden>
-                {' '}
-              </span>
-              {KEY_BOT.map((k) => (
-                <span key={k} className="ou-key">
-                  {k}
-                </span>
-              ))}
-              <span className="ou-key ou-key--wide" aria-hidden>
-                {' '}
-              </span>
-            </div>
-            <div className="ou-keyRow">
-              <span className="ou-key ou-key--wide">123</span>
-              <span className="ou-key ou-key--space">space</span>
-              <span className="ou-key ou-key--wide">return</span>
-            </div>
-            <div className="ou-keyboardTools">
-              <span>Emoji</span>
-              <span>Dictation</span>
-            </div>
-            <div className="ou-homeBar">
-              <div className="ou-homeBarInner" />
-            </div>
-          </div>
-        ) : null}
       </div>
     </div>
   )

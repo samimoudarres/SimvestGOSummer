@@ -1,6 +1,7 @@
 import { normalizeUserId } from './followsService'
 import { getGameDefinitionBySlug, resolveTimelineBoundsMs, type GameTimelineDef } from './gameDefinitionsStore'
-import { listParticipantIdsForGame } from './gameLeaderboardService'
+import { listPostsForGame, type GameFeedPost } from './gameFeedService'
+import { listParticipantIdsForGame } from './gameParticipantIds'
 import { getGameJoinedAtIso } from './gameMembershipService'
 import { getNetWorthHistory, type NwPoint } from './gameNetWorthSnapshotService'
 import { getRuntimeRules } from './gameRuntimeRulesService'
@@ -15,6 +16,7 @@ import {
 } from './stockService'
 import { ensureUserProfilesBatch } from './userProfileService'
 import { loadAllSetupProfilesByKey } from './userSetupProfileService'
+import { resolveProfileAvatarUrl } from '../src/user/resolveProfileAvatarUrl.ts'
 import { DEFAULT_STARTING_CASH, getLedgerHoldingsForGame, getUserLedger } from './userGameStateService'
 
 const CHART_RANGES: ChartRange[] = ['1D', '5D', '1M', '3M', '1Y', '5Y']
@@ -205,6 +207,61 @@ export type PlayerNetWorthChartPayload = {
 
 type TimelinePoint = { t: number; n: number }
 
+type TradeEvent = {
+  t: number
+  side: 'buy' | 'sell'
+  ticker: string
+  shares: number
+  fillPrice: number
+  orderTotal: number
+}
+
+function parseMoneyAmount(raw: string | undefined): number | null {
+  const n = Number.parseFloat(String(raw ?? '').replace(/[^0-9.\-]/g, ''))
+  return Number.isFinite(n) ? n : null
+}
+
+function parseShareAmount(raw: string | undefined): number | null {
+  const n = Number.parseFloat(String(raw ?? '').replace(/,/g, '').trim())
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+function tradePostSide(p: GameFeedPost): 'buy' | 'sell' {
+  if (p.side === 'sell') return 'sell'
+  if (p.side === 'buy') return 'buy'
+  return String(p.tradeTitle ?? '').toLowerCase().includes('sell') ? 'sell' : 'buy'
+}
+
+async function loadUserTradeEvents(gameSlug: string, userId: string): Promise<TradeEvent[]> {
+  const uid = normalizeUserId(userId)
+  if (!uid) return []
+  let posts: GameFeedPost[] = []
+  try {
+    posts = await listPostsForGame(gameSlug)
+  } catch {
+    return []
+  }
+
+  const out: TradeEvent[] = []
+  for (const p of posts) {
+    if ((p.postKind ?? 'trade') !== 'trade') continue
+    if (normalizeUserId(p.userId) !== uid) continue
+    const t = new Date(p.timestampIso).getTime()
+    if (!Number.isFinite(t)) continue
+    const ticker = resolveMassiveTicker(p.tickerSymbol)
+    if (!ticker) continue
+    const shares = parseShareAmount(p.sharesBought)
+    if (shares == null) continue
+    const orderTotalRaw = parseMoneyAmount(p.orderTotal)
+    const fillPriceRaw = typeof p.purchasePrice === 'number' && Number.isFinite(p.purchasePrice) ? p.purchasePrice : null
+    const fillPrice = fillPriceRaw ?? (orderTotalRaw != null ? orderTotalRaw / shares : null)
+    const orderTotal = orderTotalRaw ?? (fillPrice != null ? fillPrice * shares : null)
+    if (fillPrice == null || fillPrice <= 0 || orderTotal == null || orderTotal <= 0) continue
+    out.push({ t, side: tradePostSide(p), ticker, shares, fillPrice, orderTotal })
+  }
+  return out.sort((a, b) => a.t - b.t)
+}
+
 /** Sort by time; same-ms events keep the last net worth (latest wins). */
 function mergeTimelineSorted(points: TimelinePoint[]): TimelinePoint[] {
   const valid = points.filter((p) => Number.isFinite(p.t) && Number.isFinite(p.n))
@@ -325,12 +382,15 @@ async function computeMarkToMarketNetWorthSeries(
   const n = sampleT.length
   if (n < 1) return []
 
-  let cash = 0
+  const tradeEventsAll = await loadUserTradeEvents(slug, userId)
+  const tradeTickersAll = [...new Set(tradeEventsAll.map((e) => e.ticker))]
+
+  let currentCash = 0
   try {
     const ledger = await getUserLedger(userId, slug)
-    cash = Number.isFinite(ledger.cash) ? ledger.cash : 0
+    currentCash = Number.isFinite(ledger.cash) ? ledger.cash : 0
   } catch {
-    cash = 0
+    currentCash = 0
   }
 
   let holdings: Awaited<ReturnType<typeof getLedgerHoldingsForGame>> = []
@@ -341,19 +401,29 @@ async function computeMarkToMarketNetWorthSeries(
   }
   const active = holdings.filter((h) => h.shares > 1e-9 && Number.isFinite(h.shares))
 
-  if (active.length === 0) {
-    return sampleT.map(() => Math.max(0, cash))
+  const tradeTickerSet = new Set(tradeTickersAll)
+  /** Feed-derived events can omit symbols (e.g. some crypto posts); replay would drop those positions from MTM. */
+  const feedCoversAllLedgerPositions = !active.some((h) => {
+    const s = resolveMassiveTicker(h.ticker)
+    return s ? !tradeTickerSet.has(s) : false
+  })
+  const replayFromFeed = tradeEventsAll.length > 0 && feedCoversAllLedgerPositions
+  const tradeEvents = replayFromFeed ? tradeEventsAll : []
+  const tradeTickers = replayFromFeed ? tradeTickersAll : []
+
+  if (tradeTickers.length === 0 && active.length === 0) {
+    return sampleT.map(() => Math.max(0, currentCash))
   }
 
-  type PriceRow = { shares: number; prices: number[] }
+  type PriceRow = { ticker: string; shares?: number; avgCost: number; prices: number[] }
   const HOLDINGS_PARALLEL = 10
 
-  const loadRow = async (h: (typeof active)[0]): Promise<PriceRow> => {
-    const shares = h.shares
-    const avgCost = h.avgCost > 0 && Number.isFinite(h.avgCost) ? h.avgCost : 0.01
-    const sym = resolveMassiveTicker(h.ticker)
+  const loadRow = async (input: { ticker: string; shares?: number; avgCost: number }): Promise<PriceRow> => {
+    const shares = input.shares
+    const avgCost = input.avgCost > 0 && Number.isFinite(input.avgCost) ? input.avgCost : 0.01
+    const sym = resolveMassiveTicker(input.ticker)
     if (!sym) {
-      return { shares, prices: sampleT.map(() => avgCost) }
+      return { ticker: input.ticker, shares, avgCost, prices: sampleT.map(() => avgCost) }
     }
     let bars: StockDetailBar[] = []
     try {
@@ -362,7 +432,7 @@ async function computeMarkToMarketNetWorthSeries(
       bars = []
     }
     if (!bars.length) {
-      return { shares, prices: sampleT.map(() => avgCost) }
+      return { ticker: sym, shares, avgCost, prices: sampleT.map(() => avgCost) }
     }
     const ordered = [...bars].sort((a, b) => a.t - b.t)
     const barT = ordered.map((b) => b.t)
@@ -376,23 +446,82 @@ async function computeMarkToMarketNetWorthSeries(
       }
       return lastGood
     })
-    return { shares, prices }
+    return { ticker: sym, shares, avgCost, prices }
   }
 
   const rows: PriceRow[] = []
-  for (let i = 0; i < active.length; i += HOLDINGS_PARALLEL) {
-    const slice = active.slice(i, i + HOLDINGS_PARALLEL)
+  const priceInputs =
+    tradeTickers.length > 0
+      ? tradeTickers.map((ticker) => {
+          const event = tradeEvents.find((e) => e.ticker === ticker)
+          return { ticker, avgCost: event?.fillPrice ?? 0.01 }
+        })
+      : active.map((h) => ({ ticker: h.ticker, shares: h.shares, avgCost: h.avgCost }))
+
+  for (let i = 0; i < priceInputs.length; i += HOLDINGS_PARALLEL) {
+    const slice = priceInputs.slice(i, i + HOLDINGS_PARALLEL)
     const part = await Promise.all(slice.map((h) => loadRow(h)))
     rows.push(...part)
+  }
+
+  if (tradeEvents.length > 0) {
+    const priceByTicker = new Map(rows.map((r) => [r.ticker, r.prices]))
+    const lotsByTicker = new Map<string, { shares: number; entryPrice: number }[]>()
+    let cash = DEFAULT_STARTING_NET_WORTH
+    let cursor = 0
+    const out: number[] = []
+
+    for (let i = 0; i < n; i++) {
+      const t = sampleT[i]!
+      while (cursor < tradeEvents.length && tradeEvents[cursor]!.t <= t) {
+        const ev = tradeEvents[cursor]!
+        if (ev.side === 'buy') {
+          cash -= ev.orderTotal
+          const lots = lotsByTicker.get(ev.ticker) ?? []
+          lots.push({ shares: ev.shares, entryPrice: ev.fillPrice })
+          lotsByTicker.set(ev.ticker, lots)
+        } else {
+          cash += ev.orderTotal
+          let remaining = ev.shares
+          const lots = lotsByTicker.get(ev.ticker) ?? []
+          const next: { shares: number; entryPrice: number }[] = []
+          for (const lot of lots) {
+            if (remaining <= 1e-9) {
+              next.push(lot)
+              continue
+            }
+            if (lot.shares <= remaining + 1e-9) {
+              remaining -= lot.shares
+            } else {
+              next.push({ ...lot, shares: lot.shares - remaining })
+              remaining = 0
+            }
+          }
+          lotsByTicker.set(ev.ticker, next)
+        }
+        cursor += 1
+      }
+
+      let equity = 0
+      for (const [ticker, lots] of lotsByTicker.entries()) {
+        const prices = priceByTicker.get(ticker)
+        const px = prices?.[i]
+        for (const lot of lots) {
+          equity += lot.shares * (Number.isFinite(px) && px! > 0 ? px! : lot.entryPrice)
+        }
+      }
+      out.push(Math.max(0, cash + equity))
+    }
+    return out
   }
 
   const out: number[] = []
   for (let i = 0; i < n; i++) {
     let eq = 0
     for (const r of rows) {
-      eq += r.shares * r.prices[i]!
+      eq += (r.shares ?? 0) * r.prices[i]!
     }
-    out.push(Math.max(0, cash + eq))
+    out.push(Math.max(0, currentCash + eq))
   }
   return out
 }
@@ -580,11 +709,11 @@ async function avatarForUser(gameSlug: string, userId: string): Promise<string> 
   const map = await ensureUserProfilesBatch([userId])
   const fromSetup = setup?.avatarUrl
   const fromProf = map.get(userId)?.avatarUrl
-  return (
+  const raw =
     (typeof fromSetup === 'string' && fromSetup.length > 0 ? fromSetup : null) ??
     (typeof fromProf === 'string' && fromProf.length > 0 ? fromProf : null) ??
-    '/figma-assets/challenge/composer-avatar.png'
-  )
+    ''
+  return resolveProfileAvatarUrl(raw)
 }
 
 const MAX_EXTRA_SERIES = 5
@@ -606,10 +735,11 @@ export async function fetchPerformCompareCandidates(
     const displayName = setup
       ? `${setup.firstName} ${setup.lastName}`.trim()
       : (profile?.displayName ?? 'Player')
-    const avatarUrl =
+    const avatarUrl = resolveProfileAvatarUrl(
       (setup?.avatarUrl && setup.avatarUrl.length > 0 ? setup.avatarUrl : null) ??
-      (profile?.avatarUrl && profile.avatarUrl.length > 0 ? profile.avatarUrl : null) ??
-      '/figma-assets/challenge/composer-avatar.png'
+        (profile?.avatarUrl && profile.avatarUrl.length > 0 ? profile.avatarUrl : null) ??
+        '',
+    )
     players.push({
       userId: uid,
       displayName: displayName || 'Player',

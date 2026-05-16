@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { beginNewGameDraft } from './createGameSettingsApi'
 import { gamePaths } from '../gameRoutes'
 import { BackArrowIcon } from '../icons/BackArrowIcon'
 import './createGameScreen.css'
@@ -40,7 +41,7 @@ const slides = [
     image: '/figma-assets/create-game/slide-settings.png',
     imageAlt: 'Game settings',
     title: 'Customize Your Game Settings',
-    body: 'Set the length of your competition, what can be traded (stocks, crypto, etc...), and trade limits',
+    body: 'Set the length of your competition, which stocks can be traded, and trade limits',
   },
 ] as const
 
@@ -115,7 +116,14 @@ export function CreateGameScreen() {
   }, [navigate])
 
   const onCreate = useCallback(() => {
-    navigate(gamePaths.createGameWizard)
+    void (async () => {
+      try {
+        await beginNewGameDraft()
+      } catch {
+        /* wizard PUT also detaches a live publish if this call fails */
+      }
+      navigate(gamePaths.createGameWizard)
+    })()
   }, [navigate])
 
   const onJoin = useCallback(() => {
@@ -131,10 +139,6 @@ export function CreateGameScreen() {
           <BackArrowIcon width={18} height={14} stroke="#fff" />
         </button>
 
-        <button type="button" className="cg-menu" aria-label="More options">
-          <img src="/figma-assets/create-game/menu-dots.png" alt="" width={24} height={24} />
-        </button>
-
         <h1 className="cg-logo" data-node-id="238:4791">
           SIMVEST
         </h1>
@@ -144,7 +148,7 @@ export function CreateGameScreen() {
             {slides.map((s) => (
               <article key={s.key} className={`cg-slide ${s.className}`} aria-hidden={false}>
                 <div
-                  className={`cg-slideFigure${s.key === 'settings' ? ' cg-slideFigure--shadow' : ''}`}
+                  className={`cg-slideFigure${s.key === 'settings' || s.key === 'compete' ? ' cg-slideFigure--shadow' : ''}`}
                 >
                   <img src={s.image} alt={s.imageAlt} draggable={false} />
                 </div>

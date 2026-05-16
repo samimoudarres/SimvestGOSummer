@@ -6,7 +6,7 @@
   justify-content: center;
   align-items: flex-start;
   background: #e8e8e8;
-  padding: 24px 0 48px;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) calc(48px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
   box-sizing: border-box;
 }
 

@@ -9,11 +9,13 @@ import { massiveGet } from './massiveClient'
 import type { GameFeedPost, RichTextSegment } from './gameFeedService'
 import { normalizeGameSlugParam } from './gameSlugNormalize'
 import { getRuntimeRules } from './gameRuntimeRulesService'
-import { normalizeTicker } from './stockService'
+import { normalizeTicker, normalizeCryptoSnapshotShape, pickTickerSnapshotPrice, unwrapCryptoSnapshotBody } from './stockService'
 import { deriveLegacyUserId } from './userProfileService'
 import { ensureUserProfilesBatch } from './userProfileService'
 import { getPollVoteFromMap, loadAllPollVotes, tallyPollFromMap } from './feedPollVotesService'
 import { loadAllSetupProfilesByKey } from './userSetupProfileService'
+import { resolveProfileAvatarUrl } from '../src/user/resolveProfileAvatarUrl.ts'
+import { batchSocialSummaries, socialPostKey } from './feedPostSocialService'
 
 type SnapshotTicker = {
   day?: { c?: number }
@@ -45,6 +47,12 @@ export type HydratedFeedApiPost = {
   marketCap: string
   revenue: string
   rationale: string
+  /** Trade rows only: tells the UI whether to render Buy or Sell labels and P&L. */
+  side?: 'buy' | 'sell'
+  /** Trade rows only: fill price at the time of the trade. */
+  purchasePrice?: number
+  /** Sell rows only: cost basis of the FIFO lots unwound — used for realized P&L. */
+  costBasis?: number
   richSegments?: RichTextSegment[]
   attachmentImageUrl?: string | null
   poll?: {
@@ -52,6 +60,13 @@ export type HydratedFeedApiPost = {
     options: HydratedPollOption[]
     myVoteId: string | null
   } | null
+  social: {
+    likeCount: number
+    likedByViewer: boolean
+    commentCount: number
+  }
+  /** True when the game's scheduled end has passed — feed mutations (poll, edit, social) are blocked server-side. */
+  feedInteractionsLocked: boolean
 }
 
 type SnapshotPayload = {
@@ -63,9 +78,7 @@ export function fmtPctSigned(n: number): string {
 }
 
 function pickLivePrice(s: SnapshotTicker | undefined): number | null {
-  if (!s) return null
-  const p = s.lastTrade?.p ?? s.lastQuote?.p ?? s.lastQuote?.P ?? s.min?.c ?? s.day?.c ?? s.prevDay?.c
-  return typeof p === 'number' && Number.isFinite(p) ? p : null
+  return pickTickerSnapshotPrice(s as never)
 }
 
 function formatEtTimestamp(iso: string): string {
@@ -85,29 +98,136 @@ function formatEtTimestamp(iso: string): string {
   }
 }
 
+type BatchSnapResponse = { tickers?: unknown[] }
+
+function flattenSnapRow(row: unknown): { sym: string | null; ticker: SnapshotTicker } {
+  if (!row || typeof row !== 'object') return { sym: null, ticker: {} }
+  const o = row as Record<string, unknown>
+  const inner = o.ticker
+  if (inner && typeof inner === 'object') {
+    const n = inner as Record<string, unknown>
+    const sym =
+      typeof n.ticker === 'string'
+        ? n.ticker
+        : typeof o.ticker === 'string'
+          ? o.ticker
+          : null
+    return { sym, ticker: { ...(o as object), ...(n as object) } as SnapshotTicker }
+  }
+  const sym = typeof o.ticker === 'string' ? o.ticker : null
+  return { sym, ticker: o as SnapshotTicker }
+}
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
+/**
+ * One Massive batch call per market (stocks/crypto) — replaces an O(N) per-ticker fan-out
+ * that was the dominant cost of feed hydration. Falls back to per-ticker fetch only for
+ * symbols missing from the batch response (e.g. delisted or unsupported on the batch path).
+ */
 async function fetchLivePriceMap(uniqueTickers: string[]): Promise<
   Map<string, { price: number | null; todaysChangePerc: number | null }>
 > {
   const liveMap = new Map<string, { price: number | null; todaysChangePerc: number | null }>()
-  await Promise.all(
-    uniqueTickers.map(async (sym) => {
-      const snapPath = sym.startsWith('X:')
-        ? `/v2/snapshot/locale/global/markets/crypto/tickers/${encodeURIComponent(sym)}`
-        : `/v2/snapshot/locale/us/markets/stocks/tickers/${encodeURIComponent(sym)}`
-      try {
-        const snap = await massiveGet<SnapshotPayload>(snapPath)
-        liveMap.set(sym, {
-          price: pickLivePrice(snap?.ticker),
-          todaysChangePerc:
-            snap?.ticker?.todaysChangePerc != null && Number.isFinite(snap.ticker.todaysChangePerc)
-              ? snap.ticker.todaysChangePerc
-              : null,
-        })
-      } catch {
-        liveMap.set(sym, { price: null, todaysChangePerc: null })
+  const stockSyms = uniqueTickers.filter((s) => !s.startsWith('X:'))
+  const cryptoSyms = uniqueTickers.filter((s) => s.startsWith('X:'))
+
+  const ingest = (sym: string, t: SnapshotTicker | null | undefined): void => {
+    const norm = normalizeCryptoSnapshotShape(t as never) ?? t ?? undefined
+    let pct =
+      norm?.todaysChangePerc != null && Number.isFinite(norm.todaysChangePerc) ? norm.todaysChangePerc : null
+    if ((pct == null || !Number.isFinite(pct)) && norm) {
+      const price = pickLivePrice(norm)
+      const prev = norm.prevDay?.c
+      if (price != null && prev != null && prev !== 0) {
+        pct = ((price - prev) / prev) * 100
+      } else {
+        const open = norm.day?.o
+        if (price != null && open != null && open !== 0) {
+          pct = ((price - open) / open) * 100
+        }
       }
-    }),
-  )
+    }
+    liveMap.set(sym, {
+      price: pickLivePrice(norm),
+      todaysChangePerc: pct != null && Number.isFinite(pct) ? pct : null,
+    })
+  }
+
+  await Promise.all([
+    (async () => {
+      for (const chunk of chunkArray(stockSyms, 25)) {
+        if (!chunk.length) continue
+        try {
+          const q = chunk.map((c) => encodeURIComponent(c)).join(',')
+          const data = await massiveGet<BatchSnapResponse>(
+            `/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${q}`,
+          )
+          for (const raw of data?.tickers ?? []) {
+            const { sym, ticker } = flattenSnapRow(raw)
+            if (sym && chunk.includes(sym)) ingest(sym, ticker)
+          }
+        } catch {
+          /* per-ticker fallback below fills the gaps */
+        }
+      }
+    })(),
+    (async () => {
+      for (const chunk of chunkArray(cryptoSyms, 12)) {
+        if (!chunk.length) continue
+        try {
+          const q = chunk.map((c) => encodeURIComponent(c)).join(',')
+          const data = await massiveGet<BatchSnapResponse>(
+            `/v2/snapshot/locale/global/markets/crypto/tickers?tickers=${q}`,
+          )
+          // Crypto rows sometimes return the symbol without the `X:` prefix — match both.
+          const wantSet = new Set(chunk)
+          const unprefixedToFull = new Map(chunk.map((s) => [s.replace(/^X:/, ''), s]))
+          for (const raw of data?.tickers ?? []) {
+            const { sym, ticker } = flattenSnapRow(raw)
+            if (!sym) continue
+            const upper = sym.toUpperCase()
+            const matched = wantSet.has(upper)
+              ? upper
+              : unprefixedToFull.get(upper.replace(/^X:/, '')) ?? null
+            if (matched) ingest(matched, ticker)
+          }
+        } catch {
+          /* per-ticker fallback below fills the gaps */
+        }
+      }
+    })(),
+  ])
+
+  const missing = uniqueTickers.filter((s) => !liveMap.has(s))
+  if (missing.length > 0) {
+    await Promise.all(
+      missing.map(async (sym) => {
+        const snapPath = sym.startsWith('X:')
+          ? `/v2/snapshot/locale/global/markets/crypto/tickers/${encodeURIComponent(sym)}`
+          : `/v2/snapshot/locale/us/markets/stocks/tickers/${encodeURIComponent(sym)}`
+        try {
+          const raw = await massiveGet<unknown>(snapPath)
+          if (sym.startsWith('X:')) {
+            const inner = unwrapCryptoSnapshotBody(raw)
+            const { ticker: flatT } = flattenSnapRow(raw)
+            const merged = inner ? ({ ...(flatT ?? {}), ...inner } as SnapshotTicker) : flatT
+            const norm = normalizeCryptoSnapshotShape(merged as never) ?? merged
+            ingest(sym, norm)
+          } else {
+            const snap = raw as SnapshotPayload
+            ingest(sym, snap?.ticker ?? null)
+          }
+        } catch {
+          liveMap.set(sym, { price: null, todaysChangePerc: null })
+        }
+      }),
+    )
+  }
   return liveMap
 }
 
@@ -125,16 +245,29 @@ export async function hydrateGameFeedPosts(
 
   const slugSet = [...new Set(feedPosts.map((p) => normalizeGameSlugParam(p.gameSlug ?? '')).filter(Boolean))]
   const runtimeTitles = new Map<string, string>()
+  const feedLockedSlugs = new Set<string>()
   await Promise.all(
     slugSet.map(async (sl) => {
       const r = await getRuntimeRules(sl)
       const t = r?.gameDisplayName?.trim()
       if (t) runtimeTitles.set(sl, t)
+      if (r?.endsAtIso) {
+        const endsMs = new Date(r.endsAtIso).getTime()
+        if (Number.isFinite(endsMs) && Date.now() > endsMs) feedLockedSlugs.add(sl)
+      }
     }),
   )
 
   const viewer = opts?.viewerUserId?.trim() && opts.viewerUserId.trim().length >= 8 ? opts.viewerUserId.trim() : null
   const pollVotesMap = await loadAllPollVotes()
+
+  const socialMap = await batchSocialSummaries(
+    feedPosts.map((p) => ({
+      slug: normalizeGameSlugParam(p.gameSlug ?? ''),
+      postId: p.id,
+    })),
+    viewer,
+  )
 
   return feedPosts.map((p) => {
     const kind: 'trade' | 'text' | 'poll' =
@@ -145,15 +278,29 @@ export async function hydrateGameFeedPosts(
     let changePct = p.changePct
     if (
       kind === 'trade' &&
+      p.side === 'sell' &&
+      typeof p.costBasis === 'number' &&
+      Number.isFinite(p.costBasis) &&
+      p.costBasis > 0
+    ) {
+      // For sells we surface realized P&L (proceeds vs FIFO cost basis) — that is the
+      // most relevant figure right after a sale, replacing the live "since sale" drift.
+      const proceedsStr = typeof p.orderTotal === 'string' ? p.orderTotal : ''
+      const proceeds = parseFloat(proceedsStr.replace(/[^0-9.\-]/g, ''))
+      if (Number.isFinite(proceeds)) {
+        const raw = ((proceeds - p.costBasis) / p.costBasis) * 100
+        changePct = fmtPctSigned(raw)
+      }
+    } else if (
+      kind === 'trade' &&
+      p.side !== 'sell' &&
       p.purchasePrice != null &&
       Number.isFinite(p.purchasePrice) &&
       p.purchasePrice > 0 &&
       livePx != null
     ) {
-      const raw =
-        p.side === 'sell'
-          ? ((p.purchasePrice - livePx) / p.purchasePrice) * 100
-          : ((livePx - p.purchasePrice) / p.purchasePrice) * 100
+      // Buys keep "since purchase" relative to fill price vs the live market.
+      const raw = ((livePx - p.purchasePrice) / p.purchasePrice) * 100
       changePct = fmtPctSigned(raw)
     } else if (kind === 'trade' && changePct === '—' && live?.todaysChangePerc != null) {
       changePct = fmtPctSigned(live.todaysChangePerc)
@@ -168,7 +315,7 @@ export async function hydrateGameFeedPosts(
     const profile = profileMap.get(userId)
     const setup = setupByKey.get(`${userId}:::${slug}`)
     const author = setup ? `${setup.firstName} ${setup.lastName}`.trim() : (profile?.displayName ?? p.author)
-    const avatar = setup?.avatarUrl || profile?.avatarUrl || p.avatar
+    const avatar = resolveProfileAvatarUrl(setup?.avatarUrl || profile?.avatarUrl || p.avatar)
 
     let pollPayload: HydratedFeedApiPost['poll'] = null
     if (kind === 'poll' && p.pollQuestion && Array.isArray(p.pollOptions) && p.pollOptions.length >= 2) {
@@ -199,6 +346,10 @@ export async function hydrateGameFeedPosts(
       (slug && runtimeTitles.get(slug)) ||
       (slug ? gameTitle(slugToVariant(slug)) : 'Game')
 
+    const sKey = socialPostKey(slug, p.id)
+    const social =
+      (sKey && socialMap.get(sKey)) ?? { likeCount: 0, likedByViewer: false, commentCount: 0 }
+
     return {
       id: p.id,
       userId,
@@ -218,9 +369,18 @@ export async function hydrateGameFeedPosts(
       marketCap: p.marketCap,
       revenue: p.revenue,
       rationale: p.rationale,
+      ...(kind === 'trade' && (p.side === 'buy' || p.side === 'sell') ? { side: p.side } : {}),
+      ...(kind === 'trade' && typeof p.purchasePrice === 'number' && Number.isFinite(p.purchasePrice)
+        ? { purchasePrice: p.purchasePrice }
+        : {}),
+      ...(kind === 'trade' && typeof p.costBasis === 'number' && Number.isFinite(p.costBasis)
+        ? { costBasis: p.costBasis }
+        : {}),
       ...(richSegments ? { richSegments } : {}),
       ...(attachmentImageUrl ? { attachmentImageUrl } : {}),
       ...(pollPayload ? { poll: pollPayload } : {}),
+      social,
+      feedInteractionsLocked: slug ? feedLockedSlugs.has(slug) : false,
     }
   })
 }

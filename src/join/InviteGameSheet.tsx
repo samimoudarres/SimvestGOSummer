@@ -20,6 +20,19 @@ function formatCodeDisplay(code: string): string {
   return code
 }
 
+/** API may serialize `joinCode` as a number; normalize so invite + deep links match welcome lookup. */
+function normalizeJoinCodeFromInviteBody(raw: unknown): string | null {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const s = String(Math.floor(raw))
+    return /^\d{6}$/.test(s) ? s : null
+  }
+  if (typeof raw === 'string') {
+    const d = raw.replace(/\D/g, '')
+    return d.length === 6 ? d : null
+  }
+  return null
+}
+
 type Props = {
   open: boolean
   onClose: () => void
@@ -72,12 +85,13 @@ export function InviteGameSheet({ open, onClose, gameSlug }: Props) {
           setStatus('error')
           return
         }
-        if (!body.joinCode || !body.slug) {
+        const joinCode = normalizeJoinCodeFromInviteBody(body.joinCode)
+        if (!joinCode || !body.slug) {
           setErr('Invalid invite response')
           setStatus('error')
           return
         }
-        setPayload({ slug: body.slug, joinCode: body.joinCode, displayTitle: body.displayTitle ?? '' })
+        setPayload({ slug: body.slug, joinCode, displayTitle: body.displayTitle ?? '' })
         setStatus('ready')
       } catch {
         if (!cancelled) {

@@ -227,7 +227,8 @@ export function JoinGameScreen() {
         setFeedback('We could not find a live game that matches this code.')
         return
       }
-      navigate(gamePaths.joinWelcome(fullCode))
+      /* Replace join screen so post-join history resolves to home, not this form. */
+      navigate(gamePaths.joinWelcome(fullCode), { replace: true })
     } catch (e) {
       setFeedback(e instanceof Error ? e.message : 'Could not verify this code. Try again.')
     } finally {

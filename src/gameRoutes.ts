@@ -7,6 +7,8 @@ export const gamePaths = {
   createGameWizard: '/create-game/setup',
   /** Step 2 — theme / load-in screen customization. */
   createGameTheme: '/create-game/theme',
+  /** After publishing: per-game username + photo (same persistence as join profile setup). */
+  createGameHostProfile: '/create-game/your-in-game-profile',
   join: '/join',
   joinWelcome: (code: string) => `/join/welcome?code=${encodeURIComponent(code)}`,
   joinProfileSetup: (code: string) => `/join/profile-setup?code=${encodeURIComponent(code)}`,

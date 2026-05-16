@@ -22,9 +22,22 @@ export type GameFeedPostRow = {
   marketCap: string
   revenue: string
   rationale: string
+  /** Trade rows only: 'buy' | 'sell' — drives the Bought/Sold label and realized-P&L block. */
+  side?: 'buy' | 'sell'
+  /** Trade rows only: fill price at the time of the trade, used to render Sale Price for sells. */
+  purchasePrice?: number
+  /** Sell rows only: cost basis of the FIFO lots unwound — used to render realized P&L. */
+  costBasis?: number
   richSegments?: RichTextSegment[]
   attachmentImageUrl?: string | null
   poll?: FeedPollPayload | null
+  social?: {
+    likeCount: number
+    likedByViewer: boolean
+    commentCount: number
+  }
+  /** Server-derived: game has ended; social actions should be read-only in the client. */
+  feedInteractionsLocked?: boolean
 }
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'

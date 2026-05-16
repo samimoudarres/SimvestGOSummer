@@ -7,6 +7,17 @@ export type CreateSettingsGetResponse = {
   pendingJoinCount: number
 }
 
+/** Move a live publish off `new` and seed a blank draft before the create wizard edits. */
+export async function beginNewGameDraft(): Promise<{ archivedSlug: string | null }> {
+  const res = await simvestFetch('/api/games/new/begin-draft', { method: 'POST' })
+  if (!res.ok) {
+    throw new Error((await res.text()) || 'Could not start a new game draft')
+  }
+  const j = (await res.json()) as { archivedSlug?: unknown }
+  const archivedSlug = typeof j.archivedSlug === 'string' && j.archivedSlug.trim() ? j.archivedSlug.trim() : null
+  return { archivedSlug }
+}
+
 export async function fetchCreateGameSettings(gameSlug: string): Promise<CreateSettingsGetResponse> {
   const res = await simvestFetch(`/api/games/${encodeURIComponent(gameSlug)}/create-settings`)
   if (!res.ok) {

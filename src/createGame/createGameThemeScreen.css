@@ -5,7 +5,7 @@
   justify-content: center;
   align-items: flex-start;
   background: #e8e8e8;
-  padding: 24px 0 48px;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) calc(48px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
   box-sizing: border-box;
 }
 
@@ -120,7 +120,60 @@
   background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.88) 22%, #fff 100%);
   border-top: 1px solid rgba(0, 0, 0, 0.06);
   box-sizing: border-box;
-  max-height: 200px;
+  max-height: min(420px, 52vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.cgt-navRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 8px;
+}
+
+.cgt-navLink {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  color: #05557d;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.cgt-navLink:active {
+  opacity: 0.75;
+}
+
+.cgt-nameInput {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #111;
+  background: #fafafa;
+}
+
+.cgt-nameInput::placeholder {
+  color: rgba(0, 0, 0, 0.38);
+  font-weight: 700;
+}
+
+.cgt-title--empty {
+  opacity: 0;
 }
 
 .cgt-dockTitle {

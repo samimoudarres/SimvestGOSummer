@@ -1,0 +1,92 @@
+SIMVEST
+TERMS OF SERVICE
+Effective Date: May 15, 2025  |  Last Updated: May 15, 2025
+
+Welcome to Simvest! These Terms of Service ("Terms") are a legally binding agreement between you and Simvest ("Simvest," "we," "our," or "us") governing your access to and use of the Simvest mobile and web application and all related services (collectively, the "Service"). Please read these Terms carefully before using the Service.
+
+BY CREATING AN ACCOUNT OR USING THE SERVICE, YOU AGREE TO BE BOUND BY THESE TERMS. IF YOU DO NOT AGREE, DO NOT USE THE SERVICE.
+
+1. ELIGIBILITY
+You must be at least 13 years of age to use the Service. If you are between 13 and 17 years old, you may only use the Service with the consent and supervision of a parent or legal guardian, who agrees to be bound by these Terms on your behalf. By using the Service, you represent and warrant that you meet these eligibility requirements. Simvest reserves the right to refuse service to anyone for any reason at any time.
+
+2. ACCOUNTS
+Registration. To access most features, you must create an account using a valid email address or phone number and a password. You agree to provide accurate, current, and complete information and to keep it updated.
+Account Security. You are responsible for maintaining the confidentiality of your login credentials and for all activity that occurs under your account. Notify us immediately at backupsamimoudarres@gmail.com if you suspect unauthorized access. We are not liable for losses caused by unauthorized use of your account.
+One Account Per User. You may not create multiple accounts or operate an account on behalf of another person without authorization. We reserve the right to merge, suspend, or terminate duplicate or fraudulent accounts.
+
+3. THE SERVICE — SIMULATION ONLY
+Simvest is a simulated investing and competition platform. All trading on the Service is performed using virtual funds. No real money is invested, transferred, or at risk at any time through the core simulation features of the Service.
+
+Not a Broker or Financial Adviser. Simvest is not a registered broker-dealer, investment adviser, or financial institution. Nothing in the Service constitutes financial, investment, tax, or legal advice. Simulated performance on Simvest is not indicative of, nor a guarantee of, future real-world investment results.
+Market Data. The Service displays live market data sourced from a third-party provider for simulation purposes only. Simvest does not guarantee the accuracy, completeness, or timeliness of any market data. Market data is provided solely to enhance the realism of the simulation experience.
+Optional Buy-In Competitions. Certain games may include an optional real-money buy-in fee, collected and managed separately, to create a prize pool for competition winners. Any such buy-in is subject to additional terms presented at the time of the transaction and applicable law in your jurisdiction. You are solely responsible for ensuring that participating in buy-in competitions is lawful where you reside. Simvest collects a service fee (currently 10%) on buy-in amounts. Simvest is not responsible for the collection, administration, or distribution of prize pools managed by individual game hosts.
+
+4. ACCEPTABLE USE
+You agree to use the Service only for lawful purposes and in accordance with these Terms. You agree not to:
+•	Use the Service in any way that violates applicable local, national, or international laws or regulations.
+•	Create a false identity, impersonate any person or entity, or misrepresent your affiliation with any person or entity.
+•	Attempt to circumvent, disable, or interfere with security features of the Service, including any features that prevent or restrict copying or use of content.
+•	Use automated scripts, bots, scrapers, or other automated means to access the Service, collect data, or interact with features.
+•	Reverse engineer, decompile, or disassemble any portion of the Service or attempt to derive source code.
+•	Upload, post, or transmit content that is defamatory, obscene, hateful, harassing, threatening, or otherwise objectionable.
+•	Use the Service to manipulate or collude in competitions, including coordinating trades or sharing game-code access in a manner designed to unfairly advantage a participant.
+•	Exploit bugs, errors, or unintended features to gain an unfair advantage within the Service.
+
+We reserve the right to investigate suspected violations and to suspend or terminate accounts found to be in breach of these Terms.
+
+5. USER CONTENT
+Your Content. The Service allows you to submit posts, polls, reactions, and other content to game activity feeds ("User Content"). You retain ownership of User Content you create. By submitting User Content, you grant Simvest a non-exclusive, worldwide, royalty-free license to use, display, reproduce, and distribute your User Content within the Service as needed to operate and improve it.
+Content Standards. You are solely responsible for your User Content. You represent that you have all necessary rights to submit it, and that it does not infringe any third-party rights or violate any applicable law. User Content must not contain spam, misinformation, financial scams, harassment, or any material that violates our Acceptable Use policy in Section 4.
+Removal. We reserve the right, but not the obligation, to remove or modify any User Content that we determine, in our sole discretion, violates these Terms or is otherwise objectionable.
+
+6. COMPETITIONS, GAME HOSTS, AND PRIZES
+Game Hosts. Users who create games ("Hosts") are responsible for setting accurate game rules, managing join requests for private games, and ensuring their competitions comply with these Terms and applicable law. Simvest is not responsible for disputes between Hosts and participants.
+No Guarantee of Prizes. Simvest does not guarantee the award, payment, or receipt of any prizes in buy-in competitions. Prize pool management is the responsibility of the Host. If you are participating in a buy-in competition, you do so at your own risk.
+Simvest's Role. Simvest provides the platform infrastructure for competitions. Simvest is not a party to any private agreement between a Host and participants regarding prize distribution.
+
+7. INTELLECTUAL PROPERTY
+The Service, including its design, graphics, logos, software, and all content created by Simvest (excluding User Content), is the property of Simvest and its licensors and is protected by applicable intellectual property laws. These Terms do not grant you any right, title, or interest in the Service beyond the limited license to use it as described herein.
+
+You may not copy, reproduce, distribute, modify, create derivative works of, publicly display, or otherwise exploit any portion of the Service without our express prior written permission.
+
+8. THIRD-PARTY SERVICES
+The Service integrates with third-party services, including our market data provider, hosting infrastructure, and push notification services. Your use of the Service may be subject to the terms and privacy policies of these third parties. Simvest is not responsible for the content, accuracy, or practices of any third-party service. Links to third-party websites within the Service are provided for convenience only.
+
+9. DISCLAIMERS
+THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR UNINTERRUPTED OR ERROR-FREE OPERATION. SIMVEST DOES NOT WARRANT THAT THE SERVICE WILL MEET YOUR REQUIREMENTS, THAT IT WILL BE AVAILABLE AT ANY PARTICULAR TIME, OR THAT ANY DEFECTS WILL BE CORRECTED.
+
+SIMVEST MAKES NO REPRESENTATIONS REGARDING THE ACCURACY OR COMPLETENESS OF ANY MARKET DATA DISPLAYED IN THE SERVICE. MARKET DATA IS PROVIDED FOR SIMULATION PURPOSES ONLY AND SHOULD NOT BE RELIED UPON FOR ANY REAL INVESTMENT DECISION.
+
+10. LIMITATION OF LIABILITY
+TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, SIMVEST AND ITS OFFICERS, DIRECTORS, EMPLOYEES, AFFILIATES, AND LICENSORS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, PUNITIVE, OR EXEMPLARY DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, GOODWILL, OR OTHER INTANGIBLE LOSSES, ARISING OUT OF OR IN CONNECTION WITH YOUR USE OF OR INABILITY TO USE THE SERVICE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+IN NO EVENT SHALL SIMVEST'S TOTAL AGGREGATE LIABILITY TO YOU FOR ALL CLAIMS ARISING OUT OF OR RELATING TO THESE TERMS OR YOUR USE OF THE SERVICE EXCEED THE GREATER OF (A) THE AMOUNTS YOU HAVE PAID TO SIMVEST IN THE TWELVE MONTHS PRECEDING THE CLAIM, OR (B) ONE HUNDRED U.S. DOLLARS ($100).
+
+Some jurisdictions do not allow the exclusion or limitation of certain warranties or liabilities, so the above limitations may not apply to you in full.
+
+11. INDEMNIFICATION
+You agree to indemnify, defend, and hold harmless Simvest and its officers, directors, employees, and agents from and against any claims, liabilities, damages, losses, costs, and expenses (including reasonable attorneys' fees) arising out of or relating to: (a) your use of or inability to use the Service; (b) your User Content; (c) your violation of these Terms; or (d) your violation of any rights of a third party.
+
+12. TERMINATION
+By You. You may stop using the Service and delete your account at any time by following the account deletion process in the App's settings or by contacting us at backupsamimoudarres@gmail.com.
+By Simvest. We reserve the right to suspend or terminate your account and access to the Service at any time, with or without notice, for any violation of these Terms or for any other reason at our sole discretion. Upon termination, your right to use the Service will immediately cease.
+Effect of Termination. Sections that by their nature should survive termination — including Sections 7 (Intellectual Property), 9 (Disclaimers), 10 (Limitation of Liability), 11 (Indemnification), and 13 (Governing Law) — will survive any termination of these Terms.
+
+13. GOVERNING LAW AND DISPUTE RESOLUTION
+Governing Law. These Terms and any dispute arising out of or relating to them or the Service shall be governed by the laws of the State of Delaware, United States, without regard to its conflict of law provisions.
+Informal Resolution. Before filing any formal legal claim, you agree to first contact us at backupsamimoudarres@gmail.com and attempt to resolve the dispute informally. We will attempt to resolve the dispute within 30 days.
+Arbitration. If the dispute is not resolved informally, you and Simvest agree to resolve any claim through binding individual arbitration under the American Arbitration Association (AAA) Consumer Arbitration Rules, rather than in court. YOU AND SIMVEST WAIVE ANY RIGHT TO A JURY TRIAL OR CLASS ACTION PROCEEDING.
+Exceptions. Either party may seek injunctive or other equitable relief in a court of competent jurisdiction to prevent irreparable harm, including claims related to intellectual property infringement.
+
+14. CHANGES TO THESE TERMS
+We may modify these Terms from time to time. When we make material changes, we will notify you via in-app notice or the email address associated with your account and update the "Last Updated" date at the top of this document. Your continued use of the Service after the effective date of the revised Terms constitutes your acceptance. If you do not agree to the updated Terms, you must stop using the Service.
+
+15. GENERAL PROVISIONS
+Entire Agreement. These Terms, together with the Simvest Privacy Policy (incorporated by reference), constitute the entire agreement between you and Simvest regarding the Service and supersede all prior agreements and understandings.
+Severability. If any provision of these Terms is found to be unenforceable, that provision will be modified to the minimum extent necessary to make it enforceable, and the remaining provisions will remain in full force and effect.
+No Waiver. Our failure to enforce any right or provision of these Terms will not constitute a waiver of that right or provision.
+Assignment. You may not assign or transfer your rights under these Terms without our prior written consent. We may assign our rights freely.
+Contact. For questions about these Terms, please contact us at: backupsamimoudarres@gmail.com
+
+© 2025 Simvest. All Rights Reserved.
+These Terms of Service should be read together with the Simvest Privacy Policy.

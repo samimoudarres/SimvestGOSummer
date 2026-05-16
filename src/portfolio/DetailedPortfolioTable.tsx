@@ -75,7 +75,7 @@ export function DetailedPortfolioTable({
                 <td>{fmtMoney(row.avgCost)}</td>
                 <td className={pctClass(row.dayChangeDollars)}>{fmtSignedMoney(row.dayChangeDollars)}</td>
                 <td className={pctClass(row.todayDollars)}>{fmtSignedMoney(row.todayDollars)}</td>
-                <td className={pctClass(row.changePct)}>{fmtSignedPct(row.changePct)}</td>
+                <td className={pctClass(row.todayPct ?? row.changePct)}>{fmtSignedPct(row.todayPct ?? row.changePct)}</td>
                 <td className={pctClass(row.totalReturnDollars)}>{fmtSignedMoney(row.totalReturnDollars)}</td>
                 <td className={pctClass(row.totalReturnPct)}>{fmtSignedPct(row.totalReturnPct)}</td>
                 <td>{fmtMoney(row.marketValue)}</td>

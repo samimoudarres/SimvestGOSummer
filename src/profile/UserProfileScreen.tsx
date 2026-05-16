@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { ChallengeBottomNav } from '../challenge/ChallengeBottomNav'
 import { challengeAssets as a } from '../challenge/challengeAssets'
-import { gameHostLine, gameTitle, slugToVariant, type GameChallengeVariant } from '../challenge/gameMeta'
+import { useGameChallengeHeader } from '../challenge/useGameChallengeHeader'
 import '../challenge/gameChallenge.css'
 import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
 import { MiniSparkLine } from '../components/MiniSparkLine'
@@ -16,8 +16,10 @@ import {
   type PortfolioSortMode,
 } from '../portfolio/portfolioTypes'
 import { navigateToStock } from '../stocks/navigateToStock'
+import { ApiImage } from '../components/ApiImage'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import { getSimvestUserId } from '../user/simvestUserId'
+import { resolveProfileAvatarUrl } from '../user/resolveProfileAvatarUrl'
 import { DetailedPortfolioTable } from '../portfolio/DetailedPortfolioTable'
 import { NetWorthInGameChart } from '../perform/NetWorthInGameChart'
 import { usePlayerGameProfile } from './usePlayerGameProfile'
@@ -59,7 +61,7 @@ function StockRows({
           onClick={() => onPick(row.symbol)}
         >
           <span className="pf-stockLogoWrap">
-            <img className="pf-stockLogo" src={row.logoUrl} alt="" />
+            <ApiImage className="pf-stockLogo" src={row.logoUrl} alt="" />
           </span>
           <div>
             <p className="pf-stockSym">{row.symbol}</p>
@@ -82,7 +84,7 @@ function PortfolioRow({ row, onPick }: { row: PortfolioApiRow; onPick: () => voi
   return (
     <button type="button" className="pf-stockRow" onClick={onPick}>
       <span className="pf-stockLogoWrap">
-        <img className="pf-stockLogo" src={row.logoUrl} alt="" />
+        <ApiImage className="pf-stockLogo" src={row.logoUrl} alt="" />
       </span>
       <div>
         <p className="pf-stockSym">{row.ticker}</p>
@@ -100,12 +102,11 @@ export function UserProfileScreen() {
   const { gameSlug, userId: userIdParam } = useParams<{ gameSlug: string; userId: string }>()
   const slug = gameSlug ?? ''
   const profileUserId = userIdParam ? decodeURIComponent(userIdParam) : ''
-
+  const headerCtl = useGameChallengeHeader(slug)
   useEffect(() => {
     rememberActiveGameSlug(slug)
   }, [slug])
   const chromeStyle = useGameChromeCssVars(slug)
-  const variant: GameChallengeVariant = slugToVariant(slug)
 
   const { data, status, error } = usePlayerGameProfile(slug, profileUserId)
   const [sortMode, setSortMode] = useState<PortfolioSortMode>('total_pct')
@@ -143,16 +144,13 @@ export function UserProfileScreen() {
     (symbol: string) => {
       navigateToStock(navigate, symbol, {
         gameSlug: slug,
-        challengeTitle: gameTitle(variant),
+        challengeTitle: headerCtl.headerTitle,
         returnPath,
         navTab: 'activity',
       })
     },
-    [navigate, slug, variant, returnPath],
+    [navigate, slug, headerCtl.headerTitle, returnPath],
   )
-
-  const title = gameTitle(variant)
-  const host = gameHostLine(variant)
 
   if (!gameSlug) {
     return <Navigate to="/" replace />
@@ -165,7 +163,7 @@ export function UserProfileScreen() {
           <div className="pf-scroll">
             <p className="pf-loading">Loading profile…</p>
           </div>
-          <ChallengeBottomNav gameSlug={slug} active="profile" />
+          <ChallengeBottomNav gameSlug={slug} active="profile" tradeLocked={headerCtl.gameHasEnded} />
         </div>
       </div>
     )
@@ -183,7 +181,7 @@ export function UserProfileScreen() {
             </header>
             <p className="pp-err">{error ?? 'Profile unavailable.'}</p>
           </div>
-          <ChallengeBottomNav gameSlug={slug} active="profile" />
+          <ChallengeBottomNav gameSlug={slug} active="profile" tradeLocked={headerCtl.gameHasEnded} />
         </div>
       </div>
     )
@@ -220,12 +218,12 @@ export function UserProfileScreen() {
             </button>
 
             <div className="pp-challengeIntro">
-              <h1 className="pp-challengeTitle">{title}</h1>
-              <p className="pp-challengeHost">{host}</p>
+              <h1 className="pp-challengeTitle">{headerCtl.headerTitle}</h1>
+              <p className="pp-challengeHost">{headerCtl.headerHost}</p>
             </div>
 
             <div className="pp-identity">
-              <img className="pp-avatar" src={profile.avatarUrl} alt="" width={64} height={64} />
+              <img className="pp-avatar" src={resolveProfileAvatarUrl(profile.avatarUrl)} alt="" width={64} height={64} />
               <div className="pp-identityText">
                 <p className="pp-displayName">{profile.displayName}</p>
                 {profile.username ? <p className="pp-username">@{profile.username}</p> : null}
@@ -238,7 +236,7 @@ export function UserProfileScreen() {
                 </p>
               </div>
             </div>
-            <p className="pp-perfHint">Performance · {title}</p>
+            <p className="pp-perfHint">Performance · {headerCtl.headerTitle}</p>
           </header>
 
           <section className="pf-statsCard" aria-label="Performance summary">
@@ -256,22 +254,26 @@ export function UserProfileScreen() {
               <p className="pf-statLab">Today&apos;s Return</p>
               <p className="pf-statVal">{stats.todayReturn}</p>
               <p className="pf-statSub">{stats.todayReturnSub}</p>
-              <FireIcon />
             </div>
           </section>
 
-          <div className="pf-rankBar" aria-label="Rank">
+          <div
+            className={`pf-rankBar${rank.streakLabel ? '' : ' pf-rankBar--noStreak'}`}
+            aria-label="Rank"
+          >
             <div className="pf-rankTextRow">
               <span className="pf-rankLead">{rankLeadText}</span>
               <span className="pf-rankNum">{rank.rankOrdinal}</span>
               <span className="pf-rankTrail">{rank.outOfLabel}</span>
             </div>
-            <div className="pf-rankStreak">
-              <span className="pf-rankStreakFire" aria-hidden>
-                <FireIcon />
-              </span>
-              <span className="pf-rankStreakText">{rank.streakLabel}</span>
-            </div>
+            {rank.streakLabel ? (
+              <div className="pf-rankStreak">
+                <span className="pf-rankStreakFire" aria-hidden>
+                  <FireIcon />
+                </span>
+                <span className="pf-rankStreakText">{rank.streakLabel}</span>
+              </div>
+            ) : null}
           </div>
 
           {profile.userId.length >= 8 ? (
@@ -364,7 +366,7 @@ export function UserProfileScreen() {
           </section>
         </div>
 
-        <ChallengeBottomNav gameSlug={slug} active="profile" />
+        <ChallengeBottomNav gameSlug={slug} active="profile" tradeLocked={headerCtl.gameHasEnded} />
       </div>
     </div>
   )

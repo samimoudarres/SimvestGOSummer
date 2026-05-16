@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState, type MouseEvent, type TouchEvent } from 'react'
-import { widenChartValueSpan } from '../util/chartYSpan'
+import { chartYDomainFromValues, clampToChart } from '../util/chartYSpan'
 import type {
   PerformCompareSeries,
   PerformCompareSeriesId,
@@ -30,11 +30,22 @@ function isVisible(visible: Record<string, boolean>, id: string): boolean {
   return visible[id] !== false
 }
 
-function fmtIndexedTick(v: number): string {
+function fmtIndexedTick(v: number, span: number): string {
   if (!Number.isFinite(v)) return '—'
-  if (Math.abs(v - Math.round(v)) < 0.05) return `${Math.round(v)}`
-  return v.toFixed(1)
+  // Pick decimals so adjacent ticks (~5 across the visible span) stay distinguishable
+  // when the Y axis is tight around small fluctuations.
+  const stepPerTick = span > 0 ? span / 5 : 0
+  let decimals: number
+  if (stepPerTick >= 1) decimals = 0
+  else if (stepPerTick >= 0.1) decimals = 1
+  else if (stepPerTick >= 0.01) decimals = 2
+  else decimals = 3
+  if (decimals === 0 && Math.abs(v - Math.round(v)) < 0.05) return `${Math.round(v)}`
+  return v.toFixed(decimals)
 }
+
+const Y_TOP = PAD_T
+const Y_BOTTOM = H - PAD_B
 
 function pathForValuesLinear(
   values: number[],
@@ -49,7 +60,8 @@ function pathForValuesLinear(
   return values
     .map((v, i) => {
       const x = PAD_L + (innerW * i) / (values.length - 1)
-      const y = PAD_T + innerH * (1 - (v - minV) / span)
+      const yRaw = PAD_T + innerH * (1 - (v - minV) / span)
+      const y = clampToChart(yRaw, Y_TOP, Y_BOTTOM)
       return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
     })
     .join(' ')
@@ -67,7 +79,8 @@ function pathForValuesStep(
   const innerW = W - PAD_L - PAD_R
   const innerH = H - PAD_T - PAD_B
   const xAt = (i: number) => PAD_L + (innerW * i) / (values.length - 1)
-  const yAt = (v: number) => PAD_T + innerH * (1 - (v - minV) / span)
+  const yAt = (v: number) =>
+    clampToChart(PAD_T + innerH * (1 - (v - minV) / span), Y_TOP, Y_BOTTOM)
   let d = `M${xAt(0).toFixed(1)},${yAt(values[0]!).toFixed(1)}`
   for (let i = 0; i < values.length - 1; i++) {
     const x2 = xAt(i + 1)
@@ -98,7 +111,7 @@ function buildPts(values: number[], minV: number, maxV: number, show: boolean) {
   const innerH = H - PAD_T - PAD_B
   return values.map((v, i) => ({
     x: PAD_L + (innerW * i) / (values.length - 1),
-    y: PAD_T + innerH * (1 - (v - minV) / span),
+    y: clampToChart(PAD_T + innerH * (1 - (v - minV) / span), Y_TOP, Y_BOTTOM),
     v,
   }))
 }
@@ -137,30 +150,26 @@ export function PerformCompareChart({
   const innerW = W - PAD_L - PAD_R
 
   const { minV, maxV } = useMemo(() => {
-    let min = Infinity
-    let max = -Infinity
+    const flat: number[] = []
     for (const s of series) {
       if (!isVisible(visible, s.id)) continue
       for (const v of s.values) {
-        if (!Number.isFinite(v)) continue
-        min = Math.min(min, v)
-        max = Math.max(max, v)
+        if (Number.isFinite(v)) flat.push(v)
       }
     }
-    if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      return { minV: 97, maxV: 103 }
-    }
-    const w = widenChartValueSpan(min, max)
+    if (flat.length === 0) return { minV: 97, maxV: 103 }
+    const w = chartYDomainFromValues(flat)
     return { minV: w.min, maxV: w.max }
   }, [series, visible])
 
   const displayYAxisLabels = useMemo(() => {
     const n = Math.max(2, Math.min(yAxisLabels.length || 5, 7))
     const labels: string[] = []
+    const span = maxV - minV
     for (let i = 0; i < n; i++) {
       const t = n === 1 ? 0 : i / (n - 1)
-      const v = maxV - t * (maxV - minV)
-      labels.push(fmtIndexedTick(v))
+      const v = maxV - t * span
+      labels.push(fmtIndexedTick(v, span))
     }
     return labels
   }, [minV, maxV, yAxisLabels.length])

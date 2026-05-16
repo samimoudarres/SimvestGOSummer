@@ -1,0 +1,43 @@
+<svg width="292" height="286" viewBox="0 0 292 286" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bubA" x1="40" y1="100" x2="160" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dff4ff"/>
+    </linearGradient>
+    <linearGradient id="bubB" x1="150" y1="60" x2="270" y2="170" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dff4ff"/>
+    </linearGradient>
+    <linearGradient id="bubC" x1="80" y1="140" x2="220" y2="260" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dff4ff"/>
+    </linearGradient>
+    <filter id="shadowA" x="0" y="90" width="180" height="160" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#062d4b" flood-opacity=".26"/>
+    </filter>
+    <filter id="shadowB" x="120" y="50" width="172" height="142" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#062d4b" flood-opacity=".26"/>
+    </filter>
+    <filter id="shadowC" x="60" y="130" width="200" height="156" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#062d4b" flood-opacity=".26"/>
+    </filter>
+  </defs>
+  <circle cx="48" cy="60" r="34" fill="#d6f7ff" opacity=".72"/>
+  <circle cx="244" cy="42" r="26" fill="#5bc7ff" opacity=".32"/>
+  <circle cx="232" cy="232" r="36" fill="#d2f5ff" opacity=".35"/>
+  <g filter="url(#shadowA)">
+    <path d="M36 130 Q36 110 56 110 L142 110 Q162 110 162 130 L162 188 Q162 208 142 208 L80 208 L56 232 L60 208 L56 208 Q36 208 36 188 Z" fill="url(#bubA)" stroke="#0a5a87" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M99 184c-3 0-5-2-6-4l-12-19c-4-7-3-15 2-21 6-7 17-7 23 0l5 5 5-5c6-7 17-7 23 0 5 6 6 14 2 21l-12 19c-1 2-3 4-6 4z" fill="#bfeeff" stroke="#0a5a87" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+  <g filter="url(#shadowB)">
+    <path d="M150 76 Q150 58 168 58 L256 58 Q274 58 274 76 L274 132 Q274 150 256 150 L222 150 L246 174 L210 150 L168 150 Q150 150 150 132 Z" fill="url(#bubB)" stroke="#0a5a87" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M196 80 L210 80 Q220 80 220 90 L220 110 L228 118 L228 110 L240 110 Q250 110 250 100 L250 90 Q250 80 240 80 L228 80 Z" fill="#bfeeff" stroke="#0a5a87" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M205 100 L205 92 Q205 88 209 88 L221 88 Q224 88 224 91 L224 96 Q224 100 220 100 L213 100 L210 104 L210 100 Z" fill="#0a5a87"/>
+  </g>
+  <g filter="url(#shadowC)">
+    <path d="M90 154 Q90 134 110 134 L208 134 Q228 134 228 154 L228 218 Q228 238 208 238 L142 238 L116 264 L122 238 L110 238 Q90 238 90 218 Z" fill="url(#bubC)" stroke="#0a5a87" stroke-width="6" stroke-linejoin="round"/>
+    <circle cx="135" cy="188" r="9" fill="#0a5a87"/>
+    <circle cx="160" cy="188" r="9" fill="#0a5a87"/>
+    <circle cx="185" cy="188" r="9" fill="#0a5a87"/>
+  </g>
+</svg>

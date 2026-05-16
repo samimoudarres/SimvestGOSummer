@@ -14,6 +14,10 @@ dist-ssr
 
 # API keys (use `.env.example` as a template)
 .env
+.env.capacitor
+
+# Auto-generated Web Push keys (dev); set VAPID_* in `.env` for production.
+server/data/vapid-keys.json
 
 # Editor directories and files
 .vscode/*

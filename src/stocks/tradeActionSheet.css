@@ -1,0 +1,84 @@
+.tas-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(11, 19, 35, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 12px calc(22px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  animation: tas-fade-in 0.16s ease-out;
+}
+
+@keyframes tas-fade-in {
+  from { background: rgba(11, 19, 35, 0); }
+  to   { background: rgba(11, 19, 35, 0.45); }
+}
+
+.tas-stack {
+  width: 100%;
+  max-width: 388px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: tas-slide-up 0.18s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes tas-slide-up {
+  from { transform: translateY(8%); opacity: 0; }
+  to   { transform: translateY(0);  opacity: 1; }
+}
+
+.tas-card {
+  background: rgba(252, 252, 252, 0.96);
+  backdrop-filter: saturate(140%) blur(8px);
+  -webkit-backdrop-filter: saturate(140%) blur(8px);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
+}
+
+.tas-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 64px;
+  border: 0;
+  background: transparent;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+  color: #0a0a0a;
+  cursor: pointer;
+}
+
+.tas-row:active {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.tas-rule {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.tas-cancel {
+  width: 100%;
+  height: 64px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(252, 252, 252, 0.98);
+  backdrop-filter: saturate(140%) blur(8px);
+  -webkit-backdrop-filter: saturate(140%) blur(8px);
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: #0a0a0a;
+  cursor: pointer;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
+}
+
+.tas-cancel:active {
+  background: rgba(0, 0, 0, 0.06);
+}

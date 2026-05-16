@@ -7,7 +7,7 @@
   justify-content: center;
   align-items: flex-start;
   background: #e8e8e8;
-  padding: 24px 0 48px;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) calc(48px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
   box-sizing: border-box;
 }
 
@@ -136,10 +136,32 @@
   margin: 0;
 }
 
+.jg-feedback {
+  position: absolute;
+  left: 22px;
+  /* Below .jg-code-row (top 271 + cell height 67 = 338) — keep error copy out of the digit boxes */
+  top: 352px;
+  width: 355px;
+  margin: 0;
+  min-height: 2.6em;
+  padding: 0 4px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #b00020;
+  text-align: center;
+  z-index: 2;
+}
+
+.jg-feedback--ok {
+  color: #05557d;
+}
+
 .jg-join {
   position: absolute;
   left: 22px;
-  top: 367px;
+  top: 422px;
   width: 355px;
   height: 49px;
   padding: 0;
@@ -175,7 +197,7 @@
   position: absolute;
   left: 50%;
   transform: translate(-50%, -50%);
-  top: 478px;
+  top: 498px;
   margin: 0;
   width: 326px;
   text-align: center;
@@ -191,7 +213,7 @@
   position: absolute;
   left: 50%;
   transform: translate(-50%, -50%);
-  top: 542px;
+  top: 558px;
   margin: 0;
   width: 326px;
   text-align: center;
@@ -206,7 +228,7 @@
 .jg-qr-tile {
   position: absolute;
   left: 155px;
-  top: 573px;
+  top: 588px;
   width: 92px;
   height: 89px;
   padding: 0;
@@ -235,24 +257,6 @@
   flex-shrink: 0;
 }
 
-.jg-feedback {
-  position: absolute;
-  left: 22px;
-  top: 346px;
-  width: 355px;
-  margin: 0;
-  font-family: 'Nunito Sans', sans-serif;
-  font-weight: 600;
-  font-size: 13px;
-  line-height: 1.35;
-  color: #b00020;
-  text-align: center;
-}
-
-.jg-feedback--ok {
-  color: #05557d;
-}
-
 /* Full-screen QR scanner overlay */
 .jg-scanner-overlay {
   position: fixed;
@@ -262,7 +266,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
+    calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
   box-sizing: border-box;
 }
 

@@ -1,5 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
+/** Set by `npm run cap:sync` / `build:capacitor:local` so dev API images are not mixed-content blocked. */
+const useHttpWebViewScheme = process.env.CAPACITOR_HTTP_SCHEME === '1'
+
 const config: CapacitorConfig = {
   appId: 'com.simvest.app',
   appName: 'Simvest',
@@ -15,9 +18,10 @@ const config: CapacitorConfig = {
     allowMixedContent: true,
   },
   server: {
-    /* Secure-context-friendly default on Android WebView (Capacitor default is https) */
-    androidScheme: 'https',
-    cleartext: false,
+    /* Local dev: HTTP WebView + HTTP API avoids mixed-content blocking `<img src>` to 10.0.2.2 */
+    androidScheme: useHttpWebViewScheme ? 'http' : 'https',
+    iosScheme: useHttpWebViewScheme ? 'http' : 'https',
+    cleartext: useHttpWebViewScheme,
     hostname: 'localhost',
     /*
      * LAN live reload (dev only): add `url` + `cleartext: true` here — see README Phase 5.

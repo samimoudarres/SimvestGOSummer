@@ -1,0 +1,392 @@
+/* Compact feed post actions — likes, comments, share (game + home feeds). */
+
+.fps-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.fps-cluster {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+}
+
+.fps-btn {
+  border: none;
+  padding: 2px 5px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: #333;
+  font-family: 'Inter', 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 1;
+  min-height: 26px;
+  box-sizing: border-box;
+}
+
+.fps-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.fps-btn:not(:disabled):hover {
+  background: rgba(5, 85, 125, 0.08);
+}
+
+.fps-btn:not(:disabled):active {
+  background: rgba(5, 85, 125, 0.14);
+}
+
+.fps-btn:focus-visible {
+  outline: 2px solid #05557d;
+  outline-offset: 2px;
+}
+
+.fps-likeBtn--on {
+  color: #05557d;
+}
+
+.fps-likeBtn--on svg {
+  fill: #05557d;
+}
+
+.fps-countTap {
+  border: none;
+  padding: 2px 4px;
+  margin: 0;
+  min-width: 20px;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 6px;
+  font-family: 'Inter', 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  color: #555;
+}
+
+.fps-countTap:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.fps-countTap:not(:disabled):hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.fps-countTap:focus-visible {
+  outline: 2px solid #05557d;
+  outline-offset: 2px;
+}
+
+.fps-icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+.fps-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 400;
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: rgba(17, 24, 39, 0.92);
+  color: #fff;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  max-width: min(360px, calc(100vw - 32px));
+  text-align: center;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+}
+
+/* Bottom sheets */
+.fps-shade {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 env(safe-area-inset-right, 0) 0 env(safe-area-inset-left, 0);
+  box-sizing: border-box;
+}
+
+.fps-sheet {
+  width: min(402px, 100%);
+  max-height: min(78vh, 720px);
+  background: #fff;
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.fps-sheetGrab {
+  width: 44px;
+  height: 5px;
+  border-radius: 99px;
+  background: #ddd;
+  margin: 10px auto 6px;
+  flex-shrink: 0;
+}
+
+.fps-sheetHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 14px 12px;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.fps-sheetTitle {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 17px;
+  color: #111;
+}
+
+.fps-sheetClose {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  color: #05557d;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+.fps-sheetClose:hover {
+  background: rgba(5, 85, 125, 0.08);
+}
+
+.fps-sheetBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 14px 14px;
+}
+
+.fps-liker {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.fps-liker:last-child {
+  border-bottom: none;
+}
+
+.fps-likerAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #e8e8e8;
+}
+
+.fps-likerName {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #111;
+}
+
+.fps-emptyHint {
+  margin: 24px 8px;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.45;
+}
+
+.fps-comment {
+  padding: 10px 0;
+  border-bottom: 1px solid #f2f2f2;
+}
+
+.fps-comment:last-child {
+  border-bottom: none;
+}
+
+.fps-commentTop {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.fps-commentAvatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #e8e8e8;
+}
+
+.fps-commentMain {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.fps-commentMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.fps-commentAuthor {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  color: #111;
+}
+
+.fps-commentTime {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #888;
+}
+
+.fps-commentText {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #222;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.fps-commentActions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.fps-miniBtn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  color: #05557d;
+}
+
+.fps-miniBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.fps-miniBtn:not(:disabled):hover {
+  background: rgba(5, 85, 125, 0.07);
+}
+
+.fps-commentLikeCluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.fps-composeBar {
+  flex-shrink: 0;
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid #eee;
+  background: #fafafa;
+}
+
+.fps-composeInner {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.fps-composeInput {
+  flex: 1 1 auto;
+  min-height: 40px;
+  max-height: 120px;
+  resize: none;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
+  box-sizing: border-box;
+}
+
+.fps-composeInput:focus {
+  outline: 2px solid rgba(5, 85, 125, 0.35);
+  border-color: #05557d;
+}
+
+.fps-composePost {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: #05557d;
+  color: #fff;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.fps-composePost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.fps-replyBanner {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 8px;
+}
+
+.fps-replyBanner strong {
+  color: #111;
+}

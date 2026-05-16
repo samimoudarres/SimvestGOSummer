@@ -16,7 +16,7 @@ export function emptyPerformDashboard(gameSlug: string): PerformDashboardPayload
     rank: {
       rankOrdinal: '—',
       outOfLabel: 'Trade to appear on the board',
-      streakLabel: '—',
+      streakLabel: null,
     },
     topGainers: [],
     topLosers: [],

@@ -3,13 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { challengeAssets as a } from '../challenge/challengeAssets'
 import { GAME_SLUG } from '../challenge/gameMeta'
 import { gamePaths } from '../gameRoutes'
-import { TRADE_CATEGORY_OPTIONS, type TradeCategoryId } from '../trade/tradeTypes'
+import type { TradeCategoryId } from '../trade/tradeTypes'
 import { fetchCreateGameSettings, putCreateGameSettings } from './createGameSettingsApi'
-import type {
-  AssetsMode,
-  CreateGameSettingsPutBody,
-  DurationPreset,
-  VisibilityMode,
+import {
+  CREATE_GAME_ASSET_OPTIONS,
+  CREATE_GAME_CATEGORY_OPTIONS,
+  normalizeCreateGameAssetsMode,
+  type AssetsMode,
+  type CreateGameSettingsPutBody,
+  type DurationPreset,
+  type VisibilityMode,
 } from './createGameWizardTypes'
 import './createGameWizard.css'
 
@@ -23,19 +26,42 @@ const DURATION_OPTIONS: { id: DurationPreset; label: string }[] = [
   { id: 'custom', label: 'Custom' },
 ]
 
-const ASSET_OPTIONS: { id: AssetsMode; label: string }[] = [
-  { id: 'all', label: 'All (stocks & crypto)' },
-  { id: 'stocks_only', label: 'Stocks only' },
-  { id: 'crypto_only', label: 'Crypto only' },
-  { id: 'category', label: 'Single stock category' },
-]
-
 const VIS_OPTIONS: { id: VisibilityMode; label: string }[] = [
   { id: 'public', label: 'Public — anyone can join' },
   { id: 'private', label: 'Private — you approve each player' },
 ]
 
 const MS_DAY = 86_400_000
+
+/** Mirrors `server/gameRuntimeRulesService.computeGameEndIso` for instant UI preview. */
+function computeGameEndIsoClient(
+  startsAtIso: string,
+  durationPreset: DurationPreset,
+  customEndsOn: string | null,
+): string | null {
+  const start = new Date(startsAtIso).getTime()
+  if (!Number.isFinite(start)) return null
+  switch (durationPreset) {
+    case '1d':
+      return new Date(start + MS_DAY).toISOString()
+    case '1w':
+      return new Date(start + 7 * MS_DAY).toISOString()
+    case '1m':
+      return new Date(start + 30 * MS_DAY).toISOString()
+    case '1y':
+      return new Date(start + 365 * MS_DAY).toISOString()
+    case 'custom': {
+      if (!customEndsOn || !/^\d{4}-\d{2}-\d{2}$/.test(customEndsOn)) return null
+      const [y, mo, d] = customEndsOn.split('-').map((x) => Number(x))
+      if (!y || !mo || !d) return null
+      const endMs = Date.UTC(y, mo - 1, d, 23, 59, 59, 999)
+      if (endMs <= start) return null
+      return new Date(endMs).toISOString()
+    }
+    default:
+      return null
+  }
+}
 
 function todayYmd(): string {
   const d = new Date()
@@ -74,9 +100,10 @@ function defaultForm(): CreateGameSettingsPutBody {
     gameDisplayName: '',
     durationPreset: '1m',
     customEndsOn: null,
-    assetsMode: 'all',
+    assetsMode: 'stocks_only',
     assetsCategory: 'tech',
     visibility: 'public',
+    setupComplete: false,
   }
 }
 
@@ -100,17 +127,20 @@ export function CreateGameWizardScreen() {
         if (cancelled) return
         if (res.settings) {
           const s = res.settings
+          const assetsMode = normalizeCreateGameAssetsMode(s.assetsMode)
+          let assetsCategory = s.assetsCategory ?? 'tech'
+          if (assetsCategory === 'crypto') assetsCategory = 'tech'
           setForm({
             gameDisplayName: s.gameDisplayName,
             durationPreset: s.durationPreset,
             customEndsOn: s.customEndsOn,
-            assetsMode: s.assetsMode,
-            assetsCategory: s.assetsCategory ?? 'tech',
+            assetsMode,
+            assetsCategory,
             visibility: s.visibility,
             themePaletteId: s.themePaletteId,
             loadScreenEmoji: s.loadScreenEmoji,
             hostDisplayName: s.hostDisplayName,
-            setupComplete: s.setupComplete,
+            setupComplete: false,
           })
           setServerMeta({ startsAtIso: s.startsAtIso, endsAtIso: s.endsAtIso })
         } else {
@@ -128,16 +158,34 @@ export function CreateGameWizardScreen() {
     }
   }, [])
 
+  /** Live preview from form + game start (not only last successful save). */
+  const previewEndsAtIso = useMemo(() => {
+    if (!serverMeta.startsAtIso) return serverMeta.endsAtIso
+    const fromForm = computeGameEndIsoClient(
+      serverMeta.startsAtIso,
+      form.durationPreset,
+      form.durationPreset === 'custom' ? form.customEndsOn : null,
+    )
+    if (fromForm != null) return fromForm
+    if (form.durationPreset === 'custom' && form.customEndsOn) return null
+    return serverMeta.endsAtIso
+  }, [
+    serverMeta.startsAtIso,
+    serverMeta.endsAtIso,
+    form.durationPreset,
+    form.customEndsOn,
+  ])
+
   const previewDays = useMemo(() => {
-    if (!serverMeta.startsAtIso || !serverMeta.endsAtIso) return null
-    return daysBetweenClient(serverMeta.startsAtIso, serverMeta.endsAtIso)
-  }, [serverMeta])
+    if (!serverMeta.startsAtIso || !previewEndsAtIso) return null
+    return daysBetweenClient(serverMeta.startsAtIso, previewEndsAtIso)
+  }, [serverMeta.startsAtIso, previewEndsAtIso])
 
   const persist = useCallback(async (body: CreateGameSettingsPutBody) => {
     setSaving(true)
     setSaveErr(null)
     try {
-      const { settings } = await putCreateGameSettings(TARGET_SLUG, body)
+      const { settings } = await putCreateGameSettings(TARGET_SLUG, { ...body, setupComplete: false })
       setServerMeta({ startsAtIso: settings.startsAtIso, endsAtIso: settings.endsAtIso })
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : 'Save failed')
@@ -223,8 +271,19 @@ export function CreateGameWizardScreen() {
                   />
                 ) : null}
                 <p className="cgw-meta">
-                  Ends {formatLongDate(serverMeta.endsAtIso)}
-                  {previewDays != null ? ` · ${previewDays} day${previewDays === 1 ? '' : 's'} long` : null}
+                  {previewEndsAtIso ? (
+                    <>
+                      Ends {formatLongDate(previewEndsAtIso)}
+                      {previewDays != null ? ` · ${previewDays} day${previewDays === 1 ? '' : 's'} long` : null}
+                    </>
+                  ) : form.durationPreset === 'custom' && form.customEndsOn ? (
+                    <>End date must be after the game start.</>
+                  ) : (
+                    <>
+                      Ends {formatLongDate(serverMeta.endsAtIso)}
+                      {previewDays != null ? ` · ${previewDays} day${previewDays === 1 ? '' : 's'} long` : null}
+                    </>
+                  )}
                 </p>
                 <p className="cgw-hint">Length is saved from the first time you configure this game; adjust anytime before launch.</p>
               </div>
@@ -241,7 +300,7 @@ export function CreateGameWizardScreen() {
                     setForm((p) => ({ ...p, assetsMode: v }))
                   }}
                 >
-                  {ASSET_OPTIONS.map((o) => (
+                  {CREATE_GAME_ASSET_OPTIONS.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.label}
                     </option>
@@ -255,7 +314,7 @@ export function CreateGameWizardScreen() {
                       setForm((p) => ({ ...p, assetsCategory: e.target.value as TradeCategoryId }))
                     }
                   >
-                    {TRADE_CATEGORY_OPTIONS.map((c) => (
+                    {CREATE_GAME_CATEGORY_OPTIONS.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.label}
                       </option>

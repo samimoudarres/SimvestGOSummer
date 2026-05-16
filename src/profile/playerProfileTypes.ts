@@ -24,7 +24,7 @@ export type PlayerGameProfilePayload = {
   rank: {
     rankOrdinal: string
     outOfLabel: string
-    streakLabel: string
+    streakLabel: string | null
     fillPct: number
   }
   topGainers: PerformStockRow[]

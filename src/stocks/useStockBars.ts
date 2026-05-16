@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { simvestFetch } from '../api/simvestFetch'
 import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
+import { isSimvestPollDebugEnabled } from '../lib/debugPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
 import type { ChartRange, StockBarsPayload } from './stockDetailTypes'
 
@@ -20,21 +22,31 @@ export function useStockBars(ticker: string | undefined, range: ChartRange) {
         setError(null)
       }
       const q = new URLSearchParams({ range })
-      fetch(`/api/stocks/${encodeURIComponent(ticker)}/bars?${q}`, { cache: 'no-store' })
-        .then((r) =>
-          r
-            .json()
-            .then((body) => ({ ok: r.ok, body }))
-            .catch(() => ({ ok: false, body: { error: 'Bad response' } })),
-        )
-        .then(({ ok, body }) => {
+      const url = `/api/stocks/${encodeURIComponent(ticker)}/bars?${q}`
+      simvestFetch(url, { cache: 'no-store' })
+        .then(async (r) => {
+          const body = await r.json().catch(() => ({ error: 'Bad response' }))
+          return { ok: r.ok, status: r.status, body }
+        })
+        .then(({ ok, status, body }) => {
           if (cancelled) return
           if (ok && Array.isArray(body?.bars)) {
             setBars(body.bars)
             setStatus('ready')
-          } else if (!isPoll) {
-            setError(typeof body?.error === 'string' ? body.error : 'Failed to load chart')
-            setStatus('error')
+          } else {
+            if (isPoll && isSimvestPollDebugEnabled()) {
+              console.warn('[SimvestPoll] stock bars failed (prior bars kept)', {
+                ticker,
+                range,
+                url,
+                httpStatus: status,
+                body,
+              })
+            }
+            if (!isPoll) {
+              setError(typeof body?.error === 'string' ? body.error : 'Failed to load chart')
+              setStatus('error')
+            }
           }
         })
         .catch(() => {

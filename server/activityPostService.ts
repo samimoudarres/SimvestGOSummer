@@ -1,52 +1,13 @@
 import { randomUUID } from 'node:crypto'
-import type { GameFeedPost, RichTextSegment } from './gameFeedService'
+import type { GameFeedPost } from './gameFeedService'
 import { appendGameFeedPost } from './gameFeedService'
+import { plainFromRichSegments, parseActivityRichInput } from './activityRichInput'
 import { normalizeGameSlugParam } from './gameSlugNormalize'
-import { normalizeTicker } from './stockService'
 
 const MAX_CAPTION_LEN = 2000
 const MAX_IMAGE_DATA_URL = 2_000_000
 const MAX_POLL_Q = 300
 const MAX_POLL_OPT = 120
-
-function plainFromSegments(segments: RichTextSegment[]): string {
-  return segments.map((s) => (s.type === 'text' ? s.text : s.label)).join('')
-}
-
-function normalizeSegments(raw: unknown): RichTextSegment[] | null {
-  if (!Array.isArray(raw) || raw.length === 0) return null
-  const out: RichTextSegment[] = []
-  for (const row of raw) {
-    if (!row || typeof row !== 'object') continue
-    const o = row as Record<string, unknown>
-    if (o.type === 'text' && typeof o.text === 'string') {
-      const t = o.text.replace(/\r\n/g, '\n')
-      out.push({ type: 'text', text: t })
-    } else if (o.type === 'ticker' && typeof o.symbol === 'string') {
-      const sym = normalizeTicker(o.symbol.trim())
-      if (!sym) continue
-      const label =
-        typeof o.label === 'string' && o.label.trim().length > 0 ? o.label.trim().slice(0, 24) : sym
-      out.push({ type: 'ticker', symbol: sym, label })
-    }
-  }
-  if (out.length === 0) return null
-  const merged = mergeAdjacentText(out)
-  return merged.length > 0 ? merged : null
-}
-
-function mergeAdjacentText(segments: RichTextSegment[]): RichTextSegment[] {
-  const merged: RichTextSegment[] = []
-  for (const s of segments) {
-    const prev = merged[merged.length - 1]
-    if (s.type === 'text' && prev?.type === 'text') {
-      prev.text += s.text
-    } else {
-      merged.push(s)
-    }
-  }
-  return merged
-}
 
 export type CreateActivityPostInput = {
   kind: 'text' | 'poll' | 'image'
@@ -114,36 +75,36 @@ export async function createActivityPost(
     return { ok: true, post }
   }
 
-  let segments = normalizeSegments(input.segments)
-  const plain = typeof input.plainText === 'string' ? input.plainText.trim() : ''
-  if (!segments && plain.length > 0) {
-    segments = [{ type: 'text', text: plain }]
-  }
-  if (!segments || segments.length === 0) {
-    if (input.kind === 'image' && typeof input.imageUrl === 'string' && validateImageUrl(input.imageUrl)) {
-      segments = [{ type: 'text', text: '' }]
-    } else {
-      return { ok: false, error: 'Write something to post', status: 400 }
-    }
-  }
+  let segments: import('./gameFeedService').RichTextSegment[] | null = null
+  const wantsImage =
+    input.kind === 'image' || (typeof input.imageUrl === 'string' && input.imageUrl.trim().length > 0)
 
-  const bodyLen = plainFromSegments(segments).length
-  if (bodyLen > MAX_CAPTION_LEN) {
-    return { ok: false, error: 'Post is too long (max 2000 characters)', status: 400 }
-  }
-
-  let imageUrl: string | undefined
-  if (input.kind === 'image' || (typeof input.imageUrl === 'string' && input.imageUrl.trim())) {
+  if (wantsImage) {
     const raw = typeof input.imageUrl === 'string' ? input.imageUrl.trim() : ''
     if (!raw) return { ok: false, error: 'Choose an image to post', status: 400 }
     if (!validateImageUrl(raw)) return { ok: false, error: 'Invalid image', status: 400 }
     if (raw.startsWith('data:image/') && raw.length > MAX_IMAGE_DATA_URL) {
       return { ok: false, error: 'Image is too large', status: 400 }
     }
-    imageUrl = raw
+    const parsed = parseActivityRichInput({ segments: input.segments, plainText: input.plainText })
+    if (parsed.ok) segments = parsed.segments
+    else segments = [{ type: 'text', text: '' }]
+  } else {
+    const parsed = parseActivityRichInput({ segments: input.segments, plainText: input.plainText })
+    if (!parsed.ok) return { ok: false, error: parsed.error, status: 400 }
+    segments = parsed.segments
   }
 
-  const rationale = plainFromSegments(segments).trim() || (imageUrl ? ' ' : '')
+  if (!segments || segments.length === 0) {
+    return { ok: false, error: 'Write something to post', status: 400 }
+  }
+
+  let imageUrl: string | undefined
+  if (wantsImage) {
+    imageUrl = typeof input.imageUrl === 'string' ? input.imageUrl.trim() : undefined
+  }
+
+  const rationale = plainFromRichSegments(segments).trim() || (imageUrl ? ' ' : '')
 
   const post = await appendGameFeedPost({
     postKind: 'text',

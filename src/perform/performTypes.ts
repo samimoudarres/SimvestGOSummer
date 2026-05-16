@@ -77,12 +77,20 @@ export type PerformDashboardPayload = {
   rank: {
     rankOrdinal: string
     outOfLabel: string
-    streakLabel: string
+    streakLabel: string | null
   }
   topGainers: PerformStockRow[]
   topLosers: PerformStockRow[]
   compare: {
     yAxisLabels: string[]
     series: PerformCompareSeries[]
+  }
+  /** Present when the game’s scheduled end has passed — congrats + final rank copy. */
+  gameFinishedBanner?: {
+    headline: string
+    subline: string
+    rankOrdinal: string
+    outOfLabel: string
+    endedAtLabel: string
   }
 }

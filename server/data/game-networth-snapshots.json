@@ -1,236 +1,58 @@
 {
   "games": {
-    "new": {
-      "2b0b4ae1-1a66-496a-a341-f57c77d9777e": {
-        "points": [
-          {
-            "recordedAt": "2026-05-12T23:45:06.461Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:06.614Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:06.676Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:06.716Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:07.191Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:07.851Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:07.956Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:16.555Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:16.768Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:16.981Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:17.048Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:18.243Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:18.425Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:18.828Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:45:30.031Z",
-            "netWorth": 91830.0209
-          },
-          {
-            "recordedAt": "2026-05-12T23:46:17.776Z",
-            "netWorth": 91829.81090000001
-          },
-          {
-            "recordedAt": "2026-05-12T23:46:18.390Z",
-            "netWorth": 91829.1996
-          },
-          {
-            "recordedAt": "2026-05-12T23:46:18.623Z",
-            "netWorth": 91829.1996
-          },
-          {
-            "recordedAt": "2026-05-12T23:46:31.731Z",
-            "netWorth": 91829.1996
-          },
-          {
-            "recordedAt": "2026-05-12T23:47:31.742Z",
-            "netWorth": 91828.7789
-          },
-          {
-            "recordedAt": "2026-05-12T23:48:32.414Z",
-            "netWorth": 91828.1009
-          },
-          {
-            "recordedAt": "2026-05-13T00:31:53.870Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:31:54.228Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:32:03.989Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:32:04.234Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:32:14.026Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:32:14.245Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:32:24.060Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:32:24.241Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:33:12.738Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:33:22.995Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:33:23.319Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:33:23.384Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:33:24.728Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:34:12.207Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:34:12.631Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:34:13.593Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:34:13.654Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:34:14.538Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:35:03.074Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:35:03.480Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:35:03.616Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:35:04.234Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:35:13.942Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:35:14.304Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:35:23.921Z",
-            "netWorth": 91827.72140000001
-          },
-          {
-            "recordedAt": "2026-05-13T00:35:24.229Z",
-            "netWorth": 91827.72140000001
-          }
-        ]
-      }
-    },
     "nov-2024-stock-challenge": {
+      "verify_mp2w91cy_281zj2psjjr": {
+        "points": [
+          {
+            "recordedAt": "2026-05-16T18:13:29.167Z",
+            "netWorth": 100263.9303
+          }
+        ]
+      },
+      "inproc_mp8oa7ne_iygcv0zlquc": {
+        "points": [
+          {
+            "recordedAt": "2026-05-16T18:21:25.296Z",
+            "netWorth": 100000
+          },
+          {
+            "recordedAt": "2026-05-16T18:21:25.603Z",
+            "netWorth": 100000
+          },
+          {
+            "recordedAt": "2026-05-16T18:21:25.657Z",
+            "netWorth": 100000
+          }
+        ]
+      },
       "2b0b4ae1-1a66-496a-a341-f57c77d9777e": {
         "points": [
           {
-            "recordedAt": "2026-05-13T00:31:50.868Z",
-            "netWorth": 98796.21489999999
-          }
-        ]
-      },
-      "demo-p-jan-ms-087": {
-        "points": [
-          {
-            "recordedAt": "2026-05-13T00:31:51.021Z",
+            "recordedAt": "2026-05-16T18:21:25.329Z",
             "netWorth": 100000
           }
         ]
       },
-      "demo-p-jopia-074": {
+      "62763c02-781d-4d73-b87b-a4642caf4ef4": {
         "points": [
           {
-            "recordedAt": "2026-05-13T00:31:51.044Z",
-            "netWorth": 100000
-          },
-          {
-            "recordedAt": "2026-05-13T00:31:51.068Z",
+            "recordedAt": "2026-05-16T18:21:25.358Z",
             "netWorth": 100000
           }
         ]
       },
-      "demo-p-mrose-92": {
+      "9702d58c-3663-41a1-bb68-0ce3067bc743": {
         "points": [
           {
-            "recordedAt": "2026-05-13T00:31:51.082Z",
+            "recordedAt": "2026-05-16T18:21:25.377Z",
             "netWorth": 100000
-          },
+          }
+        ]
+      },
+      "ac5088a4-d7a2-411f-a246-3ed88e3f7817": {
+        "points": [
           {
-            "recordedAt": "2026-05-13T00:31:51.104Z",
+            "recordedAt": "2026-05-16T18:21:25.403Z",
             "netWorth": 100000
           }
         ]
@@ -238,96 +60,40 @@
       "inproc_mp0drqth_yvgt4zxs1t": {
         "points": [
           {
-            "recordedAt": "2026-05-13T00:31:51.237Z",
-            "netWorth": 100241.57
+            "recordedAt": "2026-05-16T18:21:25.430Z",
+            "netWorth": 100000
           }
         ]
       },
       "inproc_mp0drrsw_bbla7xerrkf": {
         "points": [
           {
-            "recordedAt": "2026-05-13T00:31:51.272Z",
-            "netWorth": 100241.57
+            "recordedAt": "2026-05-16T18:21:25.457Z",
+            "netWorth": 100000
           }
         ]
       },
       "inproc_mp0drstr_pit5oh1svn9": {
         "points": [
           {
-            "recordedAt": "2026-05-13T00:31:51.294Z",
-            "netWorth": 100241.57
-          }
-        ]
-      },
-      "verify_mp0dikl1_ovy6w9jwz0j": {
-        "points": [
-          {
-            "recordedAt": "2026-05-13T00:31:51.317Z",
+            "recordedAt": "2026-05-16T18:21:25.479Z",
             "netWorth": 100000
           }
         ]
       },
-      "verify_mp0dillx_3vpbc4h7ili": {
+      "inproc_mp7e5phc_kcytkv7hzha": {
         "points": [
           {
-            "recordedAt": "2026-05-13T00:31:51.342Z",
+            "recordedAt": "2026-05-16T18:21:25.509Z",
             "netWorth": 100000
           }
         ]
       },
-      "verify_mp0dimjr_tza8xm9a3dm": {
+      "inproc_mp7g01w4_nabaq5w892f": {
         "points": [
           {
-            "recordedAt": "2026-05-13T00:31:51.384Z",
+            "recordedAt": "2026-05-16T18:21:25.527Z",
             "netWorth": 100000
-          }
-        ]
-      },
-      "verify_mp0dkluh_rjsvgxbh9zr": {
-        "points": [
-          {
-            "recordedAt": "2026-05-13T00:31:51.422Z",
-            "netWorth": 100000
-          },
-          {
-            "recordedAt": "2026-05-13T00:31:51.443Z",
-            "netWorth": 100000
-          }
-        ]
-      },
-      "verify_mp0dkmum_ga4qxtfuror": {
-        "points": [
-          {
-            "recordedAt": "2026-05-13T00:31:51.462Z",
-            "netWorth": 100000
-          },
-          {
-            "recordedAt": "2026-05-13T00:31:51.483Z",
-            "netWorth": 100000
-          }
-        ]
-      },
-      "verify_mp0dknxi_0kpmbvj0prx": {
-        "points": [
-          {
-            "recordedAt": "2026-05-13T00:31:51.504Z",
-            "netWorth": 100000
-          },
-          {
-            "recordedAt": "2026-05-13T00:31:51.524Z",
-            "netWorth": 100000
-          }
-        ]
-      },
-      "verify_mp2w91cy_281zj2psjjr": {
-        "points": [
-          {
-            "recordedAt": "2026-05-13T00:31:51.547Z",
-            "netWorth": 100241.57
-          },
-          {
-            "recordedAt": "2026-05-13T00:31:51.568Z",
-            "netWorth": 100241.57
           }
         ]
       }

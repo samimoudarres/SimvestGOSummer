@@ -1,0 +1,22 @@
+# Keep build context small and avoid leaking local secrets into image layers.
+node_modules
+dist
+.git
+.github
+.cursor
+*.md
+!README.md
+
+# Native shells are not needed to serve SPA + API
+ios
+android
+
+# Local env (inject at runtime: docker run --env-file .env …)
+.env
+.env.*
+!.env.example
+!.env.capacitor.example
+
+# QA / tooling not needed at runtime
+coverage
+*.log

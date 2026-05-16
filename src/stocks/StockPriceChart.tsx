@@ -1,5 +1,5 @@
 import { useCallback, useId, useMemo, useRef, useState, type MouseEvent, type TouchEvent } from 'react'
-import { widenChartValueSpan } from '../util/chartYSpan'
+import { chartYDomainFromValues, clampToChart } from '../util/chartYSpan'
 import type { ChartRange } from './stockDetailTypes'
 
 const RANGES: ChartRange[] = ['1D', '5D', '1M', '3M', '1Y', '5Y']
@@ -55,21 +55,22 @@ export function StockPriceChart({
     const h = 140
     const pad = 8
     const closes = bars.map((b) => b.c)
-    const rawMin = Math.min(...closes)
-    const rawMax = Math.max(...closes)
-    const { min, max } = widenChartValueSpan(rawMin, rawMax)
+    const { min, max } = chartYDomainFromValues(closes)
     const span = max - min || 1
     const innerW = w - pad * 2
     const innerH = h - pad * 2
+    const top = pad
+    const bottom = pad + innerH
     const outPts = bars.map((b, i) => {
       const x = pad + (innerW * i) / Math.max(bars.length - 1, 1)
-      const y = pad + innerH * (1 - (b.c - min) / span)
+      const yRaw = pad + innerH * (1 - (b.c - min) / span)
+      const y = clampToChart(yRaw, top, bottom)
       return { x, y, b }
     })
     const d = outPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
     const area =
       outPts.length > 0
-        ? `${d} L${outPts[outPts.length - 1].x.toFixed(1)},${pad + innerH} L${outPts[0].x.toFixed(1)},${pad + innerH} Z`
+        ? `${d} L${outPts[outPts.length - 1].x.toFixed(1)},${bottom} L${outPts[0].x.toFixed(1)},${bottom} Z`
         : ''
     return { pathD: d, areaD: area, minP: min, maxP: max, pts: outPts }
   }, [bars])

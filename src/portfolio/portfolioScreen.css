@@ -34,6 +34,7 @@
   gap: 10px;
   margin-bottom: 10px;
   padding: 0 4px;
+  min-width: 0;
 }
 
 .pf-port-investTitle {
@@ -50,6 +51,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
 .pf-port-toggle {
@@ -81,16 +85,18 @@
 
 .pf-port-sort {
   position: relative;
-  flex-shrink: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 160px;
 }
 
 .pf-port-sortBtn {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   border: 0;
-  padding: 4px 2px 4px 8px;
+  padding: 4px 4px 4px 8px;
   background: transparent;
   cursor: pointer;
   font-family: 'Inter', sans-serif;
@@ -98,6 +104,15 @@
   font-size: 13px;
   color: #000;
   border-radius: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pf-port-sortBtnLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pf-port-sortBtn:hover {
@@ -109,10 +124,26 @@
   outline-offset: 2px;
 }
 
-.pf-port-sortChev {
-  width: 22px;
-  height: 22px;
-  opacity: 0.75;
+/* Same chevron asset + rotation pattern as activity sort (`gc-filterBtnChevron`), larger tap/readability. */
+.pf-port-sortChevWrap {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transform: rotate(90deg);
+}
+
+.pf-port-sortChevWrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.pf-port-sortChevWrap--open {
+  transform: rotate(-90deg);
 }
 
 .pf-port-menu {

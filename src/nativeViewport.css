@@ -1,0 +1,272 @@
+/*
+ * Capacitor / native WebView: remove centered “phone preview” margins (grey bars +
+ * rubber-band scroll on the root document). Applied only when `main.tsx` sets
+ * `class="sv-capacitor"` on `<html>`.
+ */
+
+html.sv-capacitor {
+  height: 100%;
+  height: 100dvh;
+}
+
+html.sv-capacitor body {
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html.sv-capacitor #app {
+  height: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Outer chrome: drop web preview padding; keep safe-area only */
+html.sv-capacitor .sv-root,
+html.sv-capacitor .gc-root,
+html.sv-capacitor #app > *,
+html.sv-capacitor .pf-root,
+html.sv-capacitor .sd-root,
+html.sv-capacitor .lb-root,
+html.sv-capacitor .jg-root,
+html.sv-capacitor .li-root,
+html.sv-capacitor .su-root,
+html.sv-capacitor .cg-root,
+html.sv-capacitor .ss-root,
+html.sv-capacitor .hjr-root,
+html.sv-capacitor .cgw-root,
+html.sv-capacitor .cgt-root,
+html.sv-capacitor .gw-root,
+html.sv-capacitor .sli-root,
+html.sv-capacitor .jp-root {
+  min-height: 0;
+  flex: 1 1 auto;
+  height: 100%;
+  max-height: none;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  align-items: stretch;
+  justify-content: stretch;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Phone shell: stretch edge-to-edge inside safe areas */
+html.sv-capacitor .sv-phone,
+html.sv-capacitor .gc-phone,
+html.sv-capacitor .pf-phone,
+html.sv-capacitor .sd-phone,
+html.sv-capacitor .lb-phone,
+html.sv-capacitor .fol-phone,
+html.sv-capacitor .jg-phone,
+html.sv-capacitor .li-phone,
+html.sv-capacitor .su-phone,
+html.sv-capacitor .cg-phone,
+html.sv-capacitor .ss-phone,
+html.sv-capacitor .hjr-phone,
+html.sv-capacitor .cgw-phone,
+html.sv-capacitor .cgt-phone,
+html.sv-capacitor .gw-phone,
+html.sv-capacitor .sli-phone,
+html.sv-capacitor .jp-phone {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0 !important;
+  max-height: none !important;
+  flex: 1 1 auto;
+  box-shadow: none;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+html.sv-capacitor .gc-phone {
+  max-height: none !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Login carousel — flex column so Sign up / Log in stay pinned above the home indicator */
+html.sv-capacitor .li-phone {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+html.sv-capacitor .li-logo {
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: none;
+  flex-shrink: 0;
+  margin: calc(36px + env(safe-area-inset-top, 0px)) auto 0;
+  width: min(199px, 52vw);
+}
+
+html.sv-capacitor .li-carouselWrap {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+html.sv-capacitor .li-carousel {
+  height: 100%;
+}
+
+html.sv-capacitor .li-slide {
+  flex: 0 0 100%;
+  width: 100%;
+}
+
+html.sv-capacitor .li-dots {
+  top: auto;
+  bottom: calc(210px + env(safe-area-inset-bottom, 0px));
+}
+
+html.sv-capacitor .li-actionCard {
+  position: relative;
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Signup / sign-in forms — scroll body, keep submit visible */
+html.sv-capacitor .su-phone,
+html.sv-capacitor .sli-phone {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+html.sv-capacitor .su-form,
+html.sv-capacitor .sli-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.sv-capacitor .su-successFooter {
+  flex-shrink: 0;
+  padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Create-game intro — anchor CTAs from the bottom (Figma used fixed tops for 874px) */
+html.sv-capacitor .cg-btnPrimary {
+  top: auto;
+  left: 23px;
+  right: 23px;
+  width: auto;
+  max-width: 355px;
+  margin-left: auto;
+  margin-right: auto;
+  bottom: calc(117px + env(safe-area-inset-bottom, 0px));
+}
+
+html.sv-capacitor .cg-btnGhost {
+  top: auto;
+  left: 23px;
+  right: 23px;
+  width: auto;
+  max-width: 355px;
+  margin-left: auto;
+  margin-right: auto;
+  bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+}
+
+html.sv-capacitor .cg-dots {
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+}
+
+html.sv-capacitor .cg-carouselWrap {
+  width: 100%;
+}
+
+html.sv-capacitor .cg-slide {
+  flex: 0 0 100%;
+  width: 100%;
+}
+
+/* Join game — bottom scan / join cluster */
+html.sv-capacitor .jg-join {
+  top: auto;
+  bottom: calc(403px + env(safe-area-inset-bottom, 0px));
+}
+
+html.sv-capacitor .jg-or {
+  top: auto;
+  bottom: calc(376px + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 50%);
+}
+
+html.sv-capacitor .jg-scan-label {
+  top: auto;
+  bottom: calc(316px + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 50%);
+}
+
+html.sv-capacitor .jg-qr-tile {
+  top: auto;
+  bottom: calc(197px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Join profile setup — submit + default avatar above home indicator */
+html.sv-capacitor .jp-submit {
+  top: auto;
+  bottom: calc(13px + env(safe-area-inset-bottom, 0px));
+}
+
+html.sv-capacitor .jp-defaultAvatarBlock {
+  top: auto;
+  bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Game challenge / home hero blocks stay full-width inside the shell */
+html.sv-capacitor .gc-phoneCanvas,
+html.sv-capacitor .gc-headerBand,
+html.sv-capacitor .gc-activityHead {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+html.sv-capacitor .sv-hero {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Home activity list — grow to bottom of shell instead of a fixed 483px block */
+html.sv-capacitor .sv-phone {
+  position: relative;
+}
+
+html.sv-capacitor .sv-feed-scroll {
+  top: var(--sv-feed-top, 399px) !important;
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  height: auto !important;
+  max-height: none;
+}
+
+html.sv-capacitor .tr-topBand,
+html.sv-capacitor .fol-topBand,
+html.sv-capacitor .sd-headerBand {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}

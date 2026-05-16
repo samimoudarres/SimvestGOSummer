@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { simvestFetch } from '../api/simvestFetch'
 import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
+import { isSimvestPollDebugEnabled } from '../lib/debugPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
 import type { StockDetailPayload } from './stockDetailTypes'
 
@@ -19,21 +21,28 @@ export function useStockDetail(ticker: string | undefined) {
         setStatus('loading')
         setError(null)
       }
-      fetch(`/api/stocks/${encodeURIComponent(ticker)}`, { cache: 'no-store' })
-        .then((r) =>
-          r
-            .json()
-            .then((body) => ({ ok: r.ok, body }))
-            .catch(() => ({ ok: false, body: { error: 'Bad response' } })),
-        )
-        .then(({ ok, body }) => {
+      simvestFetch(`/api/stocks/${encodeURIComponent(ticker)}`, { cache: 'no-store' })
+        .then(async (r) => {
+          const body = await r.json().catch(() => ({ error: 'Bad response' }))
+          return { ok: r.ok, status: r.status, body }
+        })
+        .then(({ ok, status, body }) => {
           if (cancelled) return
           if (ok && body && typeof body.ticker === 'string') {
             setData(body as StockDetailPayload)
             setStatus('ready')
-          } else if (!isPoll) {
-            setError(typeof body?.error === 'string' ? body.error : 'Failed to load stock')
-            setStatus('error')
+          } else {
+            if (isPoll && isSimvestPollDebugEnabled()) {
+              console.warn('[SimvestPoll] stock detail failed (prior payload kept)', {
+                ticker,
+                httpStatus: status,
+                body,
+              })
+            }
+            if (!isPoll) {
+              setError(typeof body?.error === 'string' ? body.error : 'Failed to load stock')
+              setStatus('error')
+            }
           }
         })
         .catch(() => {

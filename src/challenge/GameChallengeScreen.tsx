@@ -9,25 +9,62 @@ import {
   parseSincePurchasePct,
   sortFeedPosts,
 } from './gameFeedSort'
-import { gameHostLine, gameTitle, slugToVariant } from './gameMeta'
+import { gameTitle, slugToVariant } from './gameMeta'
 import { navigateToStock } from '../stocks/navigateToStock'
 import { ActivityComposerRich } from '../feed/ActivityComposerRich'
 import { FeedRichBody } from '../feed/FeedRichBody'
 import { FeedPollCard } from '../feed/FeedPollCard'
+import { FeedPostSocialBar } from '../feed/FeedPostSocialBar'
+import { FeedPostOverflowMenu } from '../feed/FeedPostOverflowMenu'
 import { useComposerContext } from '../hooks/useComposerContext'
+import { resolveProfileAvatarUrl } from '../user/resolveProfileAvatarUrl'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import { getSimvestUserId } from '../user/simvestUserId'
 import { useGameFeed } from './useGameFeed'
 import { useGameTopGainsToday } from './useGameTopGainsToday'
-import { useGameMembersPreview } from './useGameMembersPreview'
+import { GameShellRosterBlock } from './GameShellRosterBlock'
+import { useGameChallengeHeader } from './useGameChallengeHeader'
 import { InviteGameSheet } from '../join/InviteGameSheet'
 import { fetchCreateGameSettings } from '../createGame/createGameSettingsApi'
 import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
+import { simvestFetch } from '../api/simvestFetch'
+import { ApiImage } from '../components/ApiImage'
+import { apiAssetSrc } from '../config/apiAssetSrc'
 import './gameChallenge.css'
 
 const GAIN_CARD_W = 111
 const GAIN_GAP = 10
 const GAIN_PAD = 5
+
+type JoinReqRow = {
+  id: string
+  userId: string
+  displayName: string
+  createdAtIso: string
+}
+
+type DurationPreset = '1d' | '1w' | '1m' | '1y' | 'custom'
+
+type SettingsRoster = {
+  userId: string
+  displayName: string
+  avatarUrl: string
+  isHost: boolean
+}
+
+type SettingsConfirm =
+  | { kind: 'end' }
+  | { kind: 'kick'; player: SettingsRoster }
+  | { kind: 'leave' }
+  | null
+
+const DURATION_OPTIONS: { value: DurationPreset; label: string; sub: string }[] = [
+  { value: '1d', label: '1 day', sub: 'Ends 24 hours from now' },
+  { value: '1w', label: '1 week', sub: 'Ends 7 days from now' },
+  { value: '1m', label: '1 month', sub: 'Ends 30 days from now' },
+  { value: '1y', label: '1 year', sub: 'Ends 365 days from now' },
+  { value: 'custom', label: 'Custom date', sub: 'Pick the day this game wraps' },
+]
 
 function gainsTrackWidthPx(cardCount: number): number {
   const n = Math.max(1, Math.min(5, Math.floor(cardCount)))
@@ -38,23 +75,31 @@ export function GameChallengeScreen() {
   const navigate = useNavigate()
   const { gameSlug } = useParams<{ gameSlug: string }>()
   const slug = gameSlug ?? ''
-  const variant = slugToVariant(slug)
+  const headerCtl = useGameChallengeHeader(slug)
+  const gameHasEnded = headerCtl.gameHasEnded
+  const { ingestCreateSettingsResponse } = headerCtl
   const [inviteOpen, setInviteOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
-  const [hostJoinBanner, setHostJoinBanner] = useState<{ count: number } | null>(null)
-  const [templateTitle, setTemplateTitle] = useState<string | null>(null)
-  const [templateHostLine, setTemplateHostLine] = useState<string | null>(null)
-  const [runtimeShell, setRuntimeShell] = useState<{ title: string | null; hostLine: string | null }>({
-    title: null,
-    hostLine: null,
-  })
-  /**
-   * Create-game flow persists the draft at slug `new`, then navigates to `/g/new` with
-   * `setupComplete` true. `slugToVariant` still maps `new` → `template`, which used to force
-   * placeholder activity (no composer, no feed). When the host has finished publishing, treat
-   * the shell like a normal game so posts and trades show in this game’s activity.
-   */
-  const [newGamePublished, setNewGamePublished] = useState<boolean | null>(null)
+  const [hostJoinInfo, setHostJoinInfo] = useState<{ count: number } | null>(null)
+  const [joinRequestsOpen, setJoinRequestsOpen] = useState(false)
+  const [joinRequests, setJoinRequests] = useState<JoinReqRow[]>([])
+  const [joinRequestsErr, setJoinRequestsErr] = useState<string | null>(null)
+  const [joinRequestsBusy, setJoinRequestsBusy] = useState<string | null>(null)
+  const [viewerIsHost, setViewerIsHost] = useState(false)
+  const [gameIsPrivate, setGameIsPrivate] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsView, setSettingsView] = useState<'menu' | 'kick' | 'duration'>('menu')
+  const [rosterRows, setRosterRows] = useState<SettingsRoster[]>([])
+  const [kickListStatus, setKickListStatus] = useState<'idle' | 'loading' | 'ready' | 'err'>('idle')
+  const [rosterErr, setRosterErr] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState<SettingsConfirm>(null)
+  const [confirmBusy, setConfirmBusy] = useState(false)
+  const [confirmErr, setConfirmErr] = useState<string | null>(null)
+  const [actionFlash, setActionFlash] = useState<string | null>(null)
+  const [durationPreset, setDurationPreset] = useState<DurationPreset>('1m')
+  const [durationCustom, setDurationCustom] = useState<string>('')
+  const [durationBusy, setDurationBusy] = useState(false)
+  const [durationErr, setDurationErr] = useState<string | null>(null)
   const [activitySort, setActivitySort] = useState<ActivitySortMode>('recent')
   const sortWrapRef = useRef<HTMLDivElement>(null)
   const sortLabels = activitySortLabels()
@@ -69,7 +114,8 @@ export function GameChallengeScreen() {
   }, [filterOpen])
 
   const goHome = useCallback(() => {
-    navigate('/')
+    /* Replace so “Back to home” does not leave the shell under extra history entries (and stays aligned with native back after join flow fixes). */
+    navigate('/', { replace: true })
   }, [navigate])
 
   const openProfile = useCallback(
@@ -79,39 +125,222 @@ export function GameChallengeScreen() {
     [navigate, slug],
   )
 
-  const isTemplate = variant === 'template'
-  const shellIsLive = !isTemplate || newGamePublished === true
+  const isTemplate = headerCtl.isTemplate
+  const shellIsLive = headerCtl.shellIsLive
   const refreshGameShellMeta = useCallback(async () => {
     try {
       const d = await fetchCreateGameSettings(slug)
-      if (isTemplate) {
-        setNewGamePublished(Boolean(d.settings?.setupComplete))
+      ingestCreateSettingsResponse(d)
+      const isPrivate = d.settings?.visibility === 'private'
+      setViewerIsHost(Boolean(d.isHost))
+      setGameIsPrivate(Boolean(isPrivate))
+      if (d.isHost && isPrivate) {
+        setHostJoinInfo({ count: Math.max(0, d.pendingJoinCount ?? 0) })
       } else {
-        setNewGamePublished(null)
+        setHostJoinInfo(null)
       }
-      if (d.isHost && d.pendingJoinCount > 0) {
-        setHostJoinBanner({ count: d.pendingJoinCount })
-      } else {
-        setHostJoinBanner(null)
-      }
-      if (isTemplate && d.settings) {
-        const name = d.settings.gameDisplayName.trim()
-        setTemplateTitle(name || null)
-        const hn = d.settings.hostDisplayName.trim()
-        setTemplateHostLine(hn ? `Hosted by ${hn}` : null)
-      } else if (!isTemplate) {
-        setTemplateTitle(null)
-        setTemplateHostLine(null)
+      if (d.settings) {
+        const dp = (d.settings.durationPreset ?? '1m') as DurationPreset
+        setDurationPreset(dp)
+        setDurationCustom(
+          dp === 'custom' && typeof d.settings.customEndsOn === 'string' ? d.settings.customEndsOn : '',
+        )
       }
     } catch {
-      setHostJoinBanner(null)
-      if (isTemplate) {
-        setTemplateTitle(null)
-        setTemplateHostLine(null)
-        setNewGamePublished(null)
-      }
+      setHostJoinInfo(null)
+      setViewerIsHost(false)
+      setGameIsPrivate(false)
     }
-  }, [isTemplate, slug])
+  }, [slug, ingestCreateSettingsResponse])
+
+  const loadJoinRequests = useCallback(async () => {
+    setJoinRequestsErr(null)
+    try {
+      const res = await simvestFetch(`/api/games/${encodeURIComponent(slug)}/join-requests`)
+      if (!res.ok) {
+        setJoinRequests([])
+        setJoinRequestsErr((await res.text()) || 'Could not load join requests.')
+        return
+      }
+      const body = (await res.json()) as { requests?: JoinReqRow[] }
+      const rows = Array.isArray(body.requests) ? body.requests : []
+      setJoinRequests(rows)
+      setHostJoinInfo((cur) => (cur ? { count: rows.length } : cur))
+    } catch (err) {
+      setJoinRequestsErr(err instanceof Error ? err.message : 'Could not load join requests.')
+    }
+  }, [slug])
+
+  const openJoinRequests = useCallback(() => {
+    setJoinRequestsOpen(true)
+    void loadJoinRequests()
+  }, [loadJoinRequests])
+
+  const actOnJoinRequest = useCallback(
+    async (id: string, action: 'approve' | 'reject') => {
+      setJoinRequestsBusy(id)
+      setJoinRequestsErr(null)
+      try {
+        const res = await simvestFetch(
+          `/api/games/${encodeURIComponent(slug)}/join-requests/${encodeURIComponent(id)}/${action}`,
+          { method: 'POST' },
+        )
+        if (!res.ok) {
+          setJoinRequestsErr((await res.text()) || `${action} failed.`)
+          return
+        }
+        await loadJoinRequests()
+        await refreshGameShellMeta()
+        try {
+          window.dispatchEvent(new CustomEvent('simvest:join-requests-changed'))
+        } catch {
+          /* ignore */
+        }
+      } catch (err) {
+        setJoinRequestsErr(err instanceof Error ? err.message : `${action} failed.`)
+      } finally {
+        setJoinRequestsBusy(null)
+      }
+    },
+    [loadJoinRequests, refreshGameShellMeta, slug],
+  )
+
+  const closeSettings = useCallback(() => {
+    setSettingsOpen(false)
+    setSettingsView('menu')
+    setRosterErr(null)
+    setDurationErr(null)
+  }, [])
+
+  const loadRoster = useCallback(async () => {
+    setKickListStatus('loading')
+    setRosterErr(null)
+    try {
+      const res = await simvestFetch(`/api/games/${encodeURIComponent(slug)}/players`)
+      if (!res.ok) {
+        setRosterRows([])
+        setKickListStatus('err')
+        setRosterErr((await res.text()) || 'Could not load player list.')
+        return
+      }
+      const body = (await res.json()) as { players?: SettingsRoster[] }
+      setRosterRows(Array.isArray(body.players) ? body.players : [])
+      setKickListStatus('ready')
+    } catch (err) {
+      setKickListStatus('err')
+      setRosterErr(err instanceof Error ? err.message : 'Could not load player list.')
+    }
+  }, [slug])
+
+  const openSettings = useCallback(() => {
+    setSettingsOpen(true)
+    setSettingsView('menu')
+    setActionFlash(null)
+  }, [])
+
+  const openKickList = useCallback(() => {
+    setSettingsView('kick')
+    void loadRoster()
+  }, [loadRoster])
+
+  const openDurationForm = useCallback(() => {
+    setSettingsView('duration')
+    setDurationErr(null)
+  }, [])
+
+  const submitDurationChange = useCallback(async () => {
+    setDurationBusy(true)
+    setDurationErr(null)
+    try {
+      const body: Record<string, unknown> = { durationPreset }
+      if (durationPreset === 'custom') {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(durationCustom)) {
+          setDurationErr('Pick a valid YYYY-MM-DD date.')
+          setDurationBusy(false)
+          return
+        }
+        body.customEndsOn = durationCustom
+      }
+      const res = await simvestFetch(`/api/games/${encodeURIComponent(slug)}/duration`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        let msg = 'Could not update duration.'
+        try {
+          const j = (await res.json()) as { error?: string }
+          if (typeof j.error === 'string' && j.error.trim()) msg = j.error
+        } catch {
+          /* ignore */
+        }
+        setDurationErr(msg)
+        return
+      }
+      const j = (await res.json()) as { endsAtIso?: string }
+      void j.endsAtIso
+      setActionFlash('Game duration updated.')
+      setSettingsView('menu')
+      await refreshGameShellMeta()
+    } catch (err) {
+      setDurationErr(err instanceof Error ? err.message : 'Could not update duration.')
+    } finally {
+      setDurationBusy(false)
+    }
+  }, [durationCustom, durationPreset, refreshGameShellMeta, slug])
+
+  const runConfirm = useCallback(async () => {
+    if (!confirm) return
+    setConfirmBusy(true)
+    setConfirmErr(null)
+    try {
+      if (confirm.kind === 'end') {
+        const res = await simvestFetch(`/api/games/${encodeURIComponent(slug)}/end`, { method: 'POST' })
+        if (!res.ok) {
+          setConfirmErr((await res.text()) || 'Could not end the game.')
+          return
+        }
+        const j = (await res.json()) as { endsAtIso?: string }
+        void j.endsAtIso
+        setConfirm(null)
+        closeSettings()
+        setActionFlash('Game ended for everyone.')
+        void refreshGameShellMeta()
+      } else if (confirm.kind === 'kick') {
+        const res = await simvestFetch(`/api/games/${encodeURIComponent(slug)}/kick`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: confirm.player.userId }),
+        })
+        if (!res.ok) {
+          setConfirmErr((await res.text()) || 'Could not remove that player.')
+          return
+        }
+        setRosterRows((rows) => rows.filter((r) => r.userId !== confirm.player.userId))
+        setActionFlash(`Removed ${confirm.player.displayName} from the game.`)
+        setConfirm(null)
+      } else if (confirm.kind === 'leave') {
+        const res = await simvestFetch(`/api/games/${encodeURIComponent(slug)}/leave`, { method: 'POST' })
+        if (!res.ok) {
+          setConfirmErr((await res.text()) || 'Could not leave the game.')
+          return
+        }
+        setConfirm(null)
+        closeSettings()
+        navigate('/', { replace: true })
+      }
+    } catch (err) {
+      setConfirmErr(err instanceof Error ? err.message : 'Action failed.')
+    } finally {
+      setConfirmBusy(false)
+    }
+  }, [confirm, closeSettings, navigate, slug, refreshGameShellMeta])
+
+  useEffect(() => {
+    if (!actionFlash) return
+    const id = window.setTimeout(() => setActionFlash(null), 4000)
+    return () => window.clearTimeout(id)
+  }, [actionFlash])
 
   useEffect(() => {
     void refreshGameShellMeta()
@@ -121,45 +350,24 @@ export function GameChallengeScreen() {
     const onVis = () => {
       if (document.visibilityState === 'visible') void refreshGameShellMeta()
     }
+    const onJoinReq = () => void refreshGameShellMeta()
     document.addEventListener('visibilitychange', onVis)
-    return () => document.removeEventListener('visibilitychange', onVis)
+    window.addEventListener('simvest:join-requests-changed', onJoinReq)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('simvest:join-requests-changed', onJoinReq)
+    }
   }, [refreshGameShellMeta])
+
+  useEffect(() => {
+    if (!viewerIsHost || !gameIsPrivate) return
+    const id = window.setInterval(() => void refreshGameShellMeta(), 20_000)
+    return () => window.clearInterval(id)
+  }, [viewerIsHost, gameIsPrivate, refreshGameShellMeta])
 
   useEffect(() => {
     rememberActiveGameSlug(slug)
   }, [slug])
-
-  useEffect(() => {
-    if (!slug) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const d = await fetchCreateGameSettings(slug)
-        if (cancelled) return
-        if (variant === 'template') {
-          setNewGamePublished(Boolean(d.settings?.setupComplete))
-        } else {
-          setNewGamePublished(null)
-        }
-        if (!d.settings) {
-          setRuntimeShell({ title: null, hostLine: null })
-          return
-        }
-        const t = d.settings.gameDisplayName.trim()
-        const hn = d.settings.hostDisplayName.trim()
-        setRuntimeShell({
-          title: t || null,
-          hostLine: hn ? `Hosted by ${hn}` : null,
-        })
-      } catch {
-        if (!cancelled) setRuntimeShell({ title: null, hostLine: null })
-        if (!cancelled && variant === 'template') setNewGamePublished(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [slug, variant])
 
   const { posts: feedPosts, status: feedStatus, error: feedErr, reload: reloadFeed } = useGameFeed(slug)
   const { ctx: composerCtx, reload: reloadComposer } = useComposerContext(shellIsLive ? slug : null)
@@ -168,23 +376,15 @@ export function GameChallengeScreen() {
     status: topGainsStatus,
     error: topGainsErr,
   } = useGameTopGainsToday(slug, shellIsLive)
-  const {
-    members: rosterMembers,
-    totalPlayers,
-    status: rosterStatus,
-  } = useGameMembersPreview(gameSlug, Boolean(gameSlug) && shellIsLive)
 
   const sortedFeedPosts = useMemo(
     () => sortFeedPosts(feedPosts, activitySort),
     [feedPosts, activitySort],
   )
 
-  const chromeStyle = useGameChromeCssVars(slug)
+  const viewerUserId = useMemo(() => getSimvestUserId(), [])
 
-  const headerTitle =
-    isTemplate && templateTitle ? templateTitle : runtimeShell.title ?? gameTitle(variant)
-  const headerHost =
-    isTemplate && templateHostLine ? templateHostLine : runtimeShell.hostLine ?? gameHostLine(variant)
+  const chromeStyle = useGameChromeCssVars(slug)
 
   if (!gameSlug) {
     return <Navigate to="/" replace />
@@ -197,155 +397,307 @@ export function GameChallengeScreen() {
         data-node-id="19:7"
       >
         <div className="gc-phoneMain">
-          {hostJoinBanner ? (
-            <div className="gc-hostJoinBanner" role="status">
-              <span className="gc-hostJoinBannerText">
-                {hostJoinBanner.count === 1
-                  ? '1 player is waiting for you to approve their join request.'
-                  : `${hostJoinBanner.count} players are waiting for you to approve their join requests.`}
-              </span>
-              <button
-                type="button"
-                className="gc-hostJoinBannerBtn"
-                onClick={() => navigate(`/g/${encodeURIComponent(slug)}/join-requests`)}
-              >
-                Review
-              </button>
-            </div>
-          ) : null}
           <div className="gc-phoneCanvas">
         <header className="gc-headerBand">
-          <button
-            type="button"
-            className="gc-back"
-            aria-label="Back to home"
-            onClick={goHome}
-          >
+          <button type="button" className="gc-back" aria-label="Back to home" onClick={goHome}>
             <img src={a.back} alt="" />
           </button>
-          <button type="button" className="gc-headerMenu" aria-label="More options">
+          <button
+            type="button"
+            className="gc-headerMenu"
+            aria-label="Game settings and notifications"
+            aria-expanded={settingsOpen}
+            onClick={() => (settingsOpen ? closeSettings() : openSettings())}
+          >
             <img src={a.ellipsisHeader} alt="" />
+            {viewerIsHost && gameIsPrivate && hostJoinInfo && hostJoinInfo.count > 0 ? (
+              <span className="gc-headerMenuBadge" aria-hidden>
+                {hostJoinInfo.count}
+              </span>
+            ) : null}
           </button>
-          <h1 className="gc-title">{headerTitle}</h1>
-          <p className="gc-host">{headerHost}</p>
-          <div className="gc-peopleRow">
-            {!shellIsLive ? (
-              <>
-                <div
-                  className="gc-avatarSm gc-avatarHost"
-                  style={{
-                    background: '#e8e8e8',
-                    border: '2px dashed #cfcfcf',
-                  }}
-                  aria-hidden
-                />
-                {[0, 1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="gc-avatarSm"
-                    style={{
-                      background: '#ececec',
-                      border: '2px dashed #d8d8d8',
-                    }}
-                    aria-hidden
-                  />
-                ))}
-              </>
-            ) : rosterStatus === 'loading' || rosterStatus === 'idle' ? (
-              <>
-                {[0, 1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="gc-avatarSm"
-                    style={{
-                      background: '#ececec',
-                      border: '2px dashed #d8d8d8',
-                    }}
-                    aria-hidden
-                  />
-                ))}
-              </>
-            ) : rosterMembers.length === 0 ? (
-              <>
-                {[0, 1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="gc-avatarSm"
-                    style={{
-                      background: '#f4f4f4',
-                      border: '2px solid #e4e4e4',
-                    }}
-                    aria-hidden
-                  />
-                ))}
-              </>
-            ) : (
-              <>
-                {rosterMembers.slice(0, 5).map((m, i) => (
-                  <button
-                    key={m.userId}
-                    type="button"
-                    className={i === 0 ? 'gc-avatarHost gc-rosterFace' : 'gc-avatarSm gc-rosterFace'}
-                    aria-label={`Open profile: ${m.displayName}`}
-                    onClick={() => openProfile(m.userId)}
-                  >
-                    {m.avatarUrl ? (
-                      <img src={m.avatarUrl} alt="" width={i === 0 ? 36 : 35} height={36} />
-                    ) : (
-                      <span className="gc-rosterInitial" aria-hidden>
-                        {(m.displayName || '?').trim().charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </>
-            )}
-            <button type="button" className="gc-invitePill" onClick={() => setInviteOpen(true)}>
-              <img src={a.plusIcon} alt="" />
-              <span>Invite</span>
-            </button>
+          <div className="gc-headerCopy">
+            <h1 className="gc-title">{headerCtl.headerTitle}</h1>
+            <p className="gc-host">{headerCtl.headerHost}</p>
+            {headerCtl.headerCountdown ? (
+              <p className="gc-countdown" aria-live="polite">
+                {headerCtl.headerCountdown}
+              </p>
+            ) : null}
           </div>
-          {!shellIsLive ? (
-            <p className="gc-names">
-              <strong className="gc-muted">Players you invite will appear here.</strong>
-            </p>
-          ) : rosterStatus === 'loading' || rosterStatus === 'idle' ? (
-            <p className="gc-names">
-              <span className="gc-muted">Loading players…</span>
-            </p>
-          ) : totalPlayers <= 0 ? (
-            <p className="gc-names">
-              <strong className="gc-muted">No players yet — tap Invite to share your join code.</strong>
-            </p>
-          ) : (
-            <p className="gc-names">
-              {rosterMembers[0] ? (
-                <>
-                  <strong>{rosterMembers[0].displayName || 'Player'}</strong>
-                  {totalPlayers >= 2 && rosterMembers[1] ? (
-                    <>
-                      <span className="gc-muted">, </span>
-                      <strong>{rosterMembers[1].displayName || 'Player'}</strong>
-                    </>
+          {joinRequestsOpen ? (
+            <div className="gc-joinRequestsPopover" role="dialog" aria-label="Join requests">
+              <div className="gc-joinRequestsHead">
+                <div>
+                  <p className="gc-joinRequestsEyebrow">Private game</p>
+                  <h2 className="gc-joinRequestsTitle">Join requests</h2>
+                </div>
+                <button
+                  type="button"
+                  className="gc-joinRequestsClose"
+                  aria-label="Close join requests"
+                  onClick={() => setJoinRequestsOpen(false)}
+                >
+                  x
+                </button>
+              </div>
+              {joinRequestsErr ? <p className="gc-joinRequestsErr">{joinRequestsErr}</p> : null}
+              {!joinRequestsErr && joinRequests.length === 0 ? (
+                <p className="gc-joinRequestsEmpty">No pending requests right now.</p>
+              ) : null}
+              {joinRequests.map((r) => (
+                <div key={r.id} className="gc-joinRequestRow">
+                  <div className="gc-joinRequestMeta">
+                    <p className="gc-joinRequestName">{r.displayName || r.userId}</p>
+                    <p className="gc-joinRequestWhen">{new Date(r.createdAtIso).toLocaleString()}</p>
+                  </div>
+                  <div className="gc-joinRequestActions">
+                    <button
+                      type="button"
+                      className="gc-joinRequestApprove"
+                      disabled={joinRequestsBusy === r.id}
+                      onClick={() => void actOnJoinRequest(r.id, 'approve')}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      className="gc-joinRequestDeny"
+                      disabled={joinRequestsBusy === r.id}
+                      onClick={() => void actOnJoinRequest(r.id, 'reject')}
+                    >
+                      Deny
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {settingsOpen ? (
+            <div className="gc-settingsPopover" role="dialog" aria-label="Game settings">
+              <div className="gc-settingsHead">
+                <div>
+                  <p className="gc-settingsEyebrow">{viewerIsHost ? 'Host controls' : 'Game settings'}</p>
+                  <h2 className="gc-settingsTitle">
+                    {settingsView === 'menu'
+                      ? 'Game settings'
+                      : settingsView === 'kick'
+                        ? 'Kick a player'
+                        : 'Change duration'}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  className="gc-settingsClose"
+                  aria-label="Close game settings"
+                  onClick={closeSettings}
+                >
+                  x
+                </button>
+              </div>
+
+              {settingsView === 'menu' ? (
+                <div className="gc-settingsList">
+                  {viewerIsHost && gameIsPrivate ? (
+                    <button
+                      type="button"
+                      className="gc-settingsRow"
+                      onClick={() => {
+                        setSettingsOpen(false)
+                        openJoinRequests()
+                      }}
+                    >
+                      <span className="gc-settingsRowLabel">Review join requests</span>
+                      <span className="gc-settingsRowMeta">
+                        {hostJoinInfo ? `${hostJoinInfo.count} pending` : 'None pending'}
+                      </span>
+                    </button>
                   ) : null}
-                  {totalPlayers >= 3 && rosterMembers[2] ? (
+
+                  {viewerIsHost ? (
                     <>
-                      <span className="gc-muted">, </span>
-                      <strong>{rosterMembers[2].displayName || 'Player'}</strong>
+                      <button type="button" className="gc-settingsRow" onClick={openDurationForm}>
+                        <span className="gc-settingsRowLabel">Change game duration</span>
+                        <span className="gc-settingsRowMeta">Update when the game wraps</span>
+                      </button>
+                      <button type="button" className="gc-settingsRow" onClick={openKickList}>
+                        <span className="gc-settingsRowLabel">Kick a player</span>
+                        <span className="gc-settingsRowMeta">Remove someone from this game</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gc-settingsRow gc-settingsRow--danger"
+                        onClick={() => setConfirm({ kind: 'end' })}
+                      >
+                        <span className="gc-settingsRowLabel">End game</span>
+                        <span className="gc-settingsRowMeta">Wrap this challenge for everyone right now</span>
+                      </button>
                     </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="gc-settingsRow gc-settingsRow--danger"
+                      onClick={() => setConfirm({ kind: 'leave' })}
+                    >
+                      <span className="gc-settingsRowLabel">Leave game</span>
+                      <span className="gc-settingsRowMeta">
+                        You will lose your progress and stop seeing this game on your home feed.
+                      </span>
+                    </button>
+                  )}
+                </div>
+              ) : null}
+
+              {settingsView === 'kick' ? (
+                <div className="gc-settingsList">
+                  {kickListStatus === 'loading' ? <p className="gc-settingsHint">Loading players…</p> : null}
+                  {rosterErr ? <p className="gc-settingsErr">{rosterErr}</p> : null}
+                  {kickListStatus === 'ready' && rosterRows.filter((r) => !r.isHost).length === 0 ? (
+                    <p className="gc-settingsHint">No other players have joined this game yet.</p>
                   ) : null}
-                  {totalPlayers > 3 ? (
-                    <>
-                      <span className="gc-muted">, and </span>
-                      <strong>{totalPlayers - 3} other{totalPlayers - 3 === 1 ? '' : 's'}</strong>
-                    </>
+                  {rosterRows
+                    .filter((r) => !r.isHost)
+                    .map((p) => (
+                      <div key={p.userId} className="gc-settingsRow gc-settingsRow--player">
+                        <div className="gc-settingsPlayer">
+                          <img
+                            src={resolveProfileAvatarUrl(p.avatarUrl)}
+                            alt=""
+                            className="gc-settingsPlayerAvatar"
+                          />
+                          <span className="gc-settingsPlayerName">{p.displayName}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="gc-settingsKickBtn"
+                          onClick={() => setConfirm({ kind: 'kick', player: p })}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  <button type="button" className="gc-settingsBack" onClick={() => setSettingsView('menu')}>
+                    Back
+                  </button>
+                </div>
+              ) : null}
+
+              {settingsView === 'duration' ? (
+                <div className="gc-settingsList">
+                  <p className="gc-settingsHint">
+                    Pick how much longer this game should run. Players will see the new countdown right away.
+                  </p>
+                  {DURATION_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`gc-settingsDurationRow${durationPreset === opt.value ? ' gc-settingsDurationRow--on' : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="gc-settings-duration"
+                        value={opt.value}
+                        checked={durationPreset === opt.value}
+                        onChange={() => setDurationPreset(opt.value)}
+                      />
+                      <span className="gc-settingsDurationMeta">
+                        <span className="gc-settingsDurationLabel">{opt.label}</span>
+                        <span className="gc-settingsDurationSub">{opt.sub}</span>
+                      </span>
+                    </label>
+                  ))}
+                  {durationPreset === 'custom' ? (
+                    <input
+                      type="date"
+                      className="gc-settingsDurationDate"
+                      value={durationCustom}
+                      onChange={(e) => setDurationCustom(e.target.value)}
+                      min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+                    />
                   ) : null}
-                </>
-              ) : (
-                <strong className="gc-muted">{totalPlayers} player{totalPlayers === 1 ? '' : 's'} in this game</strong>
-              )}
-            </p>
-          )}
+                  {durationErr ? <p className="gc-settingsErr">{durationErr}</p> : null}
+                  <div className="gc-settingsRowActions">
+                    <button
+                      type="button"
+                      className="gc-settingsBack"
+                      onClick={() => setSettingsView('menu')}
+                      disabled={durationBusy}
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      className="gc-settingsPrimary"
+                      onClick={() => void submitDurationChange()}
+                      disabled={durationBusy}
+                    >
+                      {durationBusy ? 'Saving…' : 'Save changes'}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {confirm ? (
+            <div className="gc-confirmOverlay" role="dialog" aria-modal="true">
+              <div className="gc-confirmCard">
+                <h3 className="gc-confirmTitle">
+                  {confirm.kind === 'end'
+                    ? 'End this game?'
+                    : confirm.kind === 'kick'
+                      ? `Remove ${confirm.player.displayName}?`
+                      : 'Leave this game?'}
+                </h3>
+                <p className="gc-confirmBody">
+                  {confirm.kind === 'end'
+                    ? 'The game will close immediately. Players keep their final standings, but no further trades or posts can be made.'
+                    : confirm.kind === 'kick'
+                      ? `${confirm.player.displayName} will lose access to this game. Their cash, holdings, and posts in this game will be removed.`
+                      : 'Your cash, holdings, posts, and standings for this game will be deleted. The game will disappear from your home screen.'}
+                </p>
+                {confirmErr ? <p className="gc-confirmErr">{confirmErr}</p> : null}
+                <div className="gc-confirmActions">
+                  <button
+                    type="button"
+                    className="gc-confirmCancel"
+                    onClick={() => {
+                      setConfirm(null)
+                      setConfirmErr(null)
+                    }}
+                    disabled={confirmBusy}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="gc-confirmDanger"
+                    onClick={() => void runConfirm()}
+                    disabled={confirmBusy}
+                  >
+                    {confirmBusy
+                      ? 'Working…'
+                      : confirm.kind === 'end'
+                        ? 'End game'
+                        : confirm.kind === 'kick'
+                          ? 'Remove player'
+                          : 'Leave game'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {actionFlash ? (
+            <div className="gc-actionFlash" role="status" aria-live="polite">
+              {actionFlash}
+            </div>
+          ) : null}
+          <GameShellRosterBlock
+            shellIsLive={shellIsLive}
+            rosterStatus={headerCtl.rosterStatus}
+            rosterMembers={headerCtl.rosterMembers}
+            totalPlayers={headerCtl.totalPlayers}
+            onInviteClick={() => setInviteOpen(true)}
+            onMemberProfileClick={openProfile}
+          />
         </header>
 
         {!shellIsLive ? (
@@ -374,6 +726,13 @@ export function GameChallengeScreen() {
               </button>
             </div>
           </section>
+        ) : gameHasEnded ? (
+          <section className="gc-composer gc-composer--ended" aria-label="Challenge ended">
+            <p className="gc-composerEndedNote">
+              This challenge has ended. The feed below is complete and read-only — open Perform or
+              Leaderboard for your final results.
+            </p>
+          </section>
         ) : (
           <ActivityComposerRich
             gameSlug={slug}
@@ -382,7 +741,7 @@ export function GameChallengeScreen() {
               void reloadComposer()
             }}
             shellClassName="gc-composer gc-composer--interactive"
-            avatarUrl={composerCtx?.avatarUrl || a.composerAvatar}
+            avatarUrl={resolveProfileAvatarUrl(composerCtx?.avatarUrl)}
             onAvatarClick={() =>
               composerCtx?.userId
                 ? openProfile(composerCtx.userId)
@@ -462,7 +821,7 @@ export function GameChallengeScreen() {
                           aria-label={`View ${g.displayName} profile, today ${g.pctLabel}`}
                           onClick={() => openProfile(g.userId)}
                         >
-                          <img src={g.avatarUrl} alt="" />
+                          <img src={apiAssetSrc(g.avatarUrl)} alt="" />
                           <p className="gc-gainName gc-gainName--ellipsis" title={g.displayName}>
                             {g.displayNameShort}
                           </p>
@@ -553,7 +912,7 @@ export function GameChallengeScreen() {
                       aria-label={`View ${post.author}'s profile`}
                       onClick={() => openProfile(post.userId)}
                     >
-                      <img className="gc-feedAvatar" src={post.avatar} alt="" />
+                      <img className="gc-feedAvatar" src={apiAssetSrc(post.avatar)} alt="" />
                     </button>
                     <div className="gc-feedTextCol">
                       <p className="gc-feedByline">
@@ -571,35 +930,59 @@ export function GameChallengeScreen() {
                       </p>
                       <p className="gc-feedTime">{post.timestamp}</p>
                     </div>
-                    <button type="button" className="gc-feedMenu" aria-label="Post options">
-                      <img src={a.ellipsis} alt="" />
-                    </button>
+                    <FeedPostOverflowMenu
+                      post={post}
+                      gameSlug={gameSlugForPost}
+                      viewerUserId={viewerUserId}
+                      variant="game"
+                      onUpdated={() => void reloadFeed()}
+                    />
                   </div>
 
                   {kind === 'poll' && post.poll ? (
-                    <FeedPollCard
-                      postId={post.id}
-                      gameSlug={gameSlugForPost}
-                      poll={post.poll}
-                      onVoted={() => void reloadFeed()}
-                    />
-                  ) : kind === 'text' ? (
-                    post.richSegments?.length || post.attachmentImageUrl ? (
-                      <FeedRichBody
-                        segments={post.richSegments}
-                        imageUrl={post.attachmentImageUrl}
-                        fallbackText={post.rationale}
+                    <>
+                      <FeedPollCard
+                        postId={post.id}
                         gameSlug={gameSlugForPost}
-                        returnPath={`/g/${encodeURIComponent(gameSlugForPost)}`}
-                        navTab="activity"
+                        poll={post.poll}
+                        onVoted={() => void reloadFeed()}
                       />
-                    ) : (
-                      <p className="gc-textBody">{post.rationale}</p>
-                    )
+                      <FeedPostSocialBar
+                        post={post}
+                        gameSlug={gameSlugForPost}
+                        variant="game"
+                        interactionsLocked={gameHasEnded || Boolean(post.feedInteractionsLocked)}
+                        onCountsDirty={() => void reloadFeed()}
+                      />
+                    </>
+                  ) : kind === 'text' ? (
+                    <>
+                      {post.richSegments?.length || post.attachmentImageUrl ? (
+                        <FeedRichBody
+                          segments={post.richSegments}
+                          imageUrl={post.attachmentImageUrl}
+                          fallbackText={post.rationale}
+                          gameSlug={gameSlugForPost}
+                          returnPath={`/g/${encodeURIComponent(gameSlugForPost)}`}
+                          navTab="activity"
+                        />
+                      ) : (
+                        <p className="gc-textBody">{post.rationale}</p>
+                      )}
+                      <FeedPostSocialBar
+                        post={post}
+                        gameSlug={gameSlugForPost}
+                        variant="game"
+                        interactionsLocked={gameHasEnded || Boolean(post.feedInteractionsLocked)}
+                        onCountsDirty={() => void reloadFeed()}
+                      />
+                    </>
                   ) : (
+                    <>
+                    <div className="gc-trade gc-tradeCardWrap">
                     <button
                       type="button"
-                      className="gc-trade"
+                      className="gc-tradeTap"
                       aria-label={`Open ${sym} stock details`}
                       onClick={() => {
                         const sg = gameSlugForPost
@@ -611,45 +994,127 @@ export function GameChallengeScreen() {
                         })
                       }}
                     >
-                      <div className="gc-trade__top">
-                        <img className="gc-trade__logo" src={post.tickerImage} alt="" />
-                        <div className="gc-trade__mid">
-                          <p className="gc-trade__headline">{post.tradeTitle}</p>
-                          <div className="gc-trade__details">
-                            <div className="gc-trade__row">
-                              <span className="gc-trade__label">Shares Bought</span>
-                              <span className="gc-trade__value">{post.sharesBought}</span>
+                      {(() => {
+                        const isSell = post.side === 'sell'
+                        const fillPriceLabel =
+                          typeof post.purchasePrice === 'number' && Number.isFinite(post.purchasePrice)
+                            ? `$${post.purchasePrice.toLocaleString('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}`
+                            : null
+                        const realizedDollars =
+                          isSell &&
+                          typeof post.costBasis === 'number' &&
+                          Number.isFinite(post.costBasis) &&
+                          post.costBasis > 0
+                            ? (() => {
+                                const proceeds = parseFloat(
+                                  (post.orderTotal || '').replace(/[^0-9.\-]/g, ''),
+                                )
+                                return Number.isFinite(proceeds) ? proceeds - post.costBasis : null
+                              })()
+                            : null
+                        const realizedPct =
+                          realizedDollars != null && post.costBasis && post.costBasis > 0
+                            ? (realizedDollars / post.costBasis) * 100
+                            : null
+                        // Inline value shows just the dollar delta — the percent is already in
+                        // the top-right realized badge, so we don't repeat it and risk wrapping.
+                        const realizedLabel =
+                          realizedDollars != null
+                            ? `${realizedDollars >= 0 ? '+' : '-'}$${Math.abs(realizedDollars).toLocaleString(
+                                'en-US',
+                                { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                              )}`
+                            : null
+                        // Reference realizedPct so future tweaks keep computing it; the badge in the
+                        // aside is driven server-side via post.changePct.
+                        void realizedPct
+                        const sinceLabel = isSell ? 'Realized' : 'Since Purchase'
+                        return (
+                          <div className="gc-trade__top">
+                            <div className="gc-trade__upper">
+                              <ApiImage className="gc-trade__logo" src={post.tickerImage} alt="" />
+                              <div className="gc-trade__mid">
+                                <p className="gc-trade__headline">{post.tradeTitle}</p>
+                              </div>
+                              <div className="gc-trade__aside">
+                                <div
+                                  className={`gc-trade__pctRow${pctKnown ? (pctUp ? ' gc-trade__pctRow--up' : ' gc-trade__pctRow--down') : ' gc-trade__pctRow--na'}`}
+                                >
+                                  <img
+                                    src={
+                                      pctKnown
+                                        ? pctUp
+                                          ? a.changeArrowUp
+                                          : a.changeArrowDown
+                                        : a.line23
+                                    }
+                                    alt=""
+                                    width={23}
+                                    height={23}
+                                  />
+                                  <span
+                                    className={`gc-trade__pct${pctKnown ? (pctUp ? ' gc-trade__pct--up' : ' gc-trade__pct--down') : ' gc-trade__pct--na'}`}
+                                  >
+                                    {post.changePct}
+                                  </span>
+                                </div>
+                                <p className="gc-trade__since">{sinceLabel}</p>
+                                <div className="gc-trade__cols">
+                                  <div>
+                                    <div className="gc-trade__metric">{post.marketCap}</div>
+                                    <div className="gc-trade__metricLabel">Market Cap</div>
+                                  </div>
+                                  <div>
+                                    <div className="gc-trade__metric">{post.revenue}</div>
+                                    <div className="gc-trade__metricLabel">Revenue</div>
+                                  </div>
+                                  {!isSell && fillPriceLabel ? (
+                                    <div>
+                                      <div className="gc-trade__metric">{fillPriceLabel}</div>
+                                      <div className="gc-trade__metricLabel">Buy Price</div>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
                             </div>
-                            <div className="gc-trade__row">
-                              <span className="gc-trade__label">Order Total</span>
-                              <span className="gc-trade__value">{post.orderTotal}</span>
+                            <div className="gc-trade__details">
+                              <div className="gc-trade__row">
+                                <span className="gc-trade__label">
+                                  {isSell ? 'Shares Sold' : 'Shares Bought'}
+                                </span>
+                                <span className="gc-trade__value">{post.sharesBought}</span>
+                              </div>
+                              {isSell && fillPriceLabel ? (
+                                <div className="gc-trade__row">
+                                  <span className="gc-trade__label">Sale Price</span>
+                                  <span className="gc-trade__value">{fillPriceLabel}</span>
+                                </div>
+                              ) : null}
+                              <div className="gc-trade__row">
+                                <span className="gc-trade__label">{isSell ? 'Proceeds' : 'Order Total'}</span>
+                                <span className="gc-trade__value">{post.orderTotal}</span>
+                              </div>
+                              {isSell && realizedLabel ? (
+                                <div className="gc-trade__row">
+                                  <span className="gc-trade__label">
+                                    Realized {realizedDollars! >= 0 ? 'Gain' : 'Loss'}
+                                  </span>
+                                  <span
+                                    className="gc-trade__value"
+                                    style={{ color: realizedDollars! >= 0 ? '#047a3a' : '#b42318' }}
+                                  >
+                                    {realizedLabel}
+                                  </span>
+                                </div>
+                              ) : null}
                             </div>
                           </div>
-                        </div>
-                        <div className="gc-trade__aside">
-                          <div
-                            className={`gc-trade__pctRow${pctKnown ? (pctUp ? ' gc-trade__pctRow--up' : ' gc-trade__pctRow--down') : ' gc-trade__pctRow--na'}`}
-                          >
-                            <img src={pctUp ? a.line23 : a.stockDown} alt="" width={23} height={23} />
-                            <span
-                              className={`gc-trade__pct${pctKnown ? (pctUp ? ' gc-trade__pct--up' : ' gc-trade__pct--down') : ' gc-trade__pct--na'}`}
-                            >
-                              {post.changePct}
-                            </span>
-                          </div>
-                          <p className="gc-trade__since">Since Purchase</p>
-                          <div className="gc-trade__cols">
-                            <div>
-                              <div className="gc-trade__metric">{post.marketCap}</div>
-                              <div className="gc-trade__metricLabel">Market Cap</div>
-                            </div>
-                            <div>
-                              <div className="gc-trade__metric">{post.revenue}</div>
-                              <div className="gc-trade__metricLabel">Revenue</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                        )
+                      })()}
+                    </button>
                       {hasRationale ? (
                         <div className="gc-rationaleShell">
                           <div className="gc-rationaleHead">
@@ -659,7 +1124,15 @@ export function GameChallengeScreen() {
                           <div className="gc-rationaleBox">{post.rationale}</div>
                         </div>
                       ) : null}
-                    </button>
+                    </div>
+                    <FeedPostSocialBar
+                      post={post}
+                      gameSlug={gameSlugForPost}
+                      variant="game"
+                      interactionsLocked={gameHasEnded || Boolean(post.feedInteractionsLocked)}
+                      onCountsDirty={() => void reloadFeed()}
+                    />
+                    </>
                   )}
                 </article>
               )
@@ -669,7 +1142,7 @@ export function GameChallengeScreen() {
           </div>
         </div>
 
-        <ChallengeBottomNav gameSlug={slug} active="activity" />
+        <ChallengeBottomNav gameSlug={slug} active="activity" tradeLocked={gameHasEnded} />
       </div>
       <InviteGameSheet open={inviteOpen} onClose={() => setInviteOpen(false)} gameSlug={slug} />
     </div>

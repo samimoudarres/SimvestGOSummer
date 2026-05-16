@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Default profile picture">
+  <defs>
+    <clipPath id="simvest-blank-avatar-clip">
+      <circle cx="100" cy="100" r="100"/>
+    </clipPath>
+  </defs>
+  <!--
+    Instagram-style blank-profile placeholder used as the default avatar for
+    brand-new accounts. The viewBox is a square so it renders correctly when
+    the consumer applies `border-radius: 999px`, and the silhouette is also
+    contained within the inner clip so it still reads as a profile icon when
+    a consumer leaves the square edges visible.
+  -->
+  <rect width="200" height="200" fill="#dde2e6"/>
+  <g clip-path="url(#simvest-blank-avatar-clip)">
+    <circle cx="100" cy="84" r="34" fill="#ffffff"/>
+    <ellipse cx="100" cy="200" rx="66" ry="54" fill="#ffffff"/>
+  </g>
+</svg>

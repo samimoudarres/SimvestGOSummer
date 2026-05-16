@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { navigateToStock } from '../stocks/navigateToStock'
+import { apiAssetSrc } from '../config/apiAssetSrc'
 import { gameTitle, slugToVariant } from '../challenge/gameMeta'
 import type { RichTextSegment } from './richTextTypes'
 
@@ -29,7 +30,7 @@ export function FeedRichBody({ segments, fallbackText, imageUrl, gameSlug, retur
 
   return (
     <div className="feedRichBody">
-      {imageUrl ? <img className="feedRichBody__img" src={imageUrl} alt="" /> : null}
+      {imageUrl ? <img className="feedRichBody__img" src={apiAssetSrc(imageUrl)} alt="" /> : null}
       <div className="feedRichBody__text">
         {hasSegs
           ? segments!.map((s, i) => {

@@ -1,34 +1,59 @@
+import { getFollowTickersForGame } from './followsService'
 import { massiveGet } from './massiveClient'
 import {
   fetchStockBars1DayOrLastTwoSessions,
   normalizeCryptoCompositeTicker,
+  normalizeCryptoSnapshotShape,
   normalizeTicker,
+  pickLastCloseFromRecentAggs,
+  pickTickerSnapshotPrice,
+  resolveMassiveTicker,
+  unwrapCryptoSnapshotBody,
 } from './stockService'
 
 export type TradeCategoryId =
   | 'popular'
+  | 'crypto'
+  | 'following'
+  | 'indexfunds'
+  | 'etf'
   | 'gainers'
   | 'losers'
-  | 'active'
   | 'tech'
-  | 'finance'
   | 'healthcare'
   | 'energy'
-  | 'etf'
-  | 'crypto'
+  | 'finance'
+  | 'industrial'
+  | 'consumer'
+  | 'infrastructure'
+  | 'utilities'
+  | 'active'
 
-/** Figma order: Popular → Crypto → ETFs → sectors → movers (keep in sync with `src/trade/tradeTypes.ts`). */
+/**
+ * Figma column-major order (Figma node 192:1835) — items wrap top-to-bottom into a 2-row
+ * horizontal-scroll strip, so this list is the *visual* order: column 1 top, column 1 bottom,
+ * column 2 top, column 2 bottom, … Keep in sync with `src/trade/tradeTypes.ts`.
+ *
+ * IDs are all lowercase so the `/trade/browse?category=` route's `.toLowerCase()` defensive
+ * normalization passes them through unchanged.
+ */
 export const TRADE_CATEGORY_OPTIONS: { id: TradeCategoryId; label: string }[] = [
   { id: 'popular', label: 'Popular' },
   { id: 'crypto', label: 'Crypto' },
+  { id: 'following', label: 'Following' },
+  { id: 'indexfunds', label: 'Index Funds' },
   { id: 'etf', label: 'ETFs' },
-  { id: 'tech', label: 'Tech' },
-  { id: 'finance', label: 'Finance' },
-  { id: 'healthcare', label: 'Healthcare' },
+  { id: 'gainers', label: 'Top Gainers' },
+  { id: 'losers', label: 'Top Losers' },
+  { id: 'tech', label: 'Technology' },
+  { id: 'healthcare', label: 'Health' },
   { id: 'energy', label: 'Energy' },
-  { id: 'gainers', label: 'Top gainers' },
-  { id: 'losers', label: 'Top losers' },
-  { id: 'active', label: 'Most active' },
+  { id: 'finance', label: 'Financial' },
+  { id: 'industrial', label: 'Industrial' },
+  { id: 'consumer', label: 'Consumer' },
+  { id: 'infrastructure', label: 'Infrastructure' },
+  { id: 'utilities', label: 'Utilities' },
+  { id: 'active', label: 'Most Active' },
 ]
 
 const CATEGORY_IDS = new Set<string>(TRADE_CATEGORY_OPTIONS.map((c) => c.id))
@@ -73,6 +98,13 @@ function flattenSnapshotRow(row: unknown): SnapTicker | null {
   }
   return o as SnapTicker
 }
+
+/** Massive often returns snake_case on crypto (and sometimes stock) snapshots — align before pricing. */
+function applyMassiveSnapshotAliases(row: SnapTicker | null): SnapTicker | null {
+  if (!row) return null
+  const n = normalizeCryptoSnapshotShape(row as never)
+  return (n ? ({ ...row, ...n } as SnapTicker) : row)
+}
 type RefTickerRow = { ticker?: string; name?: string; market_cap?: number }
 type RefTickersResponse = { results?: RefTickerRow[] }
 
@@ -114,19 +146,16 @@ function numFromObj(o: unknown, ...keys: string[]): number | null {
   for (const k of keys) {
     const v = r[k]
     if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v
+    if (typeof v === 'string') {
+      const n = Number(v)
+      if (Number.isFinite(n) && n > 0) return n
+    }
   }
   return null
 }
 
 function pickPrice(s: SnapTicker | undefined): number | null {
-  if (!s) return null
-  const p =
-    numFromObj(s.lastTrade, 'p', 'P', 'price') ??
-    numFromObj(s.lastQuote, 'p', 'P', 'price') ??
-    numFromObj(s.min, 'c', 'C', 'close') ??
-    numFromObj(s.day, 'c', 'C', 'close') ??
-    numFromObj(s.prevDay, 'c', 'C', 'close')
-  return typeof p === 'number' && Number.isFinite(p) && p > 0 ? p : null
+  return pickTickerSnapshotPrice(s as never)
 }
 
 /** Use snapshot % change when present; else derive like the stock detail screen (stocks + crypto). */
@@ -212,20 +241,43 @@ function downsampleCloses(closes: number[], maxPoints: number): number[] {
   return out
 }
 
+/**
+ * Per-ticker spark cache — keep TTL aligned with client quote polls so browse/search sparklines
+ * do not sit on old closes while headline prices refresh.
+ */
+const STOCK_SPARK_CACHE_MS = 5_000
+const stockSparkCache = new Map<string, { exp: number; data: number[] }>()
+const stockSparkInflight = new Map<string, Promise<number[]>>()
+
 async function sparkFor(sym: string): Promise<number[]> {
-  const bars = await failNull(fetchStockBars1DayOrLastTwoSessions(sym))
-  const closes = (bars ?? []).map((b) => b.c).filter((c) => typeof c === 'number' && Number.isFinite(c))
-  return downsampleCloses(closes, 24)
+  const now = Date.now()
+  const hit = stockSparkCache.get(sym)
+  if (hit && hit.exp > now) return hit.data
+
+  const pending = stockSparkInflight.get(sym)
+  if (pending) return pending
+
+  const work = (async (): Promise<number[]> => {
+    const bars = await failNull(fetchStockBars1DayOrLastTwoSessions(sym))
+    const closes = (bars ?? []).map((b) => b.c).filter((c) => typeof c === 'number' && Number.isFinite(c))
+    const data = downsampleCloses(closes, 24)
+    if (data.length >= 2) {
+      stockSparkCache.set(sym, { exp: Date.now() + STOCK_SPARK_CACHE_MS, data })
+    }
+    return data
+  })()
+
+  stockSparkInflight.set(sym, work)
+  try {
+    return await work
+  } finally {
+    stockSparkInflight.delete(sym)
+  }
 }
 
-async function sparkBatch(syms: string[], snapMap: Map<string, SnapTicker>): Promise<Map<string, number[]>> {
+/** Parallel fetch of just the stock sparks (crypto are derived from snapshots elsewhere). */
+async function stockSparkBatch(stockSyms: string[]): Promise<Map<string, number[]>> {
   const map = new Map<string, number[]>()
-  const stockSyms = syms.filter((s) => !s.startsWith('X:'))
-  for (const sym of syms) {
-    if (sym.startsWith('X:')) {
-      map.set(sym, cryptoSparkFromSnapshot(snapMap.get(sym)))
-    }
-  }
   for (const chunk of chunkArray(stockSyms, 10)) {
     const part = await Promise.all(chunk.map(async (s) => [s, await sparkFor(s)] as const))
     for (const [s, sp] of part) {
@@ -335,6 +387,103 @@ const ENERGY: readonly string[] = [
   'FANG',
 ]
 
+const INDUSTRIAL: readonly string[] = [
+  'GE',
+  'CAT',
+  'HON',
+  'BA',
+  'UNP',
+  'UPS',
+  'LMT',
+  'RTX',
+  'MMM',
+  'DE',
+  'EMR',
+  'ETN',
+  'ITW',
+  'NOC',
+  'GD',
+]
+
+/**
+ * Consumer / retail names — replaces the Figma "Real Estate" slot because Massive's
+ * branding logos for major REITs are sparse and the user requested a category with a
+ * deeper bench of liquid, well-known tickers. All entries have working snapshot data
+ * and stable brand iconography.
+ */
+const CONSUMER: readonly string[] = [
+  'AMZN',
+  'WMT',
+  'COST',
+  'HD',
+  'NKE',
+  'MCD',
+  'SBUX',
+  'KO',
+  'PEP',
+  'PG',
+  'TGT',
+  'LOW',
+  'DIS',
+  'NFLX',
+  'TJX',
+]
+
+const INFRASTRUCTURE: readonly string[] = [
+  'BIP',
+  'BAM',
+  'BEP',
+  'AWK',
+  'KMI',
+  'ENB',
+  'ET',
+  'CCI',
+  'AMT',
+  'EQIX',
+  'AWR',
+  'WTRG',
+  'NEE',
+  'MUSA',
+  'PWR',
+]
+
+const UTILITIES: readonly string[] = [
+  'NEE',
+  'DUK',
+  'SO',
+  'AEP',
+  'EXC',
+  'D',
+  'ED',
+  'PCG',
+  'XEL',
+  'WEC',
+  'ETR',
+  'SRE',
+  'PEG',
+  'ES',
+  'AEE',
+]
+
+/** Curated list of broad-market and sector index ETFs used for the Figma "Index Funds" card. */
+const INDEX_FUNDS: readonly string[] = [
+  'SPY',
+  'VOO',
+  'IVV',
+  'QQQ',
+  'DIA',
+  'IWM',
+  'VTI',
+  'ITOT',
+  'SCHB',
+  'VEA',
+  'IEFA',
+  'VWO',
+  'IEMG',
+  'AGG',
+  'BND',
+]
+
 function snapshotMapKeyFromRow(row: SnapTicker | null): string | null {
   if (!row?.ticker) return null
   const raw = String(row.ticker).trim()
@@ -369,7 +518,7 @@ async function fetchStockSnapshotsBatch(tickers: string[]): Promise<Map<string, 
           massiveGet<BatchStocksResponse>(`/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${q}`),
         )
         for (const raw of data?.tickers ?? []) {
-          const row = flattenSnapshotRow(raw)
+          const row = applyMassiveSnapshotAliases(flattenSnapshotRow(raw))
           const key = snapshotMapKeyFromRow(row)
           if (key && row) map.set(key, { ...row, ticker: key })
         }
@@ -390,7 +539,7 @@ async function fetchStockSnapshotsBatch(tickers: string[]): Promise<Map<string, 
     }
     if (data?.tickers?.length) {
       for (const raw of data.tickers) {
-        const row = flattenSnapshotRow(raw)
+        const row = applyMassiveSnapshotAliases(flattenSnapshotRow(raw))
         const key = snapshotMapKeyFromRow(row)
         if (key && row) map.set(key, { ...row, ticker: key })
       }
@@ -404,20 +553,49 @@ async function fetchStockSnapshotsBatch(tickers: string[]): Promise<Map<string, 
   return map
 }
 
+/**
+ * Names for a set of symbols.
+ *
+ * Trade browse fetches 30 rows; before this change we fired 30 sequential `/v3/reference/tickers/{sym}`
+ * calls through the paced Massive client — usually the slowest part of the response. The reference
+ * list endpoint supports `ticker.any_of=SYM1,SYM2,…` which lets us get up to ~50 names per call.
+ * Unknown symbols still fall back to the per-ticker endpoint so we never lose a name we used to render.
+ */
 async function refNamesFor(symbols: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>()
   const uniq = [...new Set(symbols)].filter((s) => !s.startsWith('X:'))
-  /* Bounded parallelism — avoids dozens of simultaneous queues competing with spark bars (same Massive pool). */
-  for (const chunk of chunkArray(uniq, 10)) {
-    const pairs = await Promise.all(
-      chunk.map(async (sym) => {
-        const d = await failNull(massiveGet<RefTickersResponse>(`/v3/reference/tickers/${encodeURIComponent(sym)}`))
-        const name = d?.results?.name ?? sym
-        return [sym, truncateName(name)] as const
+  if (uniq.length === 0) return out
+
+  for (const chunk of chunkArray(uniq, 50)) {
+    const data = await failNull(
+      massiveGet<RefTickersResponse>('/v3/reference/tickers', {
+        'ticker.any_of': chunk.join(','),
+        active: 'true',
+        limit: String(Math.max(chunk.length, 50)),
       }),
     )
-    for (const [s, n] of pairs) {
-      out.set(s, n)
+    for (const r of data?.results ?? []) {
+      const t = (r.ticker ?? '').toUpperCase()
+      if (!t || !chunk.includes(t)) continue
+      out.set(t, truncateName(r.name ?? t))
+    }
+  }
+
+  // Fallback only for symbols not returned by the batch (e.g. delisted, OTC quirks).
+  const missing = uniq.filter((s) => !out.has(s))
+  if (missing.length > 0) {
+    type SingleRefResp = { results?: { name?: string } }
+    for (const chunk of chunkArray(missing, 10)) {
+      const pairs = await Promise.all(
+        chunk.map(async (sym) => {
+          const d = await failNull(massiveGet<SingleRefResp>(`/v3/reference/tickers/${encodeURIComponent(sym)}`))
+          const name = d?.results?.name ?? sym
+          return [sym, truncateName(name)] as const
+        }),
+      )
+      for (const [s, n] of pairs) {
+        out.set(s, n)
+      }
     }
   }
   return out
@@ -449,7 +627,12 @@ async function fillMissingCryptoSnapshots(syms: string[], map: Map<string, SnapT
         const raw = await failNull(
           massiveGet<unknown>(`/v2/snapshot/locale/global/markets/crypto/tickers/${encodeURIComponent(sym)}`),
         )
-        const row = flattenSnapshotRow(raw)
+        const inner = unwrapCryptoSnapshotBody(raw)
+        const flat = flattenSnapshotRow(raw)
+        const merged = inner
+          ? ({ ...(flat ?? {}), ...inner, ticker: sym } as SnapTicker)
+          : flat
+        const row = applyMassiveSnapshotAliases(merged)
         const key = snapshotMapKeyFromRow(row) ?? sym
         if (row && key) map.set(key, { ...row, ticker: key })
       }),
@@ -675,15 +858,52 @@ async function buildRowsForSymbols(
   maxRows = 28,
 ): Promise<TradeBrowseRow[]> {
   const syms = orderedSymbols.slice(0, maxRows)
-  const [snapMap, names] = await Promise.all([
+  const stockSyms = syms.filter((s) => !s.startsWith('X:'))
+
+  /* Stock sparks don't depend on snapshots — kick them off in parallel with snapshots+names
+   * instead of waiting in series. On a cold load this roughly halves the perceived latency
+   * because the slow part (30 bar fetches) overlaps with the rest of the work. */
+  const [snapMap, names, stockSparks] = await Promise.all([
     (async () => {
       const m = await fetchStockSnapshotsBatch(syms)
       await fillMissingCryptoSnapshots(syms, m)
       return m
     })(),
     refNamesFor(syms),
+    stockSparkBatch(stockSyms),
   ])
-  const sparkMap = await sparkBatch(syms, snapMap)
+
+  const cryptoMissingPx = syms.filter((s) => s.startsWith('X:') && pickPrice(snapMap.get(s)) == null)
+  if (cryptoMissingPx.length) {
+    const fills = await Promise.all(
+      cryptoMissingPx.map(async (s) => [s, await pickLastCloseFromRecentAggs(s)] as const),
+    )
+    for (const [s, px] of fills) {
+      if (px == null) continue
+      const cur = snapMap.get(s)
+      const injected: SnapTicker = cur
+        ? {
+            ...cur,
+            lastTrade: {
+              ...(typeof cur.lastTrade === 'object' && cur.lastTrade ? cur.lastTrade : {}),
+              p: px,
+            },
+          }
+        : { ticker: s, lastTrade: { p: px } }
+      snapMap.set(s, applyMassiveSnapshotAliases(injected)!)
+    }
+  }
+
+  /* Live browse prices come from the batched crypto snapshot (+ fills above). Do not fan out one
+   * `/v2/aggs/.../minute` request per row — that was freezing the Crypto trade tab and hammering
+   * Massive rate limits while duplicating data the snapshot already carries. */
+
+  const sparkMap = new Map<string, number[]>(stockSparks)
+  for (const sym of syms) {
+    if (sym.startsWith('X:')) {
+      sparkMap.set(sym, cryptoSparkFromSnapshot(snapMap.get(sym)))
+    }
+  }
 
   const rows: TradeBrowseRow[] = []
   for (const sym of syms) {
@@ -711,8 +931,18 @@ async function buildRowsForSymbols(
   return rows
 }
 
-async function symbolsForCategory(cat: TradeCategoryId): Promise<string[]> {
+async function symbolsForCategory(
+  cat: TradeCategoryId,
+  opts?: { gameSlug?: string; userId?: string | null },
+): Promise<string[]> {
   switch (cat) {
+    case 'following': {
+      const slug = opts?.gameSlug
+      const uid = opts?.userId
+      if (!slug || !uid || uid.length < 8) return []
+      const list = await getFollowTickersForGame(uid, slug)
+      return list.slice(0, 36)
+    }
     case 'popular':
       return [...POPULAR]
     case 'gainers':
@@ -737,6 +967,16 @@ async function symbolsForCategory(cat: TradeCategoryId): Promise<string[]> {
       return [...HEALTHCARE]
     case 'energy':
       return [...ENERGY]
+    case 'industrial':
+      return [...INDUSTRIAL]
+    case 'consumer':
+      return [...CONSUMER]
+    case 'infrastructure':
+      return [...INFRASTRUCTURE]
+    case 'utilities':
+      return [...UTILITIES]
+    case 'indexfunds':
+      return [...INDEX_FUNDS]
     case 'etf':
       return await etfTickers(30)
     case 'crypto':
@@ -746,22 +986,64 @@ async function symbolsForCategory(cat: TradeCategoryId): Promise<string[]> {
   }
 }
 
-export async function fetchTradeBrowse(category: TradeCategoryId): Promise<{
+/** In-flight only (no browse payload cache) so every poll returns fresh Massive quotes for all games. */
+const tradeBrowseInflight = new Map<string, Promise<TradeBrowsePayload>>()
+
+function tradeBrowseInflightKey(gameSlug: string, viewerUserId: string | null, category: TradeCategoryId): string {
+  return `${gameSlug}\t${viewerUserId ?? ''}\t${category}`
+}
+
+type TradeBrowsePayload = {
   category: TradeCategoryId
   categories: typeof TRADE_CATEGORY_OPTIONS
   rows: TradeBrowseRow[]
-}> {
-  const syms = await symbolsForCategory(category)
-  const rows = await buildRowsForSymbols(syms, 30)
-  return {
-    category,
-    categories: TRADE_CATEGORY_OPTIONS,
-    rows,
-  }
+}
+
+async function refreshTradeBrowse(
+  gameSlug: string,
+  viewerUserId: string | null,
+  category: TradeCategoryId,
+): Promise<TradeBrowsePayload> {
+  const k = tradeBrowseInflightKey(gameSlug, viewerUserId, category)
+  const pending = tradeBrowseInflight.get(k)
+  if (pending) return pending
+  const work = (async (): Promise<TradeBrowsePayload> => {
+    const syms = await symbolsForCategory(category, { gameSlug, userId: viewerUserId })
+    const rows = await buildRowsForSymbols(syms, 30)
+    return {
+      category,
+      categories: TRADE_CATEGORY_OPTIONS,
+      rows,
+    }
+  })()
+  tradeBrowseInflight.set(k, work)
+  work.finally(() => tradeBrowseInflight.delete(k))
+  return work
+}
+
+export async function fetchTradeBrowse(
+  gameSlug: string,
+  viewerUserId: string | null,
+  category: TradeCategoryId,
+): Promise<TradeBrowsePayload> {
+  return refreshTradeBrowse(gameSlug, viewerUserId, category)
 }
 
 /** Whether `sym` appears in the live browse list for `cat` (used for game trade filters). */
-export async function isSymbolInTradeCategory(sym: string, cat: TradeCategoryId): Promise<boolean> {
+export async function isSymbolInTradeCategory(
+  sym: string,
+  cat: TradeCategoryId,
+  ctx?: { gameSlug?: string; userId?: string | null },
+): Promise<boolean> {
+  if (cat === 'following') {
+    const slug = ctx?.gameSlug
+    const uid = ctx?.userId
+    if (!slug || !uid || uid.length < 8) return false
+    const want = resolveMassiveTicker(sym) ?? normalizeTicker(sym)
+    if (!want) return false
+    const list = await getFollowTickersForGame(uid, slug)
+    return list.some((t) => (resolveMassiveTicker(t) ?? normalizeTicker(t)) === want)
+  }
   const list = await symbolsForCategory(cat)
   return new Set(list).has(sym)
 }
@@ -812,38 +1094,55 @@ function scoreSearchMatch(qNorm: string, tickerRaw: string, nameRaw: string, mar
   return score
 }
 
+const tradeSearchInflight = new Map<string, Promise<TradeBrowseRow[]>>()
+
+async function refreshTradeSearch(cacheKey: string, q: string): Promise<TradeBrowseRow[]> {
+  const pending = tradeSearchInflight.get(cacheKey)
+  if (pending) return pending
+  const work = (async (): Promise<TradeBrowseRow[]> => {
+    const [stockHits, cryptoHits] = await Promise.all([
+      referenceTickerSearch(q, 'stocks'),
+      referenceTickerSearch(q, 'crypto'),
+    ])
+
+    const merged = new Map<string, { ticker: string; name: string; marketCap: number; order: number }>()
+    let ord = 0
+    for (const r of stockHits) {
+      const t = normalizeTicker(r.ticker ?? '')
+      if (!t || merged.has(t)) continue
+      merged.set(t, { ticker: t, name: r.name ?? t, marketCap: r.market_cap ?? 0, order: ord++ })
+    }
+    for (const r of cryptoHits) {
+      const t = normalizeCryptoCompositeTicker(r.ticker ?? '')
+      if (!t || merged.has(t)) continue
+      merged.set(t, { ticker: t, name: r.name ?? t, marketCap: r.market_cap ?? 0, order: ord++ })
+    }
+
+    const qLower = q.toLowerCase()
+    const ranked = [...merged.values()]
+      .map((row) => ({
+        sym: row.ticker,
+        score: scoreSearchMatch(qLower, row.ticker, row.name, row.marketCap, row.order),
+      }))
+      .sort((a, b) => b.score - a.score)
+
+    const symbols = ranked.slice(0, TRADE_SEARCH_MAX_ROWS).map((x) => x.sym)
+    if (!symbols.length) return []
+
+    return buildRowsForSymbols(symbols, TRADE_SEARCH_MAX_ROWS)
+  })()
+  tradeSearchInflight.set(cacheKey, work)
+  work.finally(() => tradeSearchInflight.delete(cacheKey))
+  return work
+}
+
 /** Ranked symbol search (stocks + ETFs + crypto); live prices/sparks filled like browse rows. */
 export async function fetchTradeSearch(queryRaw: string): Promise<TradeBrowseRow[]> {
   const q = queryRaw.trim().slice(0, 80)
   if (q.length < 1) return []
 
-  const [stockHits, cryptoHits] = await Promise.all([referenceTickerSearch(q, 'stocks'), referenceTickerSearch(q, 'crypto')])
-
-  const merged = new Map<string, { ticker: string; name: string; marketCap: number; order: number }>()
-  let ord = 0
-  for (const r of stockHits) {
-    const t = normalizeTicker(r.ticker ?? '')
-    if (!t || merged.has(t)) continue
-    merged.set(t, { ticker: t, name: r.name ?? t, marketCap: r.market_cap ?? 0, order: ord++ })
-  }
-  for (const r of cryptoHits) {
-    const t = normalizeCryptoCompositeTicker(r.ticker ?? '')
-    if (!t || merged.has(t)) continue
-    merged.set(t, { ticker: t, name: r.name ?? t, marketCap: r.market_cap ?? 0, order: ord++ })
-  }
-
-  const qLower = q.toLowerCase()
-  const ranked = [...merged.values()]
-    .map((row) => ({
-      sym: row.ticker,
-      score: scoreSearchMatch(qLower, row.ticker, row.name, row.marketCap, row.order),
-    }))
-    .sort((a, b) => b.score - a.score)
-
-  const symbols = ranked.slice(0, TRADE_SEARCH_MAX_ROWS).map((x) => x.sym)
-  if (!symbols.length) return []
-
-  return buildRowsForSymbols(symbols, TRADE_SEARCH_MAX_ROWS)
+  const cacheKey = q.toLowerCase()
+  return refreshTradeSearch(cacheKey, q)
 }
 
 /** Hydrate browse rows for stored recent tickers (order preserved). */

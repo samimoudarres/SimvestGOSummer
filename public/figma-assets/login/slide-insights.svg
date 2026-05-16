@@ -1,0 +1,35 @@
+<svg width="292" height="286" viewBox="0 0 292 286" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="panel" x1="48" y1="59" x2="235" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#c9f1ff"/>
+    </linearGradient>
+    <linearGradient id="card" x1="75" y1="85" x2="218" y2="196" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0aa3e7"/>
+      <stop offset="1" stop-color="#064a75"/>
+    </linearGradient>
+    <filter id="soft" x="20" y="35" width="252" height="223" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="16" flood-color="#05365a" flood-opacity=".23"/>
+    </filter>
+  </defs>
+  <circle cx="55" cy="214" r="40" fill="#d8f7ff" opacity=".8"/>
+  <circle cx="238" cy="82" r="36" fill="#66d1ff" opacity=".35"/>
+  <circle cx="85" cy="61" r="18" fill="#ffffff" opacity=".75"/>
+  <g filter="url(#soft)">
+    <rect x="48" y="58" width="196" height="162" rx="30" fill="#063a5e"/>
+    <rect x="59" y="70" width="174" height="138" rx="22" fill="url(#panel)"/>
+    <rect x="77" y="90" width="138" height="76" rx="20" fill="url(#card)"/>
+    <path d="M95 143C107 129 119 136 131 119C145 101 156 116 169 98C178 86 191 87 202 80" stroke="#c5f4ff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="131" cy="119" r="7" fill="#ffffff"/>
+    <circle cx="169" cy="98" r="7" fill="#ffffff"/>
+    <rect x="78" y="178" width="43" height="11" rx="5.5" fill="#0a94d5" opacity=".35"/>
+    <rect x="131" y="178" width="36" height="11" rx="5.5" fill="#0a94d5" opacity=".25"/>
+    <rect x="177" y="178" width="38" height="11" rx="5.5" fill="#0a94d5" opacity=".32"/>
+  </g>
+  <rect x="188" y="32" width="56" height="56" rx="20" fill="#ffffff"/>
+  <path d="M206 62L215 71L231 50" stroke="#0989c8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="33" y="165" width="74" height="56" rx="20" fill="#ffffff" opacity=".95"/>
+  <path d="M52 197V181" stroke="#0b9fe3" stroke-width="8" stroke-linecap="round"/>
+  <path d="M70 197V174" stroke="#076da2" stroke-width="8" stroke-linecap="round"/>
+  <path d="M88 197V187" stroke="#89e2ff" stroke-width="8" stroke-linecap="round"/>
+</svg>

@@ -7,6 +7,9 @@ export type PortfolioApiRow = {
   dayChangeDollars: number | null
   priceDisplay: string
   changePct: number | null
+  /** Matches `todayDollars` vs opening position value (not the ticker’s raw session %). */
+  todayPct: number | null
+  /** Formatted `todayPct` for overview row badge (same basis as detailed “% Today’s Gain/Loss”). */
   changeLabel: string
   positive: boolean
   logoUrl: string

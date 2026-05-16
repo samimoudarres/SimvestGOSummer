@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { challengeAssets as a } from '../challenge/challengeAssets'
-import { GAME_OPTIONS } from '../challenge/gameMeta'
+import { ApiImage } from '../components/ApiImage'
+import type { JoinedGameForTrade } from './useJoinedGamesForTrade'
 import type { TradeOrderDraft } from './tradeOrderTypes'
 import './stockReviewOrder.css'
 
@@ -14,6 +15,8 @@ export type StockReviewOrderProps = {
   iconUrl: string
   /** Live last trade price from Massive (via /api/stocks/:ticker). */
   lastPrice: number | null
+  /** Live competitions the viewer is in — used to resolve the game's display title. */
+  games: JoinedGameForTrade[]
   /** Shown when Place Order fails (network, rules, server). */
   placementError?: string | null
   /** Disables Place Order and shows loading label while the complete request runs. */
@@ -47,6 +50,7 @@ export function StockReviewOrder({
   companyName,
   iconUrl,
   lastPrice,
+  games,
   placementError,
   placementBusy = false,
 }: StockReviewOrderProps) {
@@ -79,9 +83,9 @@ export function StockReviewOrder({
 
   const gameTitle = useMemo(() => {
     if (!draft) return ''
-    const g = GAME_OPTIONS.find((x) => x.slug === draft.gameSlug)
+    const g = games.find((x) => x.slug === draft.gameSlug)
     return g?.title ?? draft.gameSlug
-  }, [draft])
+  }, [draft, games])
 
   const qtyDisplay = useMemo(() => {
     if (!draft || parsedAmount == null) return '—'
@@ -141,7 +145,7 @@ export function StockReviewOrder({
 
         <div className="rv-scroll">
           <div className="rv-heroCard">
-            <img className="rv-logo" src={iconUrl} alt="" width={72} height={72} />
+            <ApiImage className="rv-logo" src={iconUrl} alt="" width={72} height={72} />
             <p className="rv-coName">{companyName}</p>
             <p className="rv-tickerHuge">{displayTicker}</p>
             <p

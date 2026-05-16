@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { ChallengeBottomNav } from '../challenge/ChallengeBottomNav'
 import { challengeAssets as a } from '../challenge/challengeAssets'
-import { gameHostLine, gameTitle, slugToVariant } from '../challenge/gameMeta'
 import '../challenge/gameChallenge.css'
+import { GameShellRosterBlock } from '../challenge/GameShellRosterBlock'
+import { useGameChallengeHeader } from '../challenge/useGameChallengeHeader'
 import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
+import { apiAssetSrc } from '../config/apiAssetSrc'
 import {
   LEADERBOARD_SORT_OPTIONS,
   type LeaderboardSortKey,
@@ -24,8 +26,7 @@ export function LeaderboardScreen() {
   const navigate = useNavigate()
   const { gameSlug } = useParams<{ gameSlug: string }>()
   const slug = gameSlug ?? ''
-  const variant = slugToVariant(slug)
-  const isTemplate = variant === 'template'
+  const headerCtl = useGameChallengeHeader(slug)
 
   const [sort, setSort] = useState<LeaderboardSortKey>('overall_return')
   const [sortOpen, setSortOpen] = useState(false)
@@ -59,8 +60,9 @@ export function LeaderboardScreen() {
     [navigate, slug],
   )
 
-  const title = gameTitle(variant)
-  const host = gameHostLine(variant)
+  const onInviteFromTab = useCallback(() => {
+    navigate(`/g/${encodeURIComponent(slug)}`)
+  }, [navigate, slug])
 
   const sortLabel =
     LEADERBOARD_SORT_OPTIONS.find((o) => o.key === sort)?.label ?? 'Overall Return'
@@ -80,61 +82,31 @@ export function LeaderboardScreen() {
             <button type="button" className="gc-headerMenu" aria-label="More options">
               <img src={a.ellipsisHeader} alt="" />
             </button>
-            <h1 className="gc-title">{title}</h1>
-            <p className="gc-host">{host}</p>
-            <div className="gc-peopleRow">
-              {isTemplate ? (
-                <>
-                  <div
-                    className="gc-avatarSm gc-avatarHost"
-                    style={{
-                      background: '#e8e8e8',
-                      border: '2px dashed #cfcfcf',
-                    }}
-                    aria-hidden
-                  />
-                  {[0, 1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="gc-avatarSm"
-                      style={{
-                        background: '#ececec',
-                        border: '2px dashed #d8d8d8',
-                      }}
-                      aria-hidden
-                    />
-                  ))}
-                </>
-              ) : (
-                <>
-                  <img className="gc-avatarHost" src={a.avatarHost} alt="" width={36} height={36} />
-                  <img className="gc-avatarSm" src={a.avatarA} alt="" />
-                  <img className="gc-avatarSm" src={a.avatarB} alt="" />
-                  <img className="gc-avatarSm" src={a.avatarC} alt="" />
-                  <img className="gc-avatarSm" src={a.avatarD} alt="" />
-                </>
-              )}
-              <button type="button" className="gc-invitePill">
-                <img src={a.plusIcon} alt="" />
-                <span>Invite</span>
-              </button>
+            <div className="gc-headerCopy">
+              <h1 className="gc-title">{headerCtl.headerTitle}</h1>
+              <p className="gc-host">{headerCtl.headerHost}</p>
+              {headerCtl.headerCountdown ? (
+                <p className="gc-countdown" aria-live="polite">
+                  {headerCtl.headerCountdown}
+                </p>
+              ) : null}
             </div>
-            {isTemplate ? (
-              <p className="gc-names">
-                <strong className="gc-muted">Players you invite will appear here.</strong>
-              </p>
-            ) : (
-              <p className="gc-names">
-                <strong>Charlie Brown</strong>
-                <span className="gc-muted">, </span>
-                <strong>Marley Woodson</strong>
-                <span className="gc-muted">, </span>
-                <strong>Devin Michaels</strong>
-                <span className="gc-muted">, and </span>
-                <strong>32 others</strong>
-              </p>
-            )}
+            <GameShellRosterBlock
+              shellIsLive={headerCtl.shellIsLive}
+              rosterStatus={headerCtl.rosterStatus}
+              rosterMembers={headerCtl.rosterMembers}
+              totalPlayers={headerCtl.totalPlayers}
+              onInviteClick={onInviteFromTab}
+              onMemberProfileClick={openProfile}
+            />
           </header>
+
+          {headerCtl.gameHasEnded ? (
+            <p className="lb-finishedNote" role="status">
+              Final leaderboard — everyone is ranked using the same closing prices from when this
+              challenge ended.
+            </p>
+          ) : null}
 
           <section className="lb-sheet" aria-label="Leaderboard">
             <div className="lb-toolbar">
@@ -201,7 +173,7 @@ export function LeaderboardScreen() {
                     onClick={() => openProfile(row.userId)}
                   >
                     <div className={ring}>
-                      <img src={row.avatarUrl} alt="" />
+                      <img src={apiAssetSrc(row.avatarUrl)} alt="" />
                     </div>
                     <div className="lb-nameBlock">
                       <p className="lb-displayName">{row.displayName}</p>
@@ -217,7 +189,7 @@ export function LeaderboardScreen() {
           </section>
         </div>
 
-        <ChallengeBottomNav gameSlug={slug} active="leaderboard" />
+        <ChallengeBottomNav gameSlug={slug} active="leaderboard" tradeLocked={headerCtl.gameHasEnded} />
       </div>
     </div>
   )

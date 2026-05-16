@@ -1,14 +1,19 @@
-import { normalizeUserId } from './followsService'
-import { listPostsForGame } from './gameFeedService'
-import { listUserIdsJoinedGame } from './gameMembershipService'
 import {
   estimatePeriodReturnPct,
   getNetWorthHistory,
   getRecordedNetWorth,
 } from './gameNetWorthSnapshotService'
-import { readPortfolioState } from './userGameStateService'
+import { listParticipantIdsForGame } from './gameParticipantIds'
 import { ensureUserProfilesBatch } from './userProfileService'
-import { loadAllSetupProfilesByKey } from './userSetupProfileService'
+import {
+  gameProfileAvatarUrl,
+  gameProfileDisplayLabel,
+  loadAllSetupProfilesByKey,
+} from './userSetupProfileService'
+import { resolveProfileAvatarUrl } from '../src/user/resolveProfileAvatarUrl.ts'
+import { getRuntimeRules } from './gameRuntimeRulesService'
+import { ensureGameFinalSnapshot } from './gameFinalSnapshotService'
+import { resolveRankStreakLabel } from './performRankStreakService'
 
 /** Avoid static import cycle with `portfolioService` (Perform dashboard imports leaderboard). */
 async function aggregateNetWorth(slug: string, uid: string): Promise<number> {
@@ -19,12 +24,6 @@ async function aggregateNetWorth(slug: string, uid: string): Promise<number> {
 
 /** Matches demo ledger default when user has never traded but has no snapshot yet. */
 const FALLBACK_NET_WORTH = 100_000
-
-function hashUint(s: string): number {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0
-  return h >>> 0
-}
 
 export function ordinalEnglish(n: number): string {
   const v = Math.max(1, Math.floor(n))
@@ -48,40 +47,17 @@ export function leaderboardFillPct(rank: number, total: number): number {
   return Math.round(42 + Math.min(1, Math.max(0, p)) * 54)
 }
 
-/**
- * Everyone who should appear in standings: joined the game, has a ledger row for it,
- * or appears on the activity feed (author user id).
- */
-export async function listParticipantIdsForGame(gameSlug: string): Promise<string[]> {
-  const slug = String(gameSlug ?? '').trim()
-  const ids = new Set<string>()
-
-  for (const uid of await listUserIdsJoinedGame(slug)) {
-    if (uid.length >= 8) ids.add(uid)
-  }
-
-  const state = await readPortfolioState()
-  for (const [uid, games] of Object.entries(state.users ?? {})) {
-    if (uid.length < 8) continue
-    if (games && typeof games === 'object' && games[slug]) ids.add(uid)
-  }
-
-  try {
-    const posts = await listPostsForGame(slug)
-    for (const p of posts) {
-      const u = normalizeUserId(typeof p.userId === 'string' ? p.userId.trim() : '')
-      if (u) ids.add(u)
+function mergeParticipantIdsWithSnapshot(
+  ids: string[],
+  snap: { players?: Record<string, unknown> } | null,
+): string[] {
+  const s = new Set(ids.filter((id) => id.length >= 8))
+  if (snap?.players) {
+    for (const id of Object.keys(snap.players)) {
+      if (id.length >= 8) s.add(id)
     }
-  } catch {
-    /* feed optional */
   }
-
-  return [...ids].sort((a, b) => a.localeCompare(b))
-}
-
-function streakLabelPlaceholder(subjectUserId: string, rank: number): string {
-  const streakDays = 1 + (hashUint(`${subjectUserId}|${rank}|stk`) % 5)
-  return `${ordinalEnglish(streakDays)} day with this rank`
+  return [...s].sort((a, b) => a.localeCompare(b))
 }
 
 export type GameLeaderboardStanding = {
@@ -90,7 +66,8 @@ export type GameLeaderboardStanding = {
   subjectNetWorth: number
   rankOrdinal: string
   outOfLabel: string
-  streakLabel: string
+  /** Null when the player has not held this rank for 2+ consecutive UTC days. */
+  streakLabel: string | null
   fillPct: number
 }
 
@@ -112,7 +89,7 @@ export async function getGameLeaderboardStanding(
       subjectNetWorth: FALLBACK_NET_WORTH,
       rankOrdinal: '1st',
       outOfLabel: 'out of 1 competitor',
-      streakLabel: streakLabelPlaceholder('unknown', 1),
+      streakLabel: null,
       fillPct: 88,
     }
   }
@@ -124,6 +101,39 @@ export async function getGameLeaderboardStanding(
 
   if (participants.length === 0) {
     participants = [subjectUserId]
+  }
+
+  const finalSnap = await ensureGameFinalSnapshot(slug)
+  participants = mergeParticipantIdsWithSnapshot(participants, finalSnap)
+  if (finalSnap) {
+    const scores = participants.map((id) => ({
+      id,
+      nw: finalSnap.players[id]?.netWorth ?? FALLBACK_NET_WORTH,
+    }))
+    scores.sort((a, b) => {
+      const d = b.nw - a.nw
+      if (Math.abs(d) > 1e-6) return d
+      return a.id.localeCompare(b.id)
+    })
+    const hint = opts?.subjectNetWorthHint
+    const nwSelf =
+      hint !== undefined && Number.isFinite(hint)
+        ? hint
+        : finalSnap.players[subjectUserId]?.netWorth ?? FALLBACK_NET_WORTH
+    const strictlyBetter = scores.filter((s) => s.nw > nwSelf + 1e-9).length
+    const rank = strictlyBetter + 1
+    const total = scores.length
+    const compWord = total === 1 ? 'competitor' : 'competitors'
+    const streakLabel = await resolveRankStreakLabel(slug, subjectUserId, rank)
+    return {
+      rank,
+      totalCompetitors: total,
+      subjectNetWorth: nwSelf,
+      rankOrdinal: ordinalEnglish(rank),
+      outOfLabel: `out of ${total} ${compWord}`,
+      streakLabel,
+      fillPct: leaderboardFillPct(rank, total),
+    }
   }
 
   const scores: { id: string; nw: number }[] = []
@@ -159,6 +169,7 @@ export async function getGameLeaderboardStanding(
   const rank = strictlyBetter + 1
   const total = scores.length
   const compWord = total === 1 ? 'competitor' : 'competitors'
+  const streakLabel = await resolveRankStreakLabel(slug, subjectUserId, rank)
 
   return {
     rank,
@@ -166,7 +177,7 @@ export async function getGameLeaderboardStanding(
     subjectNetWorth: nwSelf,
     rankOrdinal: ordinalEnglish(rank),
     outOfLabel: `out of ${total} ${compWord}`,
-    streakLabel: streakLabelPlaceholder(subjectUserId, rank),
+    streakLabel,
     fillPct: leaderboardFillPct(rank, total),
   }
 }
@@ -234,6 +245,8 @@ export type GameLeaderboardPayload = {
   sortLabel: string
   totalPlayers: number
   rows: GameLeaderboardRowPayload[]
+  /** True when the scheduled end time has passed — rows use final frozen marks. */
+  gameFinished?: boolean
 }
 
 function sortMetricValue(
@@ -286,9 +299,14 @@ export async function fetchGameLeaderboardPayload(
   const { getPlayerPerformAggregate } = await import('./portfolioService')
 
   let participantIds = await listParticipantIdsForGame(slug)
-  if (participantIds.length === 0) {
-    participantIds = []
-  }
+
+  const rules = await getRuntimeRules(slug)
+  const gameFinished =
+    !!rules?.endsAtIso &&
+    Number.isFinite(new Date(rules.endsAtIso).getTime()) &&
+    Date.now() > new Date(rules.endsAtIso).getTime()
+  const finalSnap = gameFinished ? await ensureGameFinalSnapshot(slug) : null
+  participantIds = mergeParticipantIdsWithSnapshot(participantIds, finalSnap)
 
   const profiles = await ensureUserProfilesBatch(participantIds)
   const setupsByKey = await loadAllSetupProfilesByKey()
@@ -306,48 +324,74 @@ export async function fetchGameLeaderboardPayload(
     sortVal: number
   }
 
-  const built: RowWork[] = []
+  const built: RowWork[] = await Promise.all(
+    participantIds.map(async (uid) => {
+      const profile = profiles.get(uid)
+      const setup = setupsByKey.get(`${uid}:::${slug}`)
+      const gameLabel = gameProfileDisplayLabel(setup)
+      const displayName = gameLabel ?? profile?.displayName?.trim() ?? 'Player'
+      const avatarUrl = resolveProfileAvatarUrl(
+        gameProfileAvatarUrl(setup, profile?.avatarUrl) || profile?.avatarUrl || '',
+      )
+      const fullName = setup ? `${setup.firstName} ${setup.lastName}`.trim() : ''
+      const handle =
+        setup?.username?.trim() && fullName
+          ? fullName
+          : setup?.username?.trim()
+            ? `@${setup.username.trim()}`
+            : formatLeaderboardHandle(displayName, uid)
 
-  for (const uid of participantIds) {
-    const profile = profiles.get(uid)
-    const setup = setupsByKey.get(`${uid}:::${slug}`)
-    const displayName = setup
-      ? `${setup.firstName} ${setup.lastName}`.trim()
-      : (profile?.displayName ?? 'Player')
-    const avatarUrl =
-      setup?.avatarUrl || profile?.avatarUrl || '/figma-assets/challenge/composer-avatar.png'
-    const handle = setup?.username?.trim()
-      ? `@${setup.username.trim()}`
-      : formatLeaderboardHandle(displayName, uid)
+      const pf = finalSnap?.players[uid]
+      if (pf && Number.isFinite(pf.netWorth)) {
+        const nw = pf.netWorth
+        const overall = Number.isFinite(pf.overallReturnPct) ? pf.overallReturnPct : 0
+        const today = 0
+        const d7 = null
+        const d30 = null
+        const sortVal = overall
+        return {
+          userId: uid,
+          displayName,
+          handle,
+          avatarUrl,
+          nw,
+          overall,
+          today,
+          d7,
+          d30,
+          sortVal,
+        }
+      }
 
-    const agg = await getPlayerPerformAggregate(slug, uid)
-    const nw =
-      agg?.netWorth ??
-      (await getRecordedNetWorth(slug, uid)) ??
-      FALLBACK_NET_WORTH
+      const [agg, hist] = await Promise.all([
+        getPlayerPerformAggregate(slug, uid),
+        getNetWorthHistory(slug, uid),
+      ])
+      const nw =
+        agg?.netWorth ??
+        (await getRecordedNetWorth(slug, uid)) ??
+        FALLBACK_NET_WORTH
 
-    const overall = agg != null ? agg.totalReturnPct : 0
-    const today = agg != null ? agg.todayPct : 0
+      const overall = agg != null ? agg.totalReturnPct : 0
+      const today = agg != null ? agg.todayPct : 0
 
-    const hist = await getNetWorthHistory(slug, uid)
-    const d7 = estimatePeriodReturnPct(nw, hist, 7)
-    const d30 = estimatePeriodReturnPct(nw, hist, 30)
+      const d7 = estimatePeriodReturnPct(nw, hist, 7)
+      const d30 = estimatePeriodReturnPct(nw, hist, 30)
 
-    const sortVal = sortMetricValue(sort, overall, today, d7, d30)
-
-    built.push({
-      userId: uid,
-      displayName,
-      handle,
-      avatarUrl,
-      nw,
-      overall,
-      today,
-      d7,
-      d30,
-      sortVal,
-    })
-  }
+      return {
+        userId: uid,
+        displayName,
+        handle,
+        avatarUrl,
+        nw,
+        overall,
+        today,
+        d7,
+        d30,
+        sortVal: sortMetricValue(sort, overall, today, d7, d30),
+      }
+    }),
+  )
 
   built.sort((a, b) => {
     const d = b.sortVal - a.sortVal
@@ -371,7 +415,7 @@ export async function fetchGameLeaderboardPayload(
       }
     }
 
-    const badgePct = badgeMetricForSort(sort, r.overall, r.today, r.d7, r.d30)
+    const badgePct = finalSnap ? r.overall : badgeMetricForSort(sort, r.overall, r.today, r.d7, r.d30)
     rows.push({
       rank,
       userId: r.userId,
@@ -396,5 +440,6 @@ export async function fetchGameLeaderboardPayload(
     sortLabel: LEADERBOARD_SORT_LABELS[sort],
     totalPlayers: rows.length,
     rows,
+    gameFinished: Boolean(finalSnap),
   }
 }

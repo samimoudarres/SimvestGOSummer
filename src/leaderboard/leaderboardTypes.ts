@@ -23,6 +23,7 @@ export type LeaderboardPayload = {
   sortLabel: string
   totalPlayers: number
   rows: LeaderboardRow[]
+  gameFinished?: boolean
 }
 
 export const LEADERBOARD_SORT_OPTIONS: { key: LeaderboardSortKey; label: string }[] = [

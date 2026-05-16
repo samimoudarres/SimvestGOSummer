@@ -39,9 +39,10 @@ export function useGameLeaderboard(gameSlug: string | undefined, sort: Leaderboa
   /** Refresh when markets move — matches live perform/portfolio aggregates */
   useEffect(() => {
     if (!gameSlug) return
+    if (data?.gameFinished) return
     const id = window.setInterval(() => void load(), 45_000)
     return () => window.clearInterval(id)
-  }, [gameSlug, load])
+  }, [gameSlug, load, data?.gameFinished])
 
   return { data, status, error, reload: load }
 }

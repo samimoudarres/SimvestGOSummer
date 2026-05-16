@@ -2,9 +2,11 @@ import {
   buildPortfolioRows,
   buildPortfolioTotals,
   getPlayerPerformAggregate,
+  slicePerformTopMovers,
   type PortfolioApiRow,
   type PortfolioTotals,
 } from './portfolioService'
+import { ensureGameFinalSnapshot } from './gameFinalSnapshotService'
 import type { PerformStockRow } from '../src/perform/performTypes'
 import {
   deriveLegacyUserId,
@@ -12,10 +14,11 @@ import {
   upsertProfileFromTradeContext,
   ensureUserProfileRecord,
 } from './userProfileService'
-import { getLedgerHoldingsForGame } from './userGameStateService'
+import { getLedgerHoldingsForGame, getUserLots, type PositionLot } from './userGameStateService'
 import { getGameJoinedAtIso, seedGameJoinedDaysAgo } from './gameMembershipService'
 import { getGameLeaderboardStanding } from './gameLeaderboardService'
 import { getSetupProfileForUserGame } from './userSetupProfileService'
+import { resolveProfileAvatarUrl } from '../src/user/resolveProfileAvatarUrl.ts'
 
 function hashUint(s: string): number {
   let h = 0
@@ -68,7 +71,7 @@ export type PlayerGameProfilePayload = {
   rank: {
     rankOrdinal: string
     outOfLabel: string
-    streakLabel: string
+    streakLabel: string | null
     fillPct: number
   }
   topGainers: PerformStockRow[]
@@ -153,27 +156,23 @@ export async function fetchPlayerGameProfile(slug: string, rawUserId: string): P
 
   let rows: PortfolioApiRow[] = []
   if (records.length > 0) {
-    rows = await buildPortfolioRows(records)
+    const endSnap = await ensureGameFinalSnapshot(slugKey)
+    const frozenTickerPx = endSnap ? new Map(Object.entries(endSnap.tickerLastPx)) : undefined
+    const lots = await getUserLots(userId, slugKey).catch(() => [] as PositionLot[])
+    rows = await buildPortfolioRows(records, { frozenTickerPx, lots: lots.length ? lots : null })
   }
   const totals = await buildPortfolioTotals(slugKey, userId, rows)
 
-  let topGainers: PerformStockRow[] = []
-  let topLosers: PerformStockRow[] = []
-  if (rows.length > 0) {
-    const withChange = rows.filter((r) => typeof r.changePct === 'number' && Number.isFinite(r.changePct as number))
-    const byDayMove = [...withChange].sort((a, b) => (b.changePct ?? 0) - (a.changePct ?? 0))
-    const topGainersSlice = byDayMove.slice(0, 8)
-    const topLosersSlice = [...withChange].sort((a, b) => (a.changePct ?? 0) - (b.changePct ?? 0)).slice(0, 8)
-    topGainers = topGainersSlice.map(portfolioApiRowToPerform)
-    topLosers = topLosersSlice.map(portfolioApiRowToPerform)
-  }
+  const { gainers: gRows, losers: lRows } = slicePerformTopMovers(rows, 8)
+  const topGainers = gRows.map(portfolioApiRowToPerform)
+  const topLosers = lRows.map(portfolioApiRowToPerform)
 
   const profHydrated = await hydrateProfileBasics(userId)
   const setupProfile = await getSetupProfileForUserGame(userId, slugKey)
   const displayName = setupProfile
     ? `${setupProfile.firstName} ${setupProfile.lastName}`.trim()
     : profHydrated.displayName
-  const avatarUrl = setupProfile?.avatarUrl ?? profHydrated.avatarUrl
+  const rawAvatarUrl = setupProfile?.avatarUrl ?? profHydrated.avatarUrl
 
   let joinedGameIso = await getGameJoinedAtIso(userId, slugKey)
   if (!joinedGameIso && DEMO_DISPLAY_PRESETS[userId]) {
@@ -191,7 +190,7 @@ export async function fetchPlayerGameProfile(slug: string, rawUserId: string): P
       userId,
       displayName,
       username: setupProfile?.username ?? null,
-      avatarUrl,
+      avatarUrl: resolveProfileAvatarUrl(rawAvatarUrl),
       joinedAtIso: profHydrated.joinedAtIso,
       memberDays: memberDaysSince(profHydrated.joinedAtIso),
       joinedGameAtIso: joinedGameIso ?? null,
@@ -199,7 +198,7 @@ export async function fetchPlayerGameProfile(slug: string, rawUserId: string): P
     },
     stats: {
       netWorth: fmtUsdSigned(agg.netWorth),
-      netWorthSub: `${fmtUsdSigned(agg.costBasis)} in stocks · ${fmtUsdSigned(agg.cash)} cash`,
+      netWorthSub: `${fmtUsdSigned(agg.costBasis)} in holdings · ${fmtUsdSigned(agg.cash)} cash`,
       totalReturn: fmtPct(agg.totalReturnPct),
       totalReturnSub: `${agg.totalReturnDollars >= 0 ? 'Up' : 'Down'} ${fmtUsdSigned(Math.abs(agg.totalReturnDollars))}`,
       todayReturn: fmtPct(agg.todayPct),

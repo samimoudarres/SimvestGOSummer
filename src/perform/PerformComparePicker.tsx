@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { ApiImage } from '../components/ApiImage'
+import { apiAssetSrc } from '../config/apiAssetSrc'
 import type { PerformCompareCandidatePlayer } from './performTypes'
 
 const MAX_COMPARISONS = 5
@@ -210,7 +212,7 @@ export function PerformComparePicker({
                       disabled={!canAddMore && !added}
                       onClick={() => (added ? onRemoveToken(tokenForUser(p.userId)) : addUser(p.userId))}
                     >
-                      <img className="pf-comparePlayerAvatar" src={p.avatarUrl} alt="" />
+                      <img className="pf-comparePlayerAvatar" src={apiAssetSrc(p.avatarUrl)} alt="" />
                       <span className="pf-comparePlayerName">{p.displayName}</span>
                       <span className="pf-comparePlayerAction">{added ? 'Added' : 'Add'}</span>
                     </button>
@@ -245,7 +247,7 @@ export function PerformComparePicker({
                       onClick={() => (added ? onRemoveToken(tokenForStock(sym)) : addStock(sym))}
                     >
                       {r.logoUrl ? (
-                        <img className="pf-compareStockIcon" src={r.logoUrl} alt="" />
+                        <ApiImage className="pf-compareStockIcon" src={r.logoUrl} alt="" />
                       ) : (
                         <span className="pf-compareStockIconPf" aria-hidden />
                       )}

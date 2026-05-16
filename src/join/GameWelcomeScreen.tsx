@@ -84,7 +84,8 @@ export function GameWelcomeScreen() {
 
   const enterSetupProfile = useCallback(() => {
     if (!payload) return
-    navigate(gamePaths.joinProfileSetup(payload.joinCode))
+    /* Replace welcome so successful join → game leaves no welcome/profile trap in history. */
+    navigate(gamePaths.joinProfileSetup(payload.joinCode), { replace: true })
   }, [navigate, payload])
 
   const decorEmoji =
@@ -99,7 +100,7 @@ export function GameWelcomeScreen() {
   return (
     <div className="gw-root">
       <div
-        className={`gw-phone${payload?.showWelcomeEconomics === false ? ' gw-phone--noEconomy' : ''}`}
+        className="gw-phone"
         data-node-id="386:1367"
         style={backdropStyle}
       >
@@ -155,25 +156,31 @@ export function GameWelcomeScreen() {
               {payload.displayTitle}
             </h1>
 
-            <div className="gw-details" role="group" aria-label="Game schedule and rules summary">
-              {payload.timelineDetailLines.map((line) => (
-                <p key={line} style={{ margin: 0 }}>
-                  {line}
+            <div
+              className={`gw-midStack${showEconomics ? '' : ' gw-midStack--noEconomy'}`}
+              aria-label="Game details and join"
+            >
+              <div className="gw-details" role="group" aria-label="Game schedule and rules summary">
+                {payload.timelineDetailLines.map((line) => (
+                  <p key={line} style={{ margin: 0 }}>
+                    {line}
+                  </p>
+                ))}
+              </div>
+
+              {showEconomics ? <p className="gw-buyin">{payload.buyInLine}</p> : null}
+
+              {payload.joinPolicy === 'approval_required' ? (
+                <p className="gw-privateNote" role="note">
+                  This game is private: after you finish your profile, we send a join request to the host. When they
+                  approve you, this challenge appears on your home screen and you can trade.
                 </p>
-              ))}
+              ) : null}
+
+              <button type="button" className="gw-join" style={btnStyle} onClick={enterSetupProfile}>
+                {payload.joinPolicy === 'approval_required' ? 'Request to join' : 'Join Game'}
+              </button>
             </div>
-
-            {showEconomics ? <p className="gw-buyin">{payload.buyInLine}</p> : null}
-
-            {payload.joinPolicy === 'approval_required' ? (
-              <p className="gw-privateNote" role="note">
-                This game is private: after you finish your profile, the host must approve you before you can trade.
-              </p>
-            ) : null}
-
-            <button type="button" className="gw-join" style={btnStyle} onClick={enterSetupProfile}>
-              Join Game
-            </button>
 
             {showEconomics ? (
               <>

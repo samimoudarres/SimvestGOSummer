@@ -1,5 +1,61 @@
 /* Order received — Figma 363:1310 (default) & 384:1218 (keyboard + Share). */
 
+.ou-sellSummary {
+  margin: 14px 22px 4px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #e3e3e3;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ou-sellSummary--up {
+  border-color: #b6e3c5;
+  background: #f1fbf4;
+}
+
+.ou-sellSummary--down {
+  border-color: #f3c4bd;
+  background: #fdf3f1;
+}
+
+.ou-sellSummaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 13px;
+  color: #333;
+  font-weight: 700;
+}
+
+.ou-sellSummaryRow--realized {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.12);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.ou-sellSummaryLab {
+  color: #555;
+}
+
+.ou-sellSummaryVal {
+  color: #111;
+}
+
+.ou-sellSummary--up .ou-sellSummaryRow--realized .ou-sellSummaryVal {
+  color: #047a3a;
+}
+
+.ou-sellSummary--down .ou-sellSummaryRow--realized .ou-sellSummaryVal {
+  color: #b42318;
+}
+
+
 .ou-overlay {
   position: absolute;
   inset: 0;
@@ -110,6 +166,7 @@
   height: 126px;
   margin: 10px auto 0;
   box-sizing: border-box;
+  touch-action: manipulation;
 }
 
 .ou-textBg {
@@ -131,6 +188,7 @@
   position: absolute;
   left: 0;
   top: 0;
+  z-index: 1;
   width: 100%;
   height: 100%;
   box-sizing: border-box;
@@ -144,6 +202,7 @@
   line-height: 1.35;
   color: #000;
   font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.08);
 }
 
 .ou-textarea::placeholder {
@@ -164,21 +223,6 @@
   padding: 0 17px 14px;
   background: #f7f7f7;
   position: relative;
-}
-
-.ou-activity {
-  position: absolute;
-  left: 28px;
-  bottom: 18px;
-  width: 35px;
-  height: 35px;
-  pointer-events: none;
-}
-
-.ou-activity img {
-  width: 100%;
-  height: 100%;
-  display: block;
 }
 
 .ou-pillGhost {
@@ -238,94 +282,4 @@
   line-height: 1;
   color: #05557d;
   font-variation-settings: 'YTLC' 500, 'wdth' 100;
-}
-
-.ou-keyboard {
-  flex-shrink: 0;
-  width: 100%;
-  background: #d1d3d9;
-  backdrop-filter: blur(54.366px);
-  -webkit-backdrop-filter: blur(54.366px);
-  padding: 8px 3px 6px;
-  box-sizing: border-box;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-}
-
-.ou-keyRow {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  gap: 5px;
-  margin-bottom: 6px;
-}
-
-.ou-key {
-  min-width: 30px;
-  height: 42px;
-  flex: 1 1 30px;
-  max-width: 34px;
-  border-radius: 4.6px;
-  background: #fff;
-  box-shadow: 0px 1px 0px 0px rgba(0, 0, 0, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
-  font-size: 20px;
-  font-weight: 400;
-  color: #000;
-  user-select: none;
-}
-
-.ou-key--wide {
-  flex: 1.4 1 42px;
-  max-width: 52px;
-  background: #abb0bc;
-  font-size: 14px;
-}
-
-.ou-key--space {
-  flex: 4 1 auto;
-  max-width: none;
-  font-size: 14px;
-}
-
-.ou-keyboardTools {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 28px 2px;
-}
-
-.ou-keyboardTools span {
-  font-size: 12px;
-  color: #555;
-}
-
-.ou-homeBar {
-  height: 34px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: 8px;
-}
-
-.ou-homeBarInner {
-  width: 134px;
-  height: 5px;
-  border-radius: 100px;
-  background: #000;
-}
-
-.ou-keyboardOpen .ou-scroll {
-  padding-top: 12px;
-}
-
-.ou-keyboardOpen .ou-checkWrap {
-  margin-top: 0;
-}
-
-.ou-keyboardOpen .ou-rationaleHead {
-  margin-top: 18px;
 }

@@ -81,6 +81,42 @@ export async function recordGameNetWorthSnapshot(
   await writeSnapFile(file)
 }
 
+export async function clearUserSnapshotsForGame(gameSlug: string, userId: string): Promise<boolean> {
+  const slug = String(gameSlug ?? '').trim()
+  if (!slug || !userId) return false
+  const file = await readSnapFile()
+  if (!file.games[slug]?.[userId]) return false
+  delete file.games[slug]![userId]
+  if (Object.keys(file.games[slug]!).length === 0) delete file.games[slug]
+  await writeSnapFile(file)
+  return true
+}
+
+/** Move snapshot history from one game slug to another. */
+export async function renameGameSlugInNetWorthSnapshots(fromSlug: string, toSlug: string): Promise<boolean> {
+  const from = String(fromSlug ?? '').trim()
+  const to = String(toSlug ?? '').trim()
+  if (!from || !to || from === to) return false
+  const file = await readSnapFile()
+  const block = file.games[from]
+  if (!block) return false
+  if (!file.games[to]) file.games[to] = block
+  delete file.games[from]
+  await writeSnapFile(file)
+  return true
+}
+
+/** Drop net-worth history for every user under one game slug. */
+export async function clearAllSnapshotsForGame(gameSlug: string): Promise<boolean> {
+  const slug = String(gameSlug ?? '').trim()
+  if (!slug) return false
+  const file = await readSnapFile()
+  if (!file.games[slug]) return false
+  delete file.games[slug]
+  await writeSnapFile(file)
+  return true
+}
+
 export async function getRecordedNetWorth(
   gameSlug: string,
   userId: string,

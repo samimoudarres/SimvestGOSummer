@@ -7,7 +7,7 @@
   justify-content: center;
   align-items: flex-start;
   background: #e8e8e8;
-  padding: 24px 0 48px;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) calc(48px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
   box-sizing: border-box;
 }
 
@@ -20,6 +20,32 @@
   overflow: hidden;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
   flex-shrink: 0;
+}
+
+.sv-hostJoinBanner {
+  position: absolute;
+  left: 16px;
+  top: 98px;
+  width: 370px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0b3d5c;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.35;
+  z-index: 3;
+  box-sizing: border-box;
+}
+
+.sv-joinReqPill {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #b45309;
 }
 
 .sv-games-stack {
@@ -69,17 +95,30 @@
 .sv-settings {
   left: 19px;
   top: 50px;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
   z-index: 2;
+  transition: background-color 120ms ease;
 }
 
-.sv-notify {
-  left: 355px;
-  top: 49px;
-  width: 28px;
-  height: 28px;
-  z-index: 2;
+.sv-settings:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sv-settings:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.sv-settingsAvatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  object-fit: cover;
+  display: block;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  box-sizing: border-box;
+  background: #e8e8e8;
 }
 
 .sv-logo {
@@ -144,13 +183,27 @@
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
 }
 
-.sv-plus--joined-home {
-  background: var(--sv-joined-plus-bg, #0a9be3) !important;
+/* Joined game row: show host load-screen emoji in the themed circle (not a +). */
+.sv-joined-gameMark {
+  position: relative;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  margin-left: 17px;
+  margin-right: 10px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
-.sv-plus--joined-home::before,
-.sv-plus--joined-home::after {
-  background: #fff;
+.sv-joined-gameMark__emoji {
+  font-size: 26px;
+  line-height: 1;
+  user-select: none;
 }
 
 .sv-game-card__title--palette-home {
@@ -199,22 +252,23 @@
   top: 244px;
 }
 
-.sv-plus--compact {
-  flex: 0 0 30px;
-  width: 30px;
-  height: 30px;
+/* Compact Create / Join rows: must win over `.sv-plus` below (same specificity → order). */
+.sv-plus.sv-plus--compact {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
   margin-left: 12px;
   margin-right: 7px;
 }
 
-.sv-plus--compact.sv-plus--blue::before {
-  width: 13px;
+.sv-plus.sv-plus--compact.sv-plus--blue::before {
+  width: 11px;
   height: 2px;
 }
 
-.sv-plus--compact.sv-plus--blue::after {
+.sv-plus.sv-plus--compact.sv-plus--blue::after {
   width: 2px;
-  height: 13px;
+  height: 11px;
 }
 
 .sv-game-card__text--compact {
@@ -435,6 +489,231 @@
 
 .sv-feedStatus--error {
   color: #b00020;
+}
+
+/* --- Suggested games (new-account empty state) --------------------------- */
+
+.sv-suggested {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 4px 12px;
+}
+
+.sv-suggested__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 4px 0;
+}
+
+.sv-suggested__title {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  color: #0a3a5a;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.sv-suggested__sub {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  color: #4a5d72;
+  line-height: 1.35;
+}
+
+.sv-suggested__empty {
+  margin: 4px 0 0;
+  padding: 14px;
+  background: #fff;
+  border: 1px dashed #c9d6e2;
+  border-radius: 10px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 13px;
+  color: #4a5d72;
+  line-height: 1.4;
+}
+
+.sv-suggested__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sv-suggested__footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 0 4px 4px;
+}
+
+.sv-suggested__rotateHint {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  color: #5a6b7d;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.sv-suggested__refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 2px solid #0a9be3;
+  background: #fff;
+  color: #0a3a5a;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.sv-suggested__refresh:hover:not(:disabled) {
+  background: #e8f6fc;
+}
+
+.sv-suggested__refresh:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sv-suggested__item {
+  margin: 0;
+}
+
+.sv-suggested__card {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 2px solid #cfd9e3;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: transform 80ms ease, box-shadow 120ms ease;
+}
+
+.sv-suggested__card:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.sv-suggested__card:active {
+  transform: translateY(1px);
+}
+
+.sv-suggested__card:focus-visible {
+  outline: 3px solid #0a9be3;
+  outline-offset: 2px;
+}
+
+.sv-suggested__hero {
+  height: 56px;
+  width: 100%;
+  background-color: #0a98de;
+}
+
+.sv-suggested__body {
+  padding: 10px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sv-suggested__topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: -2px;
+}
+
+.sv-suggested__badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(10, 152, 222, 0.12);
+  color: #06567e;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sv-suggested__players {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  color: #4a5d72;
+}
+
+.sv-suggested__name {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
+  font-size: 22px;
+  line-height: 1.15;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+  word-break: break-word;
+}
+
+.sv-suggested__host {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  color: #2a3b4d;
+}
+
+.sv-suggested__rules {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  color: #5d7186;
+}
+
+.sv-suggested__joinBtn {
+  margin-top: 4px;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 18px;
+  border: 1.5px solid #06567e;
+  border-radius: 999px;
+  background: #0a98de;
+  color: #ffffff;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+  pointer-events: none; /* card itself is the button */
 }
 
 .sv-feedRetry {
@@ -705,8 +984,17 @@ button.sv-trade:focus-visible {
 
 .sv-trade__top {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+
+.sv-trade__upper {
+  display: flex;
   align-items: flex-start;
   gap: 8px;
+  width: 100%;
 }
 
 .sv-trade__logo {
@@ -724,7 +1012,7 @@ button.sv-trade:focus-visible {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
 }
 
 .sv-trade__headline {
@@ -744,6 +1032,7 @@ button.sv-trade:focus-visible {
   align-items: flex-end;
   gap: 2px;
   min-width: 96px;
+  max-width: 46%;
 }
 
 .sv-trade__pct-row {
@@ -802,10 +1091,15 @@ button.sv-trade:focus-visible {
 
 .sv-trade__cols {
   display: flex;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   justify-content: flex-end;
   text-align: right;
   margin-top: 2px;
+}
+
+.sv-trade__cols > div {
+  min-width: 0;
 }
 
 .sv-trade__metric {
@@ -814,6 +1108,7 @@ button.sv-trade:focus-visible {
   font-size: 9px;
   line-height: normal;
   color: #000;
+  white-space: nowrap;
 }
 
 .sv-trade__metric-label {
@@ -823,6 +1118,7 @@ button.sv-trade:focus-visible {
   line-height: normal;
   color: #777;
   margin-top: 2px;
+  white-space: nowrap;
 }
 
 .sv-trade__details {
@@ -839,23 +1135,46 @@ button.sv-trade:focus-visible {
 }
 
 .sv-trade__row {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
   align-items: baseline;
-  gap: 10px;
   width: 100%;
 }
 
 .sv-trade__row-label {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding-right: 6px;
+  justify-self: start;
+  padding-right: 0;
+  white-space: nowrap;
 }
 
 .sv-trade__row-value {
-  flex: 0 0 auto;
+  justify-self: end;
   text-align: right;
   white-space: nowrap;
+  min-width: 0;
+}
+
+.sv-tradeCardWrap {
+  width: 100%;
+}
+
+button.sv-tradeTap {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  display: block;
+}
+
+button.sv-tradeTap:focus-visible {
+  outline: 2px solid #0a95db;
+  outline-offset: 2px;
 }
 
 .sv-rationale {
@@ -1045,4 +1364,28 @@ button.sv-trade:focus-visible {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.sv-game-card--finished {
+  opacity: 0.72;
+  filter: grayscale(0.35);
+}
+
+.sv-game-finishedPill {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: #6b7280;
+  vertical-align: middle;
+}
+
+.sv-game-finishedSub {
+  display: inline;
+  vertical-align: middle;
 }

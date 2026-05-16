@@ -1,5 +1,11 @@
-import { listUserIdsJoinedGame } from './gameMembershipService'
-import { getRuntimeRules, findRuntimeRulesByJoinCode, type GameRuntimeRules } from './gameRuntimeRulesService'
+import { listParticipantIdsForGame } from './gameParticipantIds'
+import {
+  findRuntimeRulesByJoinCode,
+  getRuntimeRules,
+  joinCodeFromHttpQuery,
+  normalizeSixDigitJoinCode,
+  type GameRuntimeRules,
+} from './gameRuntimeRulesService'
 import {
   getGameDefinitionByJoinCode,
   getGameDefinitionBySlug,
@@ -89,7 +95,7 @@ function timelineLinesFromRules(rules: GameRuntimeRules, game: GameDefinition): 
   const cat = rules.assetsCategory
   const assetLine =
     rules.assetsMode === 'all'
-      ? 'Allowed to trade: Stocks & Crypto.'
+      ? 'Allowed to trade: All stocks.'
       : rules.assetsMode === 'stocks_only'
         ? 'Allowed to trade: Stocks only.'
         : rules.assetsMode === 'crypto_only'
@@ -98,15 +104,54 @@ function timelineLinesFromRules(rules: GameRuntimeRules, game: GameDefinition): 
             ? `Browse any symbol; buys must be in the “${categoryLabel(cat)}” stock category.`
             : 'Browse any symbol; buys follow the host’s category rules.'
   lines.push(assetLine)
-  if (rules.visibility === 'private') {
-    lines.push('This is a private game: the host must approve each player before they can trade.')
-  }
+  /* Private / approval copy lives on the join welcome screen (`GameWelcomeScreen` `gw-privateNote`)
+   * so we do not duplicate it here — it overlapped this block when both rendered in the same band. */
   return lines
 }
 
 function categoryLabel(cat: string): string {
   const hit = TRADE_CATEGORY_OPTIONS.find((c) => c.id === cat)
   return hit?.label ?? cat
+}
+
+/**
+ * Join welcome needs static copy/theme defaults when `game-definitions.json` has no `new`
+ * row (or failed to load). Runtime rules still carry the real title, schedule, and join code.
+ */
+const JOIN_RUNTIME_WELCOME_TEMPLATE: GameDefinition = {
+  slug: 'new',
+  joinCode: '000000',
+  displayTitle: 'YOUR NEW GAME',
+  welcomeTagline: 'Let the games begin!',
+  timeline: { mode: 'rolling', startDaysAgo: 0, endDaysFromNow: null },
+  timelineDetailLines: [
+    'Runs in real time — challenge window follows the host’s schedule.',
+    'Allowed to trade: Stocks & Crypto',
+  ],
+  economics: {
+    buyInCents: 0,
+    prizes: [
+      { rank: 1, amountCents: 0 },
+      { rank: 2, amountCents: 0 },
+      { rank: 3, amountCents: 0 },
+    ],
+    prizePoolNote: 'For games with a buy in, prize money will increase as more people join',
+  },
+  theme: {
+    welcomeGradientAngleDeg: 135,
+    welcomeGradientFrom: '#0a9be3',
+    welcomeGradientTo: '#05557d',
+    joinButtonColor: '#0fae37',
+    joinButtonBorderColor: '#0fae37',
+    prizeAmountColor: '#0fae37',
+    titleTextShadow: '0 0 10px rgba(255, 255, 255, 0.45)',
+    backArrowColor: '#ffffff',
+  },
+  welcomeCustomization: {
+    showMapleLeaf: false,
+    showStockChartWatermark: true,
+    welcomeCardGlow: '0 0 10px rgba(255,255,255,0.35)',
+  },
 }
 
 export function dtoFromDefinition(game: GameDefinition, playerCount: number): JoinWelcomeDto {
@@ -162,25 +207,32 @@ export function dtoFromDefinition(game: GameDefinition, playerCount: number): Jo
 }
 
 export async function buildJoinWelcomeDto(codeRaw: string): Promise<JoinWelcomeDto | null> {
-  const game = await getGameDefinitionByJoinCode(codeRaw)
-  if (game) {
-    const members = await listUserIdsJoinedGame(game.slug)
-    const rules = await getRuntimeRules(game.slug)
-    const dto = dtoFromDefinition(game, members.length)
-    const joinPolicy = rules?.visibility === 'private' ? 'approval_required' : 'open'
-    if (!rules) {
-      return { ...dto, joinPolicy }
-    }
+  const code =
+    joinCodeFromHttpQuery(codeRaw) ?? normalizeSixDigitJoinCode(codeRaw)
+  if (!code) return null
+  // Resolve host-published games by their issued join code first so codes stay unique and
+  // do not collide with the static `new` template row in game-definitions.json.
+  const rtHit = await findRuntimeRulesByJoinCode(code)
+  if (rtHit) {
+    const { slug, rules } = rtHit
+    const template = (await getGameDefinitionBySlug('new')) ?? JOIN_RUNTIME_WELCOME_TEMPLATE
+    const members = await listParticipantIdsForGame(slug)
+    const dto = dtoFromDefinition(template, members.length)
+    const joinCode = normalizeSixDigitJoinCode(rules.joinCode) ?? code
+    const joinPolicy = rules.visibility === 'private' ? 'approval_required' : 'open'
     const theme = welcomeThemeForPalette(rules.themePaletteId)
     const hostedByLine = rules.hostDisplayName.trim()
       ? `Hosted by ${rules.hostDisplayName.trim()}`
       : null
     return {
       ...dto,
+      gameSlug: slug,
+      joinCode,
       joinPolicy,
       displayTitle: rules.gameDisplayName.toUpperCase(),
+      welcomeTagline: template.welcomeTagline,
       timelineIso: { start: rules.startsAtIso, end: rules.endsAtIso },
-      timelineDetailLines: timelineLinesFromRules(rules, game),
+      timelineDetailLines: timelineLinesFromRules(rules, template),
       theme,
       welcomeCustomization: {
         ...dto.welcomeCustomization,
@@ -191,31 +243,37 @@ export async function buildJoinWelcomeDto(codeRaw: string): Promise<JoinWelcomeD
     }
   }
 
-  const rtHit = await findRuntimeRulesByJoinCode(codeRaw)
-  if (!rtHit) return null
-  const { slug, rules } = rtHit
-  const template = await getGameDefinitionBySlug('new')
-  if (!template) return null
-  const members = await listUserIdsJoinedGame(slug)
-  const dto = dtoFromDefinition(template, members.length)
-  const joinCode =
-    typeof rules.joinCode === 'string' && /^\d{6}$/.test(rules.joinCode)
-      ? rules.joinCode
-      : String(codeRaw ?? '').trim()
-  const joinPolicy = rules.visibility === 'private' ? 'approval_required' : 'open'
+  const game = await getGameDefinitionByJoinCode(code)
+  if (!game) return null
+
+  // Template placeholder code for slug `new` must not join a real published challenge on
+  // that slot once a unique runtime join code has been issued.
+  if (game.slug === 'new') {
+    const live = await getRuntimeRules('new')
+    const liveCode = normalizeSixDigitJoinCode(live?.joinCode)
+    const templateCode = normalizeSixDigitJoinCode(game.joinCode)
+    if (live?.setupComplete && liveCode && templateCode && liveCode !== templateCode) {
+      return null
+    }
+  }
+
+  const members = await listParticipantIdsForGame(game.slug)
+  const rules = await getRuntimeRules(game.slug)
+  const dto = dtoFromDefinition(game, members.length)
+  const joinPolicy = rules?.visibility === 'private' ? 'approval_required' : 'open'
+  if (!rules) {
+    return { ...dto, joinPolicy }
+  }
   const theme = welcomeThemeForPalette(rules.themePaletteId)
   const hostedByLine = rules.hostDisplayName.trim()
     ? `Hosted by ${rules.hostDisplayName.trim()}`
     : null
   return {
     ...dto,
-    gameSlug: slug,
-    joinCode,
     joinPolicy,
     displayTitle: rules.gameDisplayName.toUpperCase(),
-    welcomeTagline: template.welcomeTagline,
     timelineIso: { start: rules.startsAtIso, end: rules.endsAtIso },
-    timelineDetailLines: timelineLinesFromRules(rules, template),
+    timelineDetailLines: timelineLinesFromRules(rules, game),
     theme,
     welcomeCustomization: {
       ...dto.welcomeCustomization,

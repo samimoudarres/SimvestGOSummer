@@ -7,7 +7,7 @@
   justify-content: center;
   align-items: flex-start;
   background: #e8e8e8;
-  padding: 24px 0 48px;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) calc(48px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
   box-sizing: border-box;
 }
 
@@ -54,35 +54,6 @@
 }
 
 .cg-back:focus-visible {
-  outline: 2px solid #fff;
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-.cg-menu {
-  position: absolute;
-  left: 369px;
-  top: 43px;
-  width: 44px;
-  height: 44px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 3;
-}
-
-.cg-menu img {
-  width: 24px;
-  height: 24px;
-  display: block;
-}
-
-.cg-menu:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 2px;
   border-radius: 4px;

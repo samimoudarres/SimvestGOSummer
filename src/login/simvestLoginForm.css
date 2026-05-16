@@ -1,0 +1,358 @@
+/* Sign-in form screen — paired with `SimvestLoginFormScreen.tsx`.
+ *
+ * Layout follows the same 402×874 phone frame the rest of the app uses, with
+ * a Simvest-blue header band at the top (matching the carousel gradient) and
+ * a clean white form area below. The primary action uses the same gradient
+ * pill button as the welcome carousel so the entry flow reads as one piece.
+ */
+
+.sli-root {
+  min-height: 100vh;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #e8e8e8;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) calc(48px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
+}
+
+.sli-phone {
+  position: relative;
+  width: 402px;
+  min-height: 874px;
+  background: #ffffff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header ----------------------------------------------------------------- */
+
+.sli-header {
+  position: relative;
+  height: 96px;
+  padding: 38px 18px 18px;
+  background: linear-gradient(180deg, #0a8fce 0%, #07689a 100%);
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  color: #fff;
+}
+
+.sli-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 120ms ease;
+}
+
+.sli-close:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.sli-close:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.sli-title {
+  margin: 0;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.2px;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.sli-headerSpacer {
+  display: block;
+  width: 36px;
+}
+
+/* Form ------------------------------------------------------------------- */
+
+.sli-form {
+  flex: 1;
+  padding: 28px 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sli-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sli-label {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: #07406a;
+  letter-spacing: 0.2px;
+}
+
+.sli-input {
+  appearance: none;
+  width: 100%;
+  height: 50px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1.5px solid #cfdfee;
+  background: #f6fafe;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #07406a;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.sli-input:focus {
+  outline: none;
+  border-color: #0a8fce;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(10, 143, 206, 0.16);
+}
+
+.sli-input:disabled {
+  opacity: 0.7;
+}
+
+.sli-input::placeholder {
+  color: #8aa8c0;
+  font-weight: 500;
+}
+
+.sli-passwordWrap {
+  position: relative;
+  display: block;
+}
+
+.sli-input--password {
+  padding-right: 52px;
+  /* Long password obscured chars in webkit render slightly taller — keep visual baseline. */
+  letter-spacing: 0.05em;
+}
+
+.sli-eye {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: #5d7c95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sli-eye:hover {
+  background: #eef5fb;
+  color: #07406a;
+}
+
+.sli-eye:focus-visible {
+  outline: 2px solid #0a8fce;
+  outline-offset: 2px;
+}
+
+/* Remember me row -------------------------------------------------------- */
+
+.sli-row {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sli-remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sli-remember input {
+  /* Hide the native checkbox visually but keep it accessible — the styled box
+   * inherits checked state via the :checked sibling selector below. */
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sli-rememberBox {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1.5px solid #b9deef;
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.sli-remember input:checked ~ .sli-rememberBox {
+  background: linear-gradient(135deg, #0a98de 0%, #06567e 100%);
+  border-color: #0a8fce;
+  color: #ffffff;
+}
+
+.sli-remember input:focus-visible ~ .sli-rememberBox {
+  box-shadow: 0 0 0 3px rgba(10, 143, 206, 0.32);
+}
+
+.sli-rememberText {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #07406a;
+}
+
+/* Auxiliary links -------------------------------------------------------- */
+
+.sli-link {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #0a8fce;
+  cursor: pointer;
+}
+
+.sli-link:hover {
+  color: #06567e;
+  text-decoration: underline;
+}
+
+.sli-link:focus-visible {
+  outline: 2px solid #0a8fce;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Error banner ----------------------------------------------------------- */
+
+.sli-error {
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fdecec;
+  border: 1px solid #f3b8b8;
+  color: #a3261c;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+/* Footer + submit -------------------------------------------------------- */
+
+.sli-footer {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.sli-footerCopy {
+  margin: 0;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #6b8aa1;
+}
+
+.sli-legalRow {
+  margin: 0;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #5a7389;
+}
+
+.sli-legalRow--stacked {
+  margin-top: 4px;
+}
+
+.sli-legalBtn {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #0a8fce;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sli-legalBtn:hover {
+  color: #07689a;
+}
+
+.sli-legalBtn:focus-visible {
+  outline: 2px solid #0a8fce;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.sli-submit {
+  margin-top: 12px;
+  width: 100%;
+  height: 52px;
+  border-radius: 30px;
+  border: 0;
+  background: linear-gradient(90deg, #0a98de 0%, #06567e 100%);
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(10, 152, 222, 0.32);
+  transition: transform 80ms ease, opacity 120ms ease, box-shadow 120ms ease;
+}
+
+.sli-submit:hover:not(:disabled) {
+  box-shadow: 0 10px 22px rgba(10, 152, 222, 0.38);
+}
+
+.sli-submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.sli-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.sli-submit:focus-visible {
+  outline: 2px solid #06567e;
+  outline-offset: 3px;
+}

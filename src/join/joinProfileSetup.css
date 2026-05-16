@@ -5,7 +5,7 @@
   justify-content: center;
   align-items: flex-start;
   background: #e8e8e8;
-  padding: 24px 0 48px;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) calc(48px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
   box-sizing: border-box;
 }
 
@@ -86,6 +86,11 @@
   outline-offset: 2px;
 }
 
+.jp-avatarBtn--dim {
+  opacity: 0.88;
+  cursor: not-allowed;
+}
+
 .jp-avatarImg {
   width: 73px;
   height: 73px;
@@ -127,6 +132,27 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/** Lead copy at top of `.jp-form` (e.g. create-game host profile) — keep out of the abs header/avatar band. */
+.jp-formLeadTitle {
+  margin: 0 0 8px;
+  text-align: center;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  line-height: 1.35;
+  color: #565656;
+  font-variation-settings: 'YTLC' 500, 'wdth' 100;
+}
+
+.jp-formLeadNote {
+  margin: 0 0 8px;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #6f6f6f;
 }
 
 .jp-row2 {
@@ -219,10 +245,59 @@
   color: #b00020;
 }
 
+.jp-defaultAvatarBlock {
+  position: absolute;
+  left: 25px;
+  top: 698px;
+  width: 355px;
+  box-sizing: border-box;
+}
+
+.jp-defaultAvatarRow {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid #e2e2e2;
+  background: #fafafa;
+  cursor: pointer;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  color: #111;
+  line-height: 1.25;
+  box-sizing: border-box;
+}
+
+.jp-defaultAvatarCheck {
+  margin: 2px 0 0;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.jp-defaultAvatarLabel {
+  flex: 1 1 auto;
+  cursor: pointer;
+}
+
+.jp-defaultAvatarHint {
+  margin: 8px 0 0;
+  padding: 0 2px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #6f6f6f;
+}
+
 .jp-submit {
   position: absolute;
   left: 25px;
-  top: 793px;
+  top: 812px;
   width: 355px;
   height: 49px;
   border-radius: 30px;

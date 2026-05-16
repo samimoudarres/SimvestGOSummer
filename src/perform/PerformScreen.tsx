@@ -2,13 +2,9 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { ChallengeBottomNav } from '../challenge/ChallengeBottomNav'
 import { challengeAssets as a } from '../challenge/challengeAssets'
-import {
-  gameHostLine,
-  gameTitle,
-  slugToVariant,
-  type GameChallengeVariant,
-} from '../challenge/gameMeta'
 import '../challenge/gameChallenge.css'
+import { GameShellRosterBlock } from '../challenge/GameShellRosterBlock'
+import { useGameChallengeHeader } from '../challenge/useGameChallengeHeader'
 import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
 import { NetWorthInGameChart } from './NetWorthInGameChart'
 import { PerformCompareChart } from './PerformCompareChart'
@@ -19,6 +15,8 @@ import { usePerformDashboard } from './usePerformDashboard'
 import { MiniSparkLine } from '../components/MiniSparkLine'
 import type { ChartRange } from '../stocks/stockDetailTypes'
 import { navigateToStock } from '../stocks/navigateToStock'
+import { ApiImage } from '../components/ApiImage'
+import { apiAssetSrc } from '../config/apiAssetSrc'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import { getSimvestUserId } from '../user/simvestUserId'
 import './performScreen.css'
@@ -85,7 +83,7 @@ function StockRows({
           onClick={() => onPick(row.symbol)}
         >
           <span className="pf-stockLogoWrap">
-            <img className="pf-stockLogo" src={row.logoUrl} alt="" />
+            <ApiImage className="pf-stockLogo" src={row.logoUrl} alt="" />
           </span>
           <div>
             <p className="pf-stockSym">{row.symbol}</p>
@@ -108,8 +106,7 @@ export function PerformScreen() {
   const navigate = useNavigate()
   const { gameSlug } = useParams<{ gameSlug: string }>()
   const slug = gameSlug ?? ''
-  const variant: GameChallengeVariant = slugToVariant(slug)
-  const isTemplate = variant === 'template'
+  const headerCtl = useGameChallengeHeader(slug)
 
   useEffect(() => {
     rememberActiveGameSlug(slug)
@@ -164,12 +161,12 @@ export function PerformScreen() {
     (symbol: string) => {
       navigateToStock(navigate, symbol, {
         gameSlug: slug,
-        challengeTitle: gameTitle(variant),
+        challengeTitle: headerCtl.headerTitle,
         returnPath: `/g/${slug}/perform`,
         navTab: 'perform',
       })
     },
-    [navigate, slug, variant],
+    [navigate, slug, headerCtl.headerTitle],
   )
 
   const toggleSeries = useCallback((id: string) => {
@@ -178,6 +175,17 @@ export function PerformScreen() {
 
   const goBack = useCallback(() => {
     navigate(`/g/${slug}`)
+  }, [navigate, slug])
+
+  const openProfile = useCallback(
+    (userId: string) => {
+      navigate(`/g/${slug}/profile/${encodeURIComponent(userId)}`)
+    },
+    [navigate, slug],
+  )
+
+  const onInviteFromTab = useCallback(() => {
+    navigate(`/g/${encodeURIComponent(slug)}`)
   }, [navigate, slug])
 
   const onAddCompareToken = useCallback(
@@ -254,14 +262,11 @@ export function PerformScreen() {
           <div className="pf-scroll">
             <p className="pf-loading">Loading…</p>
           </div>
-          <ChallengeBottomNav gameSlug={slug} active="perform" />
+          <ChallengeBottomNav gameSlug={slug} active="perform" tradeLocked={headerCtl.gameHasEnded} />
         </div>
       </div>
     )
   }
-
-  const title = gameTitle(variant)
-  const host = gameHostLine(variant)
 
   return (
     <div className="pf-root" style={chromeStyle}>
@@ -274,61 +279,36 @@ export function PerformScreen() {
             <button type="button" className="gc-headerMenu" aria-label="More options">
               <img src={a.ellipsisHeader} alt="" />
             </button>
-            <h1 className="gc-title">{title}</h1>
-            <p className="gc-host">{host}</p>
-            <div className="gc-peopleRow">
-              {isTemplate ? (
-                <>
-                  <div
-                    className="gc-avatarSm gc-avatarHost"
-                    style={{
-                      background: '#e8e8e8',
-                      border: '2px dashed #cfcfcf',
-                    }}
-                    aria-hidden
-                  />
-                  {[0, 1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="gc-avatarSm"
-                      style={{
-                        background: '#ececec',
-                        border: '2px dashed #d8d8d8',
-                      }}
-                      aria-hidden
-                    />
-                  ))}
-                </>
-              ) : (
-                <>
-                  <img className="gc-avatarHost" src={a.avatarHost} alt="" width={36} height={36} />
-                  <img className="gc-avatarSm" src={a.avatarA} alt="" />
-                  <img className="gc-avatarSm" src={a.avatarB} alt="" />
-                  <img className="gc-avatarSm" src={a.avatarC} alt="" />
-                  <img className="gc-avatarSm" src={a.avatarD} alt="" />
-                </>
-              )}
-              <button type="button" className="gc-invitePill">
-                <img src={a.plusIcon} alt="" />
-                <span>Invite</span>
-              </button>
+            <div className="gc-headerCopy">
+              <h1 className="gc-title">{headerCtl.headerTitle}</h1>
+              <p className="gc-host">{headerCtl.headerHost}</p>
+              {headerCtl.headerCountdown ? (
+                <p className="gc-countdown" aria-live="polite">
+                  {headerCtl.headerCountdown}
+                </p>
+              ) : null}
             </div>
-            {isTemplate ? (
-              <p className="gc-names">
-                <strong className="gc-muted">Players you invite will appear here.</strong>
-              </p>
-            ) : (
-              <p className="gc-names">
-                <strong>Charlie Brown</strong>
-                <span className="gc-muted">, </span>
-                <strong>Marley Woodson</strong>
-                <span className="gc-muted">, </span>
-                <strong>Devin Michaels</strong>
-                <span className="gc-muted">, and </span>
-                <strong>32 others</strong>
-              </p>
-            )}
+            <GameShellRosterBlock
+              shellIsLive={headerCtl.shellIsLive}
+              rosterStatus={headerCtl.rosterStatus}
+              rosterMembers={headerCtl.rosterMembers}
+              totalPlayers={headerCtl.totalPlayers}
+              onInviteClick={onInviteFromTab}
+              onMemberProfileClick={openProfile}
+            />
           </header>
+
+          {data.gameFinishedBanner ? (
+            <section className="pf-finishedBanner" aria-label="Challenge complete">
+              <p className="pf-finishedHeadline">{data.gameFinishedBanner.headline}</p>
+              <p className="pf-finishedRank">
+                You placed <strong>{data.gameFinishedBanner.rankOrdinal}</strong>{' '}
+                {data.gameFinishedBanner.outOfLabel}.
+              </p>
+              <p className="pf-finishedSub">{data.gameFinishedBanner.subline}</p>
+              <p className="pf-finishedEnded">Ended {data.gameFinishedBanner.endedAtLabel}</p>
+            </section>
+          ) : null}
 
           <section className="pf-statsCard" aria-label="Performance summary">
             <div className="pf-statCol">
@@ -345,22 +325,26 @@ export function PerformScreen() {
               <p className="pf-statLab">Today&apos;s Return</p>
               <p className="pf-statVal">{data.stats.todayReturn}</p>
               <p className="pf-statSub">{data.stats.todayReturnSub}</p>
-              <FireIcon />
             </div>
           </section>
 
-          <div className="pf-rankBar" aria-label="Rank">
+          <div
+            className={`pf-rankBar${data.rank.streakLabel ? '' : ' pf-rankBar--noStreak'}`}
+            aria-label="Rank"
+          >
             <div className="pf-rankTextRow">
               <span className="pf-rankLead">You&apos;re ranked</span>
               <span className="pf-rankNum">{data.rank.rankOrdinal}</span>
               <span className="pf-rankTrail">{data.rank.outOfLabel}</span>
             </div>
-            <div className="pf-rankStreak">
-              <span className="pf-rankStreakFire" aria-hidden>
-                <FireIcon />
-              </span>
-              <span className="pf-rankStreakText">{data.rank.streakLabel}</span>
-            </div>
+            {data.rank.streakLabel ? (
+              <div className="pf-rankStreak">
+                <span className="pf-rankStreakFire" aria-hidden>
+                  <FireIcon />
+                </span>
+                <span className="pf-rankStreakText">{data.rank.streakLabel}</span>
+              </div>
+            ) : null}
           </div>
 
           {viewerUserId.length >= 8 ? (
@@ -439,7 +423,7 @@ export function PerformScreen() {
                             aria-hidden
                           />
                           {(s.kind === 'you' || s.kind === 'player') && s.avatarUrl ? (
-                            <img className="pf-legAvatar" src={s.avatarUrl} alt="" />
+                            <img className="pf-legAvatar" src={apiAssetSrc(s.avatarUrl)} alt="" />
                           ) : null}
                           {s.legendIcon === 'clock' ? (
                             <svg className="pf-clockIcon" viewBox="0 0 24 24" aria-hidden width={22} height={22}>
@@ -502,7 +486,7 @@ export function PerformScreen() {
           onRemoveToken={onRemoveCompareToken}
         />
 
-        <ChallengeBottomNav gameSlug={slug} active="perform" />
+        <ChallengeBottomNav gameSlug={slug} active="perform" tradeLocked={headerCtl.gameHasEnded} />
       </div>
     </div>
   )

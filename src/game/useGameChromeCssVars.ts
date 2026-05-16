@@ -1,23 +1,32 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { fetchGameChrome } from './gameChromeApi'
+import { getCachedGameChromeVars, setCachedGameChromeVars } from './gameShellCache'
 
 /** Apply server-resolved palette variables to game shell roots (see `gameChallenge.css`). */
 export function useGameChromeCssVars(gameSlug: string | null | undefined): CSSProperties {
   const slug = gameSlug?.trim() || null
-  const [vars, setVars] = useState<Record<string, string> | null>(null)
+  const [vars, setVars] = useState<Record<string, string> | null>(() =>
+    slug ? getCachedGameChromeVars(slug) : null,
+  )
 
   useEffect(() => {
     if (!slug) {
       setVars(null)
       return
     }
+    const cached = getCachedGameChromeVars(slug)
+    if (cached) setVars(cached)
+
     let cancelled = false
     void (async () => {
       try {
         const { cssVars } = await fetchGameChrome(slug)
-        if (!cancelled) setVars(cssVars)
+        if (!cancelled) {
+          setCachedGameChromeVars(slug, cssVars)
+          setVars(cssVars)
+        }
       } catch {
-        if (!cancelled) setVars(null)
+        if (!cancelled && !getCachedGameChromeVars(slug)) setVars(null)
       }
     })()
     return () => {

@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { ChallengeBottomNav } from '../challenge/ChallengeBottomNav'
 import { challengeAssets as a } from '../challenge/challengeAssets'
-import { gameHostLine, gameTitle, slugToVariant, type GameChallengeVariant } from '../challenge/gameMeta'
 import '../challenge/gameChallenge.css'
+import { GameShellRosterBlock } from '../challenge/GameShellRosterBlock'
+import { useGameChallengeHeader } from '../challenge/useGameChallengeHeader'
 import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
 import { MiniSparkLine } from '../components/MiniSparkLine'
 import { navigateToStock } from '../stocks/navigateToStock'
+import { ApiImage } from '../components/ApiImage'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import '../perform/performScreen.css'
 import {
@@ -23,13 +25,12 @@ export function PortfolioScreen() {
   const navigate = useNavigate()
   const { gameSlug } = useParams<{ gameSlug: string }>()
   const slug = gameSlug ?? ''
-  const variant: GameChallengeVariant = slugToVariant(slug)
+  const headerCtl = useGameChallengeHeader(slug)
 
   useEffect(() => {
     rememberActiveGameSlug(slug)
   }, [slug])
   const chromeStyle = useGameChromeCssVars(slug)
-  const isTemplate = variant === 'template'
 
   const { rows, totals, status, error } = usePortfolio(slug)
   const [sortMode, setSortMode] = useState<PortfolioSortMode>('total_pct')
@@ -55,20 +56,28 @@ export function PortfolioScreen() {
     navigate(`/g/${slug}`)
   }, [navigate, slug])
 
+  const openProfile = useCallback(
+    (userId: string) => {
+      navigate(`/g/${slug}/profile/${encodeURIComponent(userId)}`)
+    },
+    [navigate, slug],
+  )
+
+  const onInviteFromTab = useCallback(() => {
+    navigate(`/g/${encodeURIComponent(slug)}`)
+  }, [navigate, slug])
+
   const onStock = useCallback(
     (symbol: string) => {
       navigateToStock(navigate, symbol, {
         gameSlug: slug,
-        challengeTitle: gameTitle(variant),
+        challengeTitle: headerCtl.headerTitle,
         returnPath: `/g/${slug}/portfolio`,
         navTab: 'portfolio',
       })
     },
-    [navigate, slug, variant],
+    [navigate, slug, headerCtl.headerTitle],
   )
-
-  const title = gameTitle(variant)
-  const host = gameHostLine(variant)
 
   if (!gameSlug) {
     return <Navigate to="/" replace />
@@ -81,7 +90,7 @@ export function PortfolioScreen() {
           <div className="pf-port-body">
             <p className="pf-loading">Loading portfolio…</p>
           </div>
-          <ChallengeBottomNav gameSlug={slug} active="portfolio" />
+          <ChallengeBottomNav gameSlug={slug} active="portfolio" tradeLocked={headerCtl.gameHasEnded} />
         </div>
       </div>
     )
@@ -94,7 +103,7 @@ export function PortfolioScreen() {
           <div className="pf-port-body">
             <p className="pf-port-err">{error ?? 'Could not load portfolio.'}</p>
           </div>
-          <ChallengeBottomNav gameSlug={slug} active="portfolio" />
+          <ChallengeBottomNav gameSlug={slug} active="portfolio" tradeLocked={headerCtl.gameHasEnded} />
         </div>
       </div>
     )
@@ -111,60 +120,23 @@ export function PortfolioScreen() {
             <button type="button" className="gc-headerMenu" aria-label="More options">
               <img src={a.ellipsisHeader} alt="" />
             </button>
-            <h1 className="gc-title">{title}</h1>
-            <p className="gc-host">{host}</p>
-            <div className="gc-peopleRow">
-              {isTemplate ? (
-                <>
-                  <div
-                    className="gc-avatarSm gc-avatarHost"
-                    style={{
-                      background: '#e8e8e8',
-                      border: '2px dashed #cfcfcf',
-                    }}
-                    aria-hidden
-                  />
-                  {[0, 1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="gc-avatarSm"
-                      style={{
-                        background: '#ececec',
-                        border: '2px dashed #d8d8d8',
-                      }}
-                      aria-hidden
-                    />
-                  ))}
-                </>
-              ) : (
-                <>
-                  <img className="gc-avatarHost" src={a.avatarHost} alt="" width={36} height={36} />
-                  <img className="gc-avatarSm" src={a.avatarA} alt="" />
-                  <img className="gc-avatarSm" src={a.avatarB} alt="" />
-                  <img className="gc-avatarSm" src={a.avatarC} alt="" />
-                  <img className="gc-avatarSm" src={a.avatarD} alt="" />
-                </>
-              )}
-              <button type="button" className="gc-invitePill">
-                <img src={a.plusIcon} alt="" />
-                <span>Invite</span>
-              </button>
+            <div className="gc-headerCopy">
+              <h1 className="gc-title">{headerCtl.headerTitle}</h1>
+              <p className="gc-host">{headerCtl.headerHost}</p>
+              {headerCtl.headerCountdown ? (
+                <p className="gc-countdown" aria-live="polite">
+                  {headerCtl.headerCountdown}
+                </p>
+              ) : null}
             </div>
-            {isTemplate ? (
-              <p className="gc-names">
-                <strong className="gc-muted">Players you invite will appear here.</strong>
-              </p>
-            ) : (
-              <p className="gc-names">
-                <strong>Charlie Brown</strong>
-                <span className="gc-muted">, </span>
-                <strong>Marley Woodson</strong>
-                <span className="gc-muted">, </span>
-                <strong>Devin Michaels</strong>
-                <span className="gc-muted">, and </span>
-                <strong>32 others</strong>
-              </p>
-            )}
+            <GameShellRosterBlock
+              shellIsLive={headerCtl.shellIsLive}
+              rosterStatus={headerCtl.rosterStatus}
+              rosterMembers={headerCtl.rosterMembers}
+              totalPlayers={headerCtl.totalPlayers}
+              onInviteClick={onInviteFromTab}
+              onMemberProfileClick={openProfile}
+            />
           </header>
 
           <section className="pf-port-sheet" aria-label="Your investments">
@@ -200,10 +172,13 @@ export function PortfolioScreen() {
                     aria-label="Sort investments"
                     onClick={() => setSortOpen((v) => !v)}
                   >
-                    {sortLabel}
-                    <svg className="pf-port-sortChev" viewBox="0 0 24 24" aria-hidden>
-                      <path fill="currentColor" d="M7 10l5 5 5-5H7z" />
-                    </svg>
+                    <span className="pf-port-sortBtnLabel">{sortLabel}</span>
+                    <span
+                      className={`pf-port-sortChevWrap${sortOpen ? ' pf-port-sortChevWrap--open' : ''}`}
+                      aria-hidden
+                    >
+                      <img src={a.chevronDown} alt="" />
+                    </span>
                   </button>
                   {sortOpen ? (
                     <ul className="pf-port-menu" role="listbox" aria-label="Sort by">
@@ -231,8 +206,7 @@ export function PortfolioScreen() {
 
             {!sortedRows.length ? (
               <p className="pf-port-empty">
-                No holdings for this game yet. Positions are stored on the server in{' '}
-                <code>server/data/holdings.json</code> (per game slug).
+                Start trading to build your portfolio! Tap the gold Trade button at the bottom center of the screen to browse stocks and open positions.
               </p>
             ) : viewMode === 'overview' ? (
               sortedRows.map((row) => (
@@ -244,7 +218,7 @@ export function PortfolioScreen() {
           </section>
         </div>
 
-        <ChallengeBottomNav gameSlug={slug} active="portfolio" />
+        <ChallengeBottomNav gameSlug={slug} active="portfolio" tradeLocked={headerCtl.gameHasEnded} />
       </div>
     </div>
   )
@@ -254,7 +228,7 @@ function PortfolioRow({ row, onPick }: { row: PortfolioApiRow; onPick: () => voi
   return (
     <button type="button" className="pf-stockRow" onClick={onPick}>
       <span className="pf-stockLogoWrap">
-        <img className="pf-stockLogo" src={row.logoUrl} alt="" />
+        <ApiImage className="pf-stockLogo" src={row.logoUrl} alt="" />
       </span>
       <div>
         <p className="pf-stockSym">{row.ticker}</p>

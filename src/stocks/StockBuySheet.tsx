@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { challengeAssets as a } from '../challenge/challengeAssets'
-import { GAME_OPTIONS } from '../challenge/gameMeta'
+import type { JoinedGameForTrade } from './useJoinedGamesForTrade'
 import type { TradeOrderDraft } from './tradeOrderTypes'
+import { sanitizeTradeQtyInput } from './tradeQtyInput'
+import { useStockPosition } from './useStockPosition'
 import './stockBuySheet.css'
 
-/** Demo buying power until portfolio cash is wired (matches Figma helper text). */
-const AVAILABLE_TO_TRADE_USD = 31930
+/** Matches server `DEFAULT_STARTING_CASH` before the first trade persists a ledger row. */
+const STARTING_CASH_USD = 100_000
 
 type QuantityMode = 'shares' | 'dollars'
 type ActionMode = 'buy' | 'sell'
@@ -17,6 +19,12 @@ export type StockBuySheetProps = {
   lastPrice: number | null
   lastPriceLabel: string
   defaultGameSlug?: string
+  /** Live competitions the viewer is currently in — populates the dropdown. */
+  games: JoinedGameForTrade[]
+  /** True while `games` is being fetched; the dropdown shows a loading label. */
+  gamesLoading?: boolean
+  /** Notifies the parent when the user picks a different competition. */
+  onGameSlugChange?: (gameSlug: string) => void
   /** When set on open (e.g. back from Review Order), hydrate fields after close-reset. */
   restoreDraft?: TradeOrderDraft | null
   onRestoreDraftConsumed?: () => void
@@ -44,15 +52,13 @@ function formatImpliedShares(n: number): string {
   return rounded.toLocaleString('en-US', { maximumFractionDigits: 8, minimumFractionDigits: 0 })
 }
 
-const KEYPAD_SUBS: Record<string, string> = {
-  '2': 'ABC',
-  '3': 'DEF',
-  '4': 'GHI',
-  '5': 'JKL',
-  '6': 'MNO',
-  '7': 'PQRS',
-  '8': 'TUV',
-  '9': 'WXYZ',
+function resolveInitialGameSlug(
+  defaultGameSlug: string | undefined,
+  games: JoinedGameForTrade[],
+): string {
+  if (defaultGameSlug && defaultGameSlug.length > 0) return defaultGameSlug
+  if (games.length > 0) return games[0]!.slug
+  return ''
 }
 
 export function StockBuySheet({
@@ -62,19 +68,19 @@ export function StockBuySheet({
   lastPrice,
   lastPriceLabel,
   defaultGameSlug,
+  games,
+  gamesLoading = false,
+  onGameSlugChange,
   restoreDraft,
   onRestoreDraftConsumed,
   onReviewOrder,
 }: StockBuySheetProps) {
   const [quantityMode, setQuantityMode] = useState<QuantityMode>('shares')
   const [action, setAction] = useState<ActionMode>('buy')
-  const [gameSlug, setGameSlug] = useState(() => defaultGameSlug ?? GAME_OPTIONS[0]!.slug)
+  const [gameSlug, setGameSlug] = useState(() => resolveInitialGameSlug(defaultGameSlug, games))
   const [rawAmount, setRawAmount] = useState('')
   const [ddOpen, setDdOpen] = useState(false)
-  const [keypadOpen, setKeypadOpen] = useState(false)
   const ddRef = useRef<HTMLDivElement>(null)
-  const qtyRef = useRef<HTMLLabelElement>(null)
-  const keypadRef = useRef<HTMLDivElement>(null)
   const wasOpenRef = useRef(false)
 
   useLayoutEffect(() => {
@@ -89,35 +95,30 @@ export function StockBuySheet({
       } else {
         setQuantityMode('shares')
         setAction('buy')
-        setGameSlug(defaultGameSlug ?? GAME_OPTIONS[0]!.slug)
+        setGameSlug(resolveInitialGameSlug(defaultGameSlug, games))
         setRawAmount('')
       }
       setDdOpen(false)
-      setKeypadOpen(false)
     }
     if (!open && wasOpenRef.current) {
       wasOpenRef.current = false
       setRawAmount('')
       setQuantityMode('shares')
       setAction('buy')
-      setGameSlug(defaultGameSlug ?? GAME_OPTIONS[0]!.slug)
+      setGameSlug(resolveInitialGameSlug(defaultGameSlug, games))
       setDdOpen(false)
-      setKeypadOpen(false)
     }
-  }, [open, restoreDraft, defaultGameSlug, onRestoreDraftConsumed])
+  }, [open, restoreDraft, defaultGameSlug, games, onRestoreDraftConsumed])
 
-  /* Tap outside quantity field + keypad dismisses keypad (mobile-keyboard-like). */
+  /* If the live list of games loads after the sheet opens and the current
+   * selection isn't a real game the user is in, snap to the first valid game
+   * so the dropdown never shows a stale or non-existent competition. */
   useEffect(() => {
-    if (!open || !keypadOpen) return
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (qtyRef.current?.contains(t)) return
-      if (keypadRef.current?.contains(t)) return
-      setKeypadOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [open, keypadOpen])
+    if (!open) return
+    if (games.length === 0) return
+    if (games.some((g) => g.slug === gameSlug)) return
+    setGameSlug(games[0]!.slug)
+  }, [open, games, gameSlug])
 
   useEffect(() => {
     if (!open) return
@@ -146,6 +147,18 @@ export function StockBuySheet({
     }
   }, [open])
 
+  const { position: ledgerPosition } = useStockPosition(
+    open && gameSlug.length > 0 ? gameSlug : undefined,
+    open ? displayTicker : undefined,
+  )
+
+  const availableToTradeUsd = useMemo(() => {
+    if (ledgerPosition && Number.isFinite(ledgerPosition.cashAvailable)) {
+      return Math.max(0, ledgerPosition.cashAvailable)
+    }
+    return STARTING_CASH_USD
+  }, [ledgerPosition])
+
   const parsedAmount = useMemo(() => {
     const t = rawAmount.trim()
     if (!t || t === '.') return null
@@ -165,7 +178,7 @@ export function StockBuySheet({
     action === 'buy' &&
     totalNumber != null &&
     Number.isFinite(totalNumber) &&
-    totalNumber > AVAILABLE_TO_TRADE_USD
+    totalNumber > availableToTradeUsd + 1e-9
 
   const totalLabel = useMemo(() => {
     if (totalNumber == null || !Number.isFinite(totalNumber)) return '$---.--'
@@ -182,23 +195,30 @@ export function StockBuySheet({
     lastPrice != null &&
     lastPrice > 0 &&
     !exceedsBuyingPower &&
+    gameSlug.length > 0 &&
+    games.some((g) => g.slug === gameSlug) &&
     (quantityMode === 'shares' || quantityMode === 'dollars')
 
-  const appendDigit = useCallback((d: string) => {
-    setRawAmount((prev) => {
-      if (prev === '0' && d !== '.') return d
-      if (d === '.' && prev.includes('.')) return prev
-      const next = prev + d
-      if (next.replace('.', '').length > 12) return prev
-      return next
-    })
+  const handleQtyChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setRawAmount(sanitizeTradeQtyInput(e.target.value))
   }, [])
 
-  const backspace = useCallback(() => {
-    setRawAmount((prev) => prev.slice(0, -1))
-  }, [])
+  const selectedGameTitle = useMemo(() => {
+    const hit = games.find((g) => g.slug === gameSlug)
+    if (hit) return hit.title
+    if (gamesLoading) return 'Loading…'
+    if (gameSlug) return gameSlug
+    return 'No active games'
+  }, [games, gameSlug, gamesLoading])
 
-  const selectedGame = GAME_OPTIONS.find((g) => g.slug === gameSlug) ?? GAME_OPTIONS[0]!
+  const handlePickGame = useCallback(
+    (slug: string) => {
+      setGameSlug(slug)
+      setDdOpen(false)
+      onGameSlugChange?.(slug)
+    },
+    [onGameSlugChange],
+  )
 
   const placeholder = quantityMode === 'shares' ? 'Enter Shares' : 'Enter Dollars'
 
@@ -226,7 +246,7 @@ export function StockBuySheet({
           </div>
 
           <p className="bu-available">
-            ${AVAILABLE_TO_TRADE_USD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+            ${availableToTradeUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
             Available to Trade
           </p>
 
@@ -242,7 +262,6 @@ export function StockBuySheet({
                     onClick={() => {
                       setQuantityMode('shares')
                       setRawAmount('')
-                      setKeypadOpen(false)
                     }}
                   >
                     Shares
@@ -253,30 +272,26 @@ export function StockBuySheet({
                     onClick={() => {
                       setQuantityMode('dollars')
                       setRawAmount('')
-                      setKeypadOpen(false)
                     }}
                   >
                     Dollars
                   </button>
                 </div>
               </div>
-              <label
-                ref={qtyRef}
-                className={`bu-qtyInputWrap${keypadOpen ? ' bu-qtyInputWrap--focus' : ''}`}
-                htmlFor="bu-stock-qty-input"
-                onClick={() => setKeypadOpen(true)}
-              >
+              <label className="bu-qtyInputWrap" htmlFor="bu-stock-qty-input">
                 <input
                   id="bu-stock-qty-input"
                   className="bu-qtyInput"
                   type="text"
                   inputMode="decimal"
-                  readOnly
+                  enterKeyHint="done"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder={placeholder}
                   value={rawAmount}
-                  aria-expanded={keypadOpen}
                   aria-label={quantityMode === 'shares' ? 'Share quantity' : 'Dollar amount'}
-                  onFocus={() => setKeypadOpen(true)}
+                  onChange={handleQtyChange}
                 />
                 <div className="bu-qtyLine" aria-hidden />
               </label>
@@ -312,23 +327,26 @@ export function StockBuySheet({
             <span className="bu-rowLab">Competition</span>
             <div className="bu-rowRight">
               <div className="bu-ddWrap" ref={ddRef}>
-                <button type="button" className="bu-ddBtn" aria-expanded={ddOpen} onClick={() => setDdOpen((v) => !v)}>
-                  <span className="bu-ddBtnText">{truncateTitle(selectedGame.title)}</span>
+                <button
+                  type="button"
+                  className="bu-ddBtn"
+                  aria-expanded={ddOpen}
+                  disabled={games.length === 0}
+                  onClick={() => setDdOpen((v) => !v)}
+                >
+                  <span className="bu-ddBtnText">{truncateTitle(selectedGameTitle)}</span>
                   <img className="bu-ddChev" src={a.chevronDown} alt="" />
                 </button>
-                {ddOpen ? (
+                {ddOpen && games.length > 0 ? (
                   <div className="bu-ddMenu" role="listbox">
-                    {GAME_OPTIONS.map((g) => (
+                    {games.map((g) => (
                       <button
                         key={g.slug}
                         type="button"
                         role="option"
                         aria-selected={g.slug === gameSlug}
                         className={`bu-ddItem${g.slug === gameSlug ? ' bu-ddItem--on' : ''}`}
-                        onClick={() => {
-                          setGameSlug(g.slug)
-                          setDdOpen(false)
-                        }}
+                        onClick={() => handlePickGame(g.slug)}
                       >
                         {g.title}
                       </button>
@@ -356,7 +374,7 @@ export function StockBuySheet({
           ) : null}
 
           {exceedsBuyingPower ? (
-            <p className="bu-caution">Total exceeds available cash for this demo.</p>
+            <p className="bu-caution">Total exceeds your available cash for this game.</p>
           ) : null}
 
           <div className="bu-reviewWrap">
@@ -378,51 +396,7 @@ export function StockBuySheet({
             </button>
           </div>
         </div>
-
-        {keypadOpen ? (
-          <div ref={keypadRef}>
-            <NumericKeypad onDigit={appendDigit} onBackspace={backspace} />
-          </div>
-        ) : null}
       </div>
-    </div>
-  )
-}
-
-function NumericKeypad({
-  onDigit,
-  onBackspace,
-}: {
-  onDigit: (d: string) => void
-  onBackspace: () => void
-}) {
-  const rows: string[][] = [
-    ['1', '2', '3'],
-    ['4', '5', '6'],
-    ['7', '8', '9'],
-    ['.', '0', 'del'],
-  ]
-
-  return (
-    <div className="bu-keypad">
-      {rows.map((row, ri) => (
-        <div key={ri} className="bu-keyRow">
-          {row.map((k) =>
-            k === 'del' ? (
-              <button key={k} type="button" className="bu-key bu-keyDel" aria-label="Delete" onClick={onBackspace}>
-                <span className="bu-keyDelGlyph" aria-hidden>
-                  ⌫
-                </span>
-              </button>
-            ) : (
-              <button key={k} type="button" className="bu-key" onClick={() => onDigit(k)}>
-                <span className="bu-keyMain">{k}</span>
-                {KEYPAD_SUBS[k] ? <span className="bu-keySub">{KEYPAD_SUBS[k]}</span> : null}
-              </button>
-            ),
-          )}
-        </div>
-      ))}
     </div>
   )
 }

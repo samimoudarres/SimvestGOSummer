@@ -228,12 +228,20 @@ function numFromObj(o: unknown, ...keys: string[]): number | null {
   for (const k of keys) {
     const v = r[k]
     if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v
+    if (typeof v === 'string') {
+      const n = Number(v)
+      if (Number.isFinite(n) && n > 0) return n
+    }
   }
   return null
 }
 
-function pickPrice(s: Snapshot['ticker']): number | null {
+/** Last trade / quote price from a Massive snapshot ticker object (stocks or crypto). */
+export function pickTickerSnapshotPrice(s: Snapshot['ticker'] | undefined): number | null {
   if (!s) return null
+  const root = s as Record<string, unknown>
+  const fmv = root.fmv
+  if (typeof fmv === 'number' && Number.isFinite(fmv) && fmv > 0) return fmv
   const p =
     numFromObj(s.lastTrade, 'p', 'P', 'price') ??
     numFromObj(s.lastQuote, 'p', 'P', 'price') ??
@@ -241,6 +249,10 @@ function pickPrice(s: Snapshot['ticker']): number | null {
     numFromObj(s.day, 'c', 'C', 'close') ??
     numFromObj(s.prevDay, 'c', 'C', 'close')
   return typeof p === 'number' && Number.isFinite(p) && p > 0 ? p : null
+}
+
+function pickPrice(s: Snapshot['ticker']): number | null {
+  return pickTickerSnapshotPrice(s)
 }
 
 function formatHQ(r: TickerDetails['results']): string {
@@ -330,7 +342,7 @@ function buildEpsQuarterlyFromVx(rows: VxFinRow[] | undefined): { year: number; 
   return list.slice(-8)
 }
 
-function unwrapCryptoSnapshotBody(raw: unknown): Snapshot['ticker'] | undefined {
+export function unwrapCryptoSnapshotBody(raw: unknown): Snapshot['ticker'] | undefined {
   if (!raw || typeof raw !== 'object') return undefined
   const o = raw as Record<string, unknown>
   const blocks: Record<string, unknown>[] = [o]
@@ -363,8 +375,12 @@ function unwrapCryptoSnapshotBody(raw: unknown): Snapshot['ticker'] | undefined 
   return undefined
 }
 
-/** If snapshot uses snake_case (some Massive paths), map into camelCase fields `pickPrice` reads. */
-function normalizeCryptoSnapshotShape(t: Snapshot['ticker'] | undefined): Snapshot['ticker'] | undefined {
+/**
+ * Massive crypto snapshot JSON often mixes snake_case (`last_trade`, `todays_change_perc`) with
+ * camelCase. Normalize before any shared `lastTrade` / `todaysChangePerc` reads (trade browse,
+ * portfolio, feed hydration).
+ */
+export function normalizeCryptoSnapshotShape(t: Snapshot['ticker'] | undefined): Snapshot['ticker'] | undefined {
   if (!t || typeof t !== 'object') return t
   const o = t as Record<string, unknown>
   const out = { ...t } as Record<string, unknown>
@@ -419,11 +435,17 @@ async function fetchCryptoDetailPayload(sym: string): Promise<StockDetailPayload
     }
     return barsForCrypto
   }
+  /* Match baseline: do not block on 1D aggs when snapshot already has a price (saves one Massive
+   * round-trip per crypto detail load and avoids coupling header price to bar fetch latency). */
   if (lastPrice == null || !Number.isFinite(lastPrice) || lastPrice <= 0) {
     const bars = await ensureCryptoBars()
     const tail = bars.filter((b) => Number.isFinite(b.c) && b.c > 0)
     const c = tail[tail.length - 1]?.c
     if (c != null && Number.isFinite(c) && c > 0) lastPrice = c
+  }
+  if (lastPrice == null || !Number.isFinite(lastPrice) || lastPrice <= 0) {
+    const px = await fetchLatestCryptoAggClose(sym)
+    if (px != null && Number.isFinite(px) && px > 0) lastPrice = px
   }
   const lastPriceLabel =
     lastPrice != null && Number.isFinite(lastPrice) && lastPrice > 0 && lastPrice < 1
@@ -431,14 +453,18 @@ async function fetchCryptoDetailPayload(sym: string): Promise<StockDetailPayload
       : fmtPrice(lastPrice)
 
   const prevClose = numFromObj(tkr?.prevDay, 'c', 'C', 'close')
-  let ch: number | null = typeof tkr?.todaysChange === 'number' && Number.isFinite(tkr.todaysChange) ? tkr.todaysChange : null
-  if (ch == null && lastPrice != null && prevClose != null) {
+  let ch: number | null = null
+  let chp: number | null = null
+  if (lastPrice != null && prevClose != null) {
     ch = lastPrice - prevClose
+    if (prevClose !== 0) chp = (ch! / prevClose) * 100
   }
-  let chp: number | null = typeof tkr?.todaysChangePerc === 'number' && Number.isFinite(tkr.todaysChangePerc) ? tkr.todaysChangePerc : null
+  if (ch == null && typeof tkr?.todaysChange === 'number' && Number.isFinite(tkr.todaysChange)) {
+    ch = tkr.todaysChange
+  }
   if (chp == null || !Number.isFinite(chp)) {
-    if (lastPrice != null && prevClose != null && prevClose !== 0) {
-      chp = ((lastPrice - prevClose) / prevClose) * 100
+    if (typeof tkr?.todaysChangePerc === 'number' && Number.isFinite(tkr.todaysChangePerc)) {
+      chp = tkr.todaysChangePerc
     }
   }
   if (chp == null || !Number.isFinite(chp)) {
@@ -983,4 +1009,75 @@ export async function fetchStockBars1DayOrLastTwoSessions(ticker: string): Promi
     return fiveDay
   }
   return twoSessions.length ? twoSessions : fiveDay
+}
+
+/**
+ * When snapshot `lastTrade` / quotes are empty (plan limits, new listing, or odd JSON), use the
+ * most recent aggregate close — same path as charts. Keeps browse/portfolio prices aligned with
+ * what users see on the detail screen.
+ */
+export async function pickLastCloseFromRecentAggs(sym: string): Promise<number | null> {
+  const resolved = resolveMassiveTicker(sym)
+  if (!resolved) return null
+  try {
+    const bars = await fetchStockBars1DayOrLastTwoSessions(resolved)
+    for (let i = bars.length - 1; i >= 0; i--) {
+      const c = bars[i]!.c
+      if (typeof c === 'number' && Number.isFinite(c) && c > 0) return c
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+/** Last aggregate close at or before `endMs` (game freeze / final mark). */
+export async function fetchLastCloseAtOrBefore(sym: string, endMs: number): Promise<number | null> {
+  const resolved = resolveMassiveTicker(sym)
+  if (!resolved) return null
+  const end = Number.isFinite(endMs) ? endMs : Date.now()
+  const MS_DAY = 86_400_000
+  try {
+    const intraday = await fetchStockBars(resolved, '1D', {
+      windowStartMs: end - 3 * MS_DAY,
+      windowEndMs: end,
+    })
+    const intr = [...intraday]
+      .filter((b) => Number.isFinite(b.t) && b.t <= end && typeof b.c === 'number' && b.c > 0)
+      .sort((a, b) => a.t - b.t)
+    if (intr.length) return intr[intr.length - 1]!.c
+    const daily = await fetchStockBars(resolved, '1M', {
+      windowStartMs: end - 400 * MS_DAY,
+      windowEndMs: end,
+    })
+    const ds = [...daily]
+      .filter((b) => Number.isFinite(b.t) && b.t <= end && typeof b.c === 'number' && b.c > 0)
+      .sort((a, b) => a.t - b.t)
+    if (ds.length) return ds[ds.length - 1]!.c
+  } catch {
+    /* fall through */
+  }
+  return pickLastCloseFromRecentAggs(resolved)
+}
+
+/**
+ * Most recent 1-minute bar close for a crypto composite. Unlike US equities, crypto trades 24/7,
+ * but Massive snapshot `lastTrade` can lag or appear “stuck” outside regular equity hours; this
+ * path tracks the rolling minute aggregate so headline prices keep updating overnight.
+ */
+export async function fetchLatestCryptoAggClose(sym: string): Promise<number | null> {
+  const resolved = resolveMassiveTicker(sym)
+  if (!resolved?.startsWith('X:')) return null
+  const to = new Date()
+  const from = new Date(to.getTime() - 2 * MS_PER_DAY)
+  try {
+    const data = await massiveGet<AggsResponse>(
+      `/v2/aggs/ticker/${encodeURIComponent(resolved)}/range/1/minute/${ymd(from)}/${ymd(to)}`,
+      { adjusted: 'false', sort: 'desc', limit: '1' },
+    )
+    const c = data.results?.[0]?.c
+    return typeof c === 'number' && Number.isFinite(c) && c > 0 ? c : null
+  } catch {
+    return null
+  }
 }

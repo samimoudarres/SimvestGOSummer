@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { simvestFetch } from '../api/simvestFetch'
 import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
+import { isMassiveCryptoSymbol } from '../stocks/displayTicker'
 import type { TradeBrowseRow } from './tradeTypes'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -28,9 +30,10 @@ export function useTradeSearchResults(
 
     const run = async (isPoll: boolean) => {
       const q = debouncedQuery.trim()
+      const nonCryptoRecents = recentTickers.filter((s) => !isMassiveCryptoSymbol(s))
 
       if (q.length < 1) {
-        if (recentTickers.length < 1) {
+        if (nonCryptoRecents.length < 1) {
           if (!cancelled) {
             setRows([])
             setStatus('ready')
@@ -42,14 +45,15 @@ export function useTradeSearchResults(
           setStatus('loading')
           setError(null)
         }
-        const recents = recentTickers.map((s) => encodeURIComponent(s)).join(',')
-        const r = await fetch(`/api/games/${encodeURIComponent(gameSlug)}/trade/search?recents=${recents}`, {
+        const recents = nonCryptoRecents.map((s) => encodeURIComponent(s)).join(',')
+        const r = await simvestFetch(`/api/games/${encodeURIComponent(gameSlug)}/trade/search?recents=${recents}`, {
           cache: 'no-store',
         })
         const body = (await r.json().catch(() => ({}))) as { rows?: unknown; error?: string }
         if (cancelled) return
         if (r.ok && body && Array.isArray(body.rows)) {
-          setRows(body.rows as TradeBrowseRow[])
+          const rows = (body.rows as TradeBrowseRow[]).filter((row) => !isMassiveCryptoSymbol(row.symbol))
+          setRows(rows)
           setStatus('ready')
         } else if (!isPoll) {
           setError(typeof body?.error === 'string' ? body.error : 'Could not load recents')
@@ -62,14 +66,15 @@ export function useTradeSearchResults(
         setStatus('loading')
         setError(null)
       }
-      const r = await fetch(
+      const r = await simvestFetch(
         `/api/games/${encodeURIComponent(gameSlug)}/trade/search?q=${encodeURIComponent(q)}`,
         { cache: 'no-store' },
       )
       const body = (await r.json().catch(() => ({}))) as { rows?: unknown; error?: string }
       if (cancelled) return
       if (r.ok && body && Array.isArray(body.rows)) {
-        setRows(body.rows as TradeBrowseRow[])
+        const rows = (body.rows as TradeBrowseRow[]).filter((row) => !isMassiveCryptoSymbol(row.symbol))
+        setRows(rows)
         setStatus('ready')
       } else if (!isPoll) {
         setError(typeof body?.error === 'string' ? body.error : 'Search failed')

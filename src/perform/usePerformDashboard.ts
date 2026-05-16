@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
+import { onDocumentVisible } from '../lib/onDocumentVisible'
 import type { PerformDashboardPayload } from './performTypes'
 import { emptyPerformDashboard } from './performDummy'
 
@@ -35,22 +37,19 @@ export function usePerformDashboard(gameSlug: string | undefined) {
     }
 
     pull()
-    const refresh = window.setInterval(pull, 20000)
+    const refresh = window.setInterval(pull, LIVE_MARKETS_POLL_MS)
 
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') pull()
-    }
+    const offVisible = onDocumentVisible(pull)
     const onHoldingsRefresh = (ev: Event) => {
       const slug = (ev as CustomEvent<{ gameSlug?: string }>).detail?.gameSlug
       if (!slug || slug === gameSlug) pull()
     }
-    document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('simvest:holdings-refresh', onHoldingsRefresh)
 
     return () => {
       cancelled = true
       window.clearInterval(refresh)
-      document.removeEventListener('visibilitychange', onVisible)
+      offVisible()
       window.removeEventListener('simvest:holdings-refresh', onHoldingsRefresh)
     }
   }, [gameSlug])

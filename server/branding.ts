@@ -64,6 +64,41 @@ async function tryCryptoBrandingPng(sym: string): Promise<Buffer | null> {
   }
 }
 
+/** Download icon/logo bytes from Massive/Polygon CDN (apiKey query and/or Bearer). */
+async function fetchMassiveBrandingAsset(
+  rawUrl: string,
+  apiKey: string,
+): Promise<{ body: Buffer; contentType: string } | null> {
+  const withKey = rawUrl.includes('apiKey=')
+    ? rawUrl
+    : `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}apiKey=${encodeURIComponent(apiKey)}`
+  const candidates = [...new Set([withKey, rawUrl])]
+  const authHeaders: HeadersInit[] = [{ Authorization: `Bearer ${apiKey}` }, {}]
+
+  for (const url of candidates) {
+    for (const headers of authHeaders) {
+      try {
+        const ac = new AbortController()
+        const timer = setTimeout(() => ac.abort(), 15_000)
+        const asset = await fetch(url, {
+          headers,
+          redirect: 'follow',
+          signal: ac.signal,
+        })
+        clearTimeout(timer)
+        if (!asset.ok) continue
+        const buf = Buffer.from(await asset.arrayBuffer())
+        if (buf.length < 16) continue
+        const contentType = asset.headers.get('content-type') ?? 'application/octet-stream'
+        return { body: buf, contentType }
+      } catch {
+        /* try next */
+      }
+    }
+  }
+  return null
+}
+
 /** Streams company icon (or logo) from Massive using the server API key — browser-safe. */
 export async function sendBrandingIcon(tickerRaw: string, res: Response): Promise<void> {
   const rawIn = String(tickerRaw ?? '').trim()
@@ -97,20 +132,18 @@ export async function sendBrandingIcon(tickerRaw: string, res: Response): Promis
       res.status(500).end()
       return
     }
-    const sep = raw.includes('?') ? '&' : '?'
-    const asset = await fetch(`${raw}${sep}apiKey=${encodeURIComponent(key)}`)
-    if (!asset.ok) {
+    const asset = await fetchMassiveBrandingAsset(raw, key)
+    if (!asset) {
       const svg = initialsSvg(sym)
       res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8')
       res.setHeader('Cache-Control', 'public, max-age=300')
       res.send(svg)
       return
     }
-    const ct = asset.headers.get('content-type') ?? 'application/octet-stream'
+    const ct = asset.contentType
     res.setHeader('Content-Type', ct)
     res.setHeader('Cache-Control', 'public, max-age=86400')
-    const buf = Buffer.from(await asset.arrayBuffer())
-    res.send(buf)
+    res.send(asset.body)
   } catch {
     const svg = initialsSvg(sym)
     res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8')

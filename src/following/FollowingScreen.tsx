@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { ChallengeBottomNav } from '../challenge/ChallengeBottomNav'
 import { challengeAssets as a } from '../challenge/challengeAssets'
-import { gameTitle, slugToVariant } from '../challenge/gameMeta'
+import { useGameChallengeHeader } from '../challenge/useGameChallengeHeader'
 import '../challenge/gameChallenge.css'
 import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
 import '../perform/performScreen.css'
 import { MiniSparkLine } from '../components/MiniSparkLine'
 import { simvestFetch } from '../api/simvestFetch'
 import { navigateToStock } from '../stocks/navigateToStock'
+import { ApiImage } from '../components/ApiImage'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
@@ -20,7 +21,7 @@ export function FollowingScreen() {
   const navigate = useNavigate()
   const { gameSlug } = useParams<{ gameSlug: string }>()
   const slug = gameSlug ?? ''
-  const variant = slugToVariant(slug)
+  const headerCtl = useGameChallengeHeader(slug)
 
   useEffect(() => {
     rememberActiveGameSlug(slug)
@@ -44,7 +45,9 @@ export function FollowingScreen() {
         setError(null)
       }
       try {
-        const r = await simvestFetch('/api/me/following')
+        const r = await simvestFetch(`/api/games/${encodeURIComponent(slug)}/me/following`, {
+          cache: 'no-store',
+        })
         const body = (await r.json().catch(() => ({}))) as { tickers?: unknown; error?: string }
         if (cancelled) return
         if (!r.ok || !body || !Array.isArray(body.tickers)) {
@@ -61,7 +64,7 @@ export function FollowingScreen() {
           return
         }
         const qs = tickers.map((t) => encodeURIComponent(t)).join(',')
-        const r2 = await fetch(`/api/games/${encodeURIComponent(slug)}/trade/search?recents=${qs}`, {
+        const r2 = await simvestFetch(`/api/games/${encodeURIComponent(slug)}/trade/search?recents=${qs}`, {
           cache: 'no-store',
         })
         const b2 = (await r2.json().catch(() => ({}))) as { rows?: unknown; error?: string }
@@ -95,12 +98,12 @@ export function FollowingScreen() {
     (symbol: string) => {
       navigateToStock(navigate, symbol, {
         gameSlug: slug,
-        challengeTitle: gameTitle(variant),
+        challengeTitle: headerCtl.headerTitle,
         returnPath: `/g/${slug}/following`,
         navTab: 'perform',
       })
     },
-    [navigate, slug, variant],
+    [navigate, slug, headerCtl.headerTitle],
   )
 
   if (!gameSlug) {
@@ -129,7 +132,7 @@ export function FollowingScreen() {
             ? rows.map((row) => (
                 <button key={row.symbol} type="button" className="pf-stockRow" onClick={() => onStock(row.symbol)}>
                   <span className="pf-stockLogoWrap">
-                    <img className="pf-stockLogo" src={row.logoUrl} alt="" loading="lazy" decoding="async" />
+                    <ApiImage className="pf-stockLogo" src={row.logoUrl} alt="" loading="lazy" decoding="async" />
                   </span>
                   <div>
                     <p className="pf-stockSym">{displayTickerLabel(row.symbol)}</p>
@@ -143,7 +146,7 @@ export function FollowingScreen() {
             : null}
         </div>
 
-        <ChallengeBottomNav gameSlug={slug} active="perform" />
+        <ChallengeBottomNav gameSlug={slug} active="perform" tradeLocked={headerCtl.gameHasEnded} />
       </div>
     </div>
   )

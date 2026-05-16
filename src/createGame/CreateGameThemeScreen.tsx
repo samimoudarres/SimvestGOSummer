@@ -58,7 +58,7 @@ export function CreateGameThemeScreen() {
         }
         const s = res.settings
         setBasePut(dtoToPut(s))
-        setGameTitleText(s.gameDisplayName.trim())
+        setGameTitleText(s.gameDisplayName?.trim() ?? '')
         setPalette(s.themePaletteId)
         setEmoji(s.loadScreenEmoji || '🍁')
       } catch (e) {
@@ -87,26 +87,32 @@ export function CreateGameThemeScreen() {
 
   const persistThemeDraft = useCallback(async () => {
     if (!basePut) return
+    const name = gameTitleText.trim()
+    if (!name) return
     setSaveErr(null)
     try {
-      await putCreateGameSettings(TARGET_SLUG, {
+      const { settings } = await putCreateGameSettings(TARGET_SLUG, {
         ...basePut,
+        gameDisplayName: name,
         themePaletteId: palette,
         loadScreenEmoji: emoji,
         hostDisplayName: profileName,
+        setupComplete: false,
       })
+      setBasePut(dtoToPut(settings))
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : 'Autosave failed')
     }
-  }, [basePut, palette, emoji, profileName])
+  }, [basePut, palette, emoji, profileName, gameTitleText])
 
   useEffect(() => {
     if (!basePut) return
+    if (!gameTitleText.trim()) return
     const t = window.setTimeout(() => {
       void persistThemeDraft()
     }, 750)
     return () => window.clearTimeout(t)
-  }, [basePut, palette, emoji, profileName, persistThemeDraft])
+  }, [basePut, palette, emoji, profileName, gameTitleText, persistThemeDraft])
 
   const onEmojiInput = useCallback((raw: string) => {
     const next = firstGraphemeFromString(raw)
@@ -121,12 +127,14 @@ export function CreateGameThemeScreen() {
     try {
       await putCreateGameSettings(TARGET_SLUG, {
         ...basePut,
+        gameDisplayName: gameTitleText.trim(),
         themePaletteId: palette,
         loadScreenEmoji: emoji,
         hostDisplayName: profileName,
         setupComplete: true,
+        forceNewGameInstance: true,
       })
-      navigate(gamePaths.newGameTemplate, { replace: true })
+      navigate(gamePaths.createGameHostProfile, { replace: true })
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : 'Could not create game.')
     } finally {
@@ -134,7 +142,7 @@ export function CreateGameThemeScreen() {
     }
   }, [basePut, gameTitleText, palette, emoji, profileName, navigate])
 
-  const displayTitle = gameTitleText.trim() ? gameTitleText.trim().toUpperCase() : 'YOUR GAME'
+  const displayTitle = gameTitleText.trim() ? gameTitleText.trim().toUpperCase() : ''
   const hostedLine = profileName ? `Hosted by ${profileName}` : 'Hosted by you'
   const canCreate = Boolean(basePut && gameTitleText.trim().length > 0)
 
@@ -145,7 +153,7 @@ export function CreateGameThemeScreen() {
           <button
             type="button"
             className="cgt-back"
-            aria-label="Back"
+            aria-label="Back to setup"
             onClick={() => navigate(gamePaths.createGameWizard)}
           >
             <BackArrowIcon width={18} height={14} stroke="#fff" />
@@ -155,12 +163,34 @@ export function CreateGameThemeScreen() {
             {emoji}
           </span>
           <p className="cgt-hosted">{hostedLine}</p>
-          <h1 className="cgt-title" style={titleStyle}>
-            {displayTitle}
+          <h1
+            className={`cgt-title${displayTitle ? '' : ' cgt-title--empty'}`}
+            style={titleStyle}
+            aria-label={displayTitle ? undefined : 'Game name (not set yet)'}
+          >
+            {displayTitle || '\u00a0'}
           </h1>
         </div>
 
         <div className="cgt-dock">
+          <div className="cgt-navRow">
+            <button type="button" className="cgt-navLink" onClick={() => navigate(gamePaths.createGameWizard)}>
+              Back to setup
+            </button>
+            <button type="button" className="cgt-navLink" onClick={() => navigate(gamePaths.createGame)}>
+              Exit
+            </button>
+          </div>
+          <p className="cgt-dockTitle">Game name</p>
+          <input
+            type="text"
+            className="cgt-nameInput"
+            placeholder="Name your game"
+            value={gameTitleText}
+            maxLength={80}
+            onChange={(e) => setGameTitleText(e.target.value)}
+            autoComplete="off"
+          />
           <p className="cgt-dockTitle">Palette</p>
           <div className="cgt-swatchesRow">
             <div className="cgt-swatches" role="list">

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { SIMVEST_USER_ID_STORAGE_KEY } from '../user/simvestUserId'
 import type { GameFeedPostRow } from '../challenge/useGameFeed'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -52,6 +53,19 @@ export function useHomeActivityFeed() {
 
   useEffect(() => {
     void load('initial')
+  }, [load])
+
+  useEffect(() => {
+    const onUserId = () => void load('initial')
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === SIMVEST_USER_ID_STORAGE_KEY) void load('initial')
+    }
+    window.addEventListener('simvest:user-id-changed', onUserId)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener('simvest:user-id-changed', onUserId)
+      window.removeEventListener('storage', onStorage)
+    }
   }, [load])
 
   useEffect(() => {

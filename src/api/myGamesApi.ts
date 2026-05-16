@@ -1,5 +1,6 @@
 import { simvestFetch } from './simvestFetch'
 import { welcomeThemeForPalette } from '../game/gameThemePresets'
+import { firstGraphemeFromString } from '../game/loadScreenEmoji'
 
 export type MyGameCardTheme = {
   joinButtonColor: string
@@ -11,7 +12,20 @@ export type MyGameCardTheme = {
   titleTextShadow?: string
 }
 
-export type MyGameSummary = { slug: string; title: string; subtitle: string; cardTheme: MyGameCardTheme }
+export type MyGameSummary = {
+  slug: string
+  title: string
+  subtitle: string
+  cardTheme: MyGameCardTheme
+  /** Host-selected load-screen emoji (one grapheme). */
+  loadScreenEmoji: string
+  status: 'live' | 'finished'
+  endsAtIso: string | null
+  /** True when this viewer published / owns the game runtime row. */
+  isHost: boolean
+  /** Pending private-game join requests awaiting host approval. */
+  pendingJoinRequestCount: number
+}
 
 function defaultCardTheme(): MyGameCardTheme {
   const w = welcomeThemeForPalette('ocean_deep')
@@ -78,7 +92,30 @@ export async function fetchMyJoinedGames(): Promise<MyGameSummary[]> {
     const title = typeof o.title === 'string' ? o.title : ''
     const subtitle = typeof o.subtitle === 'string' ? o.subtitle : ''
     if (!slug || !title) continue
-    out.push({ slug, title, subtitle, cardTheme: parseCardTheme(o.cardTheme) })
+    const statusRaw = o.status
+    const status: 'live' | 'finished' =
+      statusRaw === 'finished' ? 'finished' : 'live'
+    const endsAtIso = typeof o.endsAtIso === 'string' && o.endsAtIso.length >= 10 ? o.endsAtIso : null
+    const loadScreenEmoji =
+      typeof o.loadScreenEmoji === 'string' && o.loadScreenEmoji.trim().length > 0
+        ? firstGraphemeFromString(o.loadScreenEmoji)
+        : firstGraphemeFromString('🍁')
+    const isHost = o.isHost === true
+    const pendingJoinRequestCount =
+      typeof o.pendingJoinRequestCount === 'number' && Number.isFinite(o.pendingJoinRequestCount)
+        ? Math.max(0, Math.floor(o.pendingJoinRequestCount))
+        : 0
+    out.push({
+      slug,
+      title,
+      subtitle,
+      cardTheme: parseCardTheme(o.cardTheme),
+      loadScreenEmoji,
+      status,
+      endsAtIso,
+      isHost,
+      pendingJoinRequestCount,
+    })
   }
   return out
 }

@@ -1,0 +1,36 @@
+<svg width="292" height="286" viewBox="0 0 292 286" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="phone" x1="90" y1="19" x2="207" y2="260" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f9fdff"/>
+      <stop offset="1" stop-color="#d8f2ff"/>
+    </linearGradient>
+    <linearGradient id="card" x1="73" y1="52" x2="217" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0f9bdd"/>
+      <stop offset="1" stop-color="#064a75"/>
+    </linearGradient>
+    <filter id="shadow" x="37" y="0" width="218" height="286" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#062d4b" flood-opacity=".24"/>
+    </filter>
+  </defs>
+  <circle cx="51" cy="58" r="30" fill="#b9ecff" opacity=".75"/>
+  <circle cx="241" cy="84" r="38" fill="#5bc7ff" opacity=".28"/>
+  <circle cx="237" cy="234" r="22" fill="#d9f7ff" opacity=".85"/>
+  <g filter="url(#shadow)">
+    <rect x="78" y="14" width="136" height="244" rx="31" fill="#062f4d"/>
+    <rect x="88" y="26" width="116" height="220" rx="24" fill="url(#phone)"/>
+    <rect x="122" y="36" width="48" height="5" rx="2.5" fill="#063a5f" opacity=".25"/>
+    <rect x="101" y="61" width="90" height="34" rx="13" fill="url(#card)"/>
+    <path d="M115 82C123 73 130 80 138 72C148 62 154 69 164 60C171 54 179 56 185 50" stroke="#b8f1ff" stroke-width="5" stroke-linecap="round"/>
+    <rect x="101" y="112" width="43" height="55" rx="14" fill="#ffffff"/>
+    <rect x="151" y="112" width="40" height="55" rx="14" fill="#ffffff"/>
+    <path d="M112 148V132" stroke="#0b93d1" stroke-width="7" stroke-linecap="round"/>
+    <path d="M126 148V123" stroke="#055f94" stroke-width="7" stroke-linecap="round"/>
+    <path d="M163 149V137" stroke="#77d9ff" stroke-width="7" stroke-linecap="round"/>
+    <path d="M177 149V125" stroke="#0b93d1" stroke-width="7" stroke-linecap="round"/>
+    <rect x="101" y="183" width="90" height="10" rx="5" fill="#bfeeff"/>
+    <rect x="101" y="202" width="68" height="10" rx="5" fill="#d9f7ff"/>
+  </g>
+  <path d="M34 202C63 176 92 190 117 165C142 140 174 151 200 124C219 105 240 104 260 92" stroke="#8be2ff" stroke-width="8" stroke-linecap="round" opacity=".72"/>
+  <circle cx="117" cy="165" r="7" fill="#ffffff"/>
+  <circle cx="200" cy="124" r="7" fill="#ffffff"/>
+</svg>

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const VOTES_PATH = path.join(__dirname, 'data', 'feed-poll-votes.json')
@@ -12,23 +13,28 @@ function key(postId: string, userId: string): string {
 }
 
 async function readFile(): Promise<VotesFile> {
-  try {
-    const raw = JSON.parse(await fs.readFile(VOTES_PATH, 'utf8')) as VotesFile
-    if (raw && raw.votes && typeof raw.votes === 'object') return raw
-  } catch {
-    /* missing */
-  }
-  return { votes: {} }
+  return readJsonWithMtimeCache<VotesFile>(VOTES_PATH, (raw) => {
+    if (!raw) return { votes: {} }
+    try {
+      const parsed = JSON.parse(raw) as VotesFile
+      if (parsed && parsed.votes && typeof parsed.votes === 'object') return parsed
+    } catch {
+      /* corrupt — fall through */
+    }
+    return { votes: {} }
+  })
 }
 
 async function writeFile(data: VotesFile): Promise<void> {
   await fs.mkdir(path.dirname(VOTES_PATH), { recursive: true })
   await fs.writeFile(VOTES_PATH, JSON.stringify(data, null, 2), 'utf8')
+  invalidateJsonFileCache(VOTES_PATH)
 }
 
+// Hot path: every feed hydration calls this; return the cached object directly (read-only view).
 export async function loadAllPollVotes(): Promise<Record<string, string>> {
   const { votes } = await readFile()
-  return { ...votes }
+  return votes
 }
 
 export function tallyPollFromMap(
@@ -75,10 +81,10 @@ export async function castPollVote(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!postId || !userId || userId.length < 8) return { ok: false, error: 'Invalid request' }
   if (!validOptionIds.has(optionId)) return { ok: false, error: 'Invalid option' }
-  const file = await readFile()
+  const cached = await readFile()
   const k = key(postId, userId)
-  if (file.votes[k]) return { ok: false, error: 'You already voted on this poll' }
-  file.votes[k] = optionId
-  await writeFile(file)
+  if (cached.votes[k]) return { ok: false, error: 'You already voted on this poll' }
+  const next: VotesFile = { votes: { ...cached.votes, [k]: optionId } }
+  await writeFile(next)
   return { ok: true }
 }

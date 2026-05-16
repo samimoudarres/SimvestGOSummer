@@ -19,6 +19,12 @@ export type CompletedTradeSnapshot = {
   marketCapLabel: string
   revenueLabel: string
   gameTitle: string
+  /** Sells only: total cost basis (shares × avgEntryPrice) of the FIFO lots unwound. */
+  costBasis?: number
+  /** Sells only: realized P&L = orderTotal − costBasis. */
+  realizedPnlDollars?: number
+  /** Sells only: realized P&L percent vs cost basis. */
+  realizedPnlPct?: number
   /** Set when trade was persisted at Place Order — sheet only PATCHes rationale after. */
   postId?: string
 }

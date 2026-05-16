@@ -1,5 +1,12 @@
 /** Massive REST client — key stays server-side only. Throttles + retries to avoid 429 rate limits. */
 
+import {
+  isLivePricingPathname,
+  logMassive429,
+  logMassiveNetworkResponse,
+  massiveLiveTraceEnabled,
+} from './massiveLiveTrace'
+
 const MASSIVE_BASE = 'https://api.massive.com'
 
 export class MassiveApiError extends Error {
@@ -25,12 +32,23 @@ const MIN_GAP_MS = readNonNegativeInt(process.env.MASSIVE_MIN_GAP_MS, 55)
 /** Non-live Massive GETs (reference, financials, …). Invalid env → safe default. */
 const CACHE_TTL_MS = readNonNegativeInt(process.env.MASSIVE_CACHE_TTL_MS, 30_000)
 /**
- * Snapshot + aggregate responses only. A **very short** TTL coalesces duplicate identical
- * requests (detail + browse + portfolio polling) so we do not hammer Massive into sustained
- * 429s — which leaves the UI stuck on the last successful payload for hours. Set to `0` in
- * `.env` to disable live caching entirely (higher 429 risk under load).
+ * Snapshot + aggregate responses only. Short TTL coalesces duplicate identical requests
+ * (detail + browse + portfolio polling) so we do not hammer Massive into sustained 429s.
+ * Set to `0` in `.env` to disable live response caching entirely (higher 429 risk under load).
+ * Values above `LIVE_RESPONSE_CACHE_HARD_CAP_MS` are clamped so a mis-set env cannot cache
+ * quotes or aggregates for many minutes.
  */
 const LIVE_RESPONSE_MAX_CACHE_MS = readNonNegativeInt(process.env.MASSIVE_LIVE_MAX_CACHE_MS, 2_000)
+/** Never cache snapshot/aggs responses longer than this, regardless of `MASSIVE_CACHE_TTL_MS`. */
+const LIVE_RESPONSE_CACHE_HARD_CAP_MS = 15_000
+
+/**
+ * Slow-changing Massive data: company name/description, financial statements, ratios, and
+ * dividend declarations. Only the **list** route `/v3/reference/tickers` is long-cached —
+ * `/v3/reference/tickers/{symbol}` must stay on `CACHE_TTL_MS` or a bad prefix match would
+ * freeze reference payloads (and anything merged from them) for 30 minutes.
+ */
+const SLOW_CHANGING_CACHE_MS = Math.max(CACHE_TTL_MS, 30 * 60_000)
 
 function responseCacheTtlMs(pathname: string): number {
   if (CACHE_TTL_MS <= 0) return 0
@@ -39,8 +57,15 @@ function responseCacheTtlMs(pathname: string): number {
     pathname.includes('/v2/aggs/ticker/')
   if (live) {
     if (LIVE_RESPONSE_MAX_CACHE_MS <= 0) return 0
-    return Math.min(CACHE_TTL_MS, LIVE_RESPONSE_MAX_CACHE_MS)
+    return Math.min(CACHE_TTL_MS, LIVE_RESPONSE_MAX_CACHE_MS, LIVE_RESPONSE_CACHE_HARD_CAP_MS)
   }
+  const slowChanging =
+    pathname === '/v3/reference/tickers' ||
+    /^\/v3\/reference\/tickers\/[^/]+$/.test(pathname) ||
+    pathname.startsWith('/vX/reference/financials') ||
+    pathname.startsWith('/stocks/financials/v1/') ||
+    pathname.startsWith('/v3/reference/dividends')
+  if (slowChanging) return SLOW_CHANGING_CACHE_MS
   return CACHE_TTL_MS
 }
 /** Abort hung TCP connections so one stalled fetch cannot occupy all concurrency slots forever. */
@@ -87,7 +112,7 @@ function cacheKey(url: URL): string {
   return u.toString()
 }
 
-type CacheEntry = { exp: number; text: string }
+type CacheEntry = { exp: number; text: string; storedAt?: number }
 const responseCache = new Map<string, CacheEntry>()
 const inflight = new Map<string, Promise<string>>()
 
@@ -138,6 +163,10 @@ export async function massiveGet<T>(path: string, params?: Record<string, string
     const hit = responseCache.get(ck)
     if (hit && hit.exp > now) {
       try {
+        if (massiveLiveTraceEnabled() && isLivePricingPathname(url.pathname)) {
+          const cacheAgeMs = hit.storedAt != null ? now - hit.storedAt : null
+          logMassiveNetworkResponse(url.pathname, url.toString(), hit.text, 'cache-hit', cacheAgeMs)
+        }
         return JSON.parse(hit.text) as T
       } catch {
         responseCache.delete(ck)
@@ -149,6 +178,9 @@ export async function massiveGet<T>(path: string, params?: Record<string, string
   if (pending) {
     try {
       const text = await pending
+      if (massiveLiveTraceEnabled() && isLivePricingPathname(url.pathname)) {
+        logMassiveNetworkResponse(url.pathname, url.toString(), text, 'inflight', null)
+      }
       return JSON.parse(text) as T
     } catch (e) {
       if (e instanceof MassiveApiError) throw e
@@ -181,12 +213,16 @@ export async function massiveGet<T>(path: string, params?: Record<string, string
           const base = retryAfter != null ? retryAfter * 1000 : Math.min(2500 * 2 ** attempt, 20_000)
           /* Small jitter so many parallel waiters do not retry Massive in the same millisecond. */
           backoffMs = base + Math.floor(Math.random() * 400)
+          logMassive429(url.pathname, url.toString(), attempt, backoffMs, retryAfter)
         } else if (!res.ok) {
           throw new MassiveApiError(res.status, text)
         } else {
           const ttl = responseCacheTtlMs(url.pathname)
           if (ttl > 0) {
-            responseCache.set(ck, { exp: Date.now() + ttl, text })
+            responseCache.set(ck, { exp: Date.now() + ttl, text, storedAt: Date.now() })
+          }
+          if (massiveLiveTraceEnabled() && isLivePricingPathname(url.pathname)) {
+            logMassiveNetworkResponse(url.pathname, url.toString(), text, 'network', null)
           }
           return text
         }

@@ -7,7 +7,7 @@
   justify-content: center;
   align-items: flex-start;
   background: #e8e8e8;
-  padding: 24px 0 48px;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) calc(48px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
   box-sizing: border-box;
 }
 
@@ -137,13 +137,10 @@
 }
 
 .gw-details {
-  position: absolute;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  top: 330px;
-  width: 394px;
+  width: 100%;
+  max-width: 394px;
   margin: 0;
-  padding: 0 8px;
+  padding: 0 4px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -152,36 +149,52 @@
   font-family: 'Nunito Sans', sans-serif;
   font-weight: 800;
   font-size: 20px;
-  line-height: 1.08;
+  line-height: 1.15;
   text-align: center;
   color: #fff;
   font-variation-settings: 'YTLC' 500, 'wdth' 100;
-  z-index: 2;
+}
+
+/* Schedule + buy-in + private note + join — flex column so lines never stack on the same pixel row. */
+.gw-midStack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 268px;
+  max-height: 278px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px 10px;
+  box-sizing: border-box;
+  z-index: 3;
+}
+
+.gw-midStack--noEconomy {
+  max-height: 480px;
 }
 
 .gw-buyin {
-  position: absolute;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  top: 400px;
   margin: 0;
-  width: 320px;
+  width: 100%;
+  max-width: 320px;
   text-align: center;
   font-family: 'Nunito Sans', sans-serif;
   font-weight: 900;
   font-size: 20px;
-  line-height: normal;
+  line-height: 1.2;
   color: #fff;
   font-variation-settings: 'YTLC' 500, 'wdth' 100;
-  z-index: 3;
 }
 
 .gw-privateNote {
-  position: absolute;
-  left: 20px;
-  width: 362px;
-  top: 358px;
   margin: 0;
+  width: 100%;
+  max-width: 362px;
   padding: 10px 12px;
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.12);
@@ -192,15 +205,13 @@
   color: rgba(255, 255, 255, 0.95);
   text-align: center;
   font-variation-settings: 'YTLC' 500, 'wdth' 100;
-  z-index: 4;
   box-sizing: border-box;
 }
 
 .gw-join {
-  position: absolute;
-  left: 69px;
-  top: 420px;
+  flex-shrink: 0;
   width: 263px;
+  max-width: 100%;
   height: 43px;
   padding: 0;
   margin: 0;
@@ -217,7 +228,6 @@
   font-variation-settings: 'YTLC' 500, 'wdth' 100;
   box-shadow: 0 0 7px rgba(15, 174, 55, 0.8);
   background: #0fae37;
-  z-index: 4;
 }
 
 .gw-join:active {
@@ -321,10 +331,10 @@
 .gw-players {
   position: absolute;
   left: 50%;
-  transform: translate(-50%, -50%);
-  top: 806px;
+  bottom: 40px;
+  transform: translateX(-50%);
   margin: 0;
-  width: 300px;
+  width: min(300px, calc(100% - 32px));
   text-align: center;
   font-family: 'Nunito Sans', sans-serif;
   font-weight: 700;
@@ -375,17 +385,4 @@
   font-weight: 700;
   font-size: 15px;
   color: rgba(255, 255, 255, 0.9);
-}
-
-.gw-phone--noEconomy .gw-privateNote {
-  top: 318px;
-}
-
-.gw-phone--noEconomy .gw-join {
-  top: 392px;
-}
-
-.gw-phone--noEconomy .gw-players {
-  top: 470px;
-  transform: translate(-50%, 0);
 }

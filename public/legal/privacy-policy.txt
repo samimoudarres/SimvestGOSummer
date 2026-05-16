@@ -1,0 +1,167 @@
+SIMVEST
+PRIVACY POLICY
+Effective Date: May 15, 2025  |  Last Updated: May 15, 2025
+
+This Privacy Policy ("Policy") describes how Simvest ("Simvest," "we," "our," or "us") collects, uses, stores, discloses, and protects information about you when you access or use the Simvest mobile and web application (collectively, the "App" or "Service"). By creating an account, accessing, or using the Service, you acknowledge that you have read and understood this Policy and agree to our practices as described herein. If you do not agree with the terms of this Policy, please do not use the Service.
+
+Simvest is a gamified, simulated stock-trading and investing competition platform. The Service allows users to practice stock trading risk-free using virtual funds and live market data, compete in investment competitions, and engage with a social community. Simvest does not facilitate real-money trading and is not a broker-dealer, investment adviser, or financial institution.
+
+1. SCOPE AND APPLICATION
+This Policy applies to all users of the Simvest Service, including individuals who create registered accounts, individuals who access the Service prior to registration using an anonymous device identifier, and any organizations or employers that access the workplace competition features. This Policy does not apply to third-party websites or services that may be linked from within the App.
+
+2. INFORMATION WE COLLECT
+2.1 Information You Provide Directly
+When you register for an account or use certain features of the Service, we collect the following categories of personal information:
+•	Account Credentials: Your email address, phone number, and password. Passwords are stored using industry-standard one-way hashing algorithms and are never stored or transmitted in plaintext.
+•	Profile Information: Display name, username, avatar or profile photo URL, contact preferences, and other optional profile customization data you choose to provide.
+•	In-Game Setup Information: A chosen in-game name, avatar, and any additional profile data you enter when joining or creating a game.
+•	Communications: If you contact us for support or feedback, we may collect the content of your communications and any personal information you choose to share in those communications.
+
+2.2 Information We Collect Automatically
+When you use the Service, we and our service providers automatically collect certain information, including:
+•	Device and Session Identifiers: We generate and store a stable, pseudonymous user identifier ("Viewer ID" or "User ID") in your browser's local storage (under the key simvest-user-id-v1). This identifier is transmitted to our servers via request headers (X-Simvest-User-Id) and query parameters to associate your activity with your session or account.
+•	Pre-Registration Activity: Before you create an account, your activity on the Service may be associated with your anonymous device identifier. Upon account creation or login, this pseudonymous activity data may be merged with your registered account using our identifier merge service (viewerIdMergeService).
+•	Usage and Log Data: Our servers may automatically record information such as your Internet Protocol (IP) address, browser type and version, operating system, referring and exit URLs, pages or features accessed, timestamps, and error logs.
+•	Session Storage Data: During the account registration process, draft data such as sign-up identifiers and names may be temporarily stored in your browser's session storage (sessionStorage). This data is automatically cleared once registration is complete.
+•	Local Storage Data: In addition to your User ID, we store certain preferences and state in your browser's local storage, including the slug of your last active game, a list of recently searched ticker symbols, a comparison token list for the performance comparison feature, and optional developer debug flags.
+
+2.3 Gameplay, Competition, and Social Activity Data
+The core functionality of the Service requires us to collect and process data related to your participation in investment competitions and social features, including:
+•	Game and Competition Data: Information about the games you create or join, including game names, join codes, host identity, game rules (duration, theme, asset class restrictions, visibility settings, buy-in amounts), and your membership status.
+•	Portfolio and Trading Data: Your simulated cash balance, simulated holdings, individual trade lots (including ticker symbol, trade type, quantity, simulated price, and timestamp), portfolio net worth snapshots, and final end-of-game performance snapshots. All trades are simulated and do not represent real financial transactions.
+•	Leaderboard and Performance Metrics: Rankings, return percentages, and other performance metrics derived from your simulated trading data.
+•	Activity Feed Content: Posts you create in game activity feeds, including text content, trade announcements, and polls; edits to your posts; reactions to other users' posts; and your votes on polls.
+•	Social Graph Data: Records of which accounts you follow and which ticker symbols you follow within a given game.
+•	Notification Preferences: Your preferences regarding push notification alerts for posts by authors you choose to follow within a game, stored in our notification preference records.
+
+2.4 Push Notification Data
+If you grant permission for push notifications, we collect and store your browser or device push subscription endpoint (a unique URL generated by your browser or operating system) on our servers. This endpoint is used solely to deliver push notifications to you. We use the Web Push protocol with VAPID (Voluntary Application Server Identification) key authentication to send notifications. The content of push notifications is limited to alert titles, body text, and links relevant to activity in your games (e.g., a post by an author you follow).
+
+3. MARKET DATA AND THIRD-PARTY DATA PROVIDERS
+The Service uses live stock market data to power simulated trading features. To provide this data, Simvest integrates with a third-party market data provider ("Market Data Provider") that offers stock quotes, price histories, and other financial market information.
+
+All requests to the Market Data Provider are routed through Simvest's own backend servers using a server-side API key. Your personal API credentials are never transmitted to the Market Data Provider. However, in the course of processing these requests, the Market Data Provider may receive and log technical data such as your IP address (as observed by our server), the ticker symbols or financial instruments you query, request timestamps, and other standard server-side request metadata.
+
+The collection and use of any data by the Market Data Provider is governed by that provider's own privacy policy and terms of service. We encourage you to review those terms. The market data provided through the Service is for simulation purposes only. Simvest makes no representations or warranties regarding the accuracy, completeness, or timeliness of any market data.
+
+4. HOW WE USE YOUR INFORMATION
+We use the information we collect for the following purposes:
+•	Account Creation and Authentication: To create, maintain, and secure your account; to verify your identity; and to authenticate your sessions.
+•	Service Delivery: To operate the core features of the App, including managing game creation and membership, executing simulated trades, maintaining portfolio state, calculating leaderboard rankings, and delivering activity feed content.
+•	Push Notifications: To send you push notifications about activity you have opted into, such as new posts by authors you follow in your games.
+•	Communications: To respond to your inquiries, provide customer support, and send administrative messages (e.g., security alerts, service updates).
+•	Personalization and Preferences: To remember your preferences, display your recent tickers, and customize your experience within the Service.
+•	Safety, Security, and Fraud Prevention: To detect, investigate, and prevent fraudulent, unauthorized, or illegal activity; to enforce our Terms of Service; and to protect the rights, property, and safety of Simvest, our users, and the public.
+•	Analytics and Service Improvement: To analyze usage patterns and user behavior (based on log data and app metrics) to improve the functionality, reliability, and user experience of the Service.
+•	Legal Compliance: To comply with applicable laws, regulations, legal processes, and governmental requests.
+
+We will not use your personal information for purposes materially different from those described in this Policy without providing you with notice and, where required by applicable law, obtaining your consent.
+
+5. LEGAL BASES FOR PROCESSING (EEA / UK USERS)
+If you are located in the European Economic Area ("EEA") or the United Kingdom ("UK"), Simvest processes your personal data on the following legal bases under the General Data Protection Regulation (GDPR) or UK GDPR, as applicable:
+•	Performance of a Contract: Processing necessary to provide the Service you have requested, including account creation, game participation, and core App functionality.
+•	Legitimate Interests: Processing for our legitimate business interests, including ensuring the security and integrity of the Service, improving our products, preventing fraud, and conducting analytics, provided such interests are not overridden by your rights and freedoms.
+•	Consent: Where we rely on your consent (e.g., push notification permissions), you may withdraw that consent at any time.
+•	Legal Obligation: Processing required to comply with applicable laws or regulations.
+
+6. COOKIES AND BROWSER STORAGE
+The Service currently uses browser-based local storage and session storage, rather than HTTP cookies, as the primary mechanism for storing state on your device. The specific data stored is described in Section 2 above. This storage is essential to the core functionality of the Service; without it, certain features (such as persistent login and game navigation) may not function properly.
+
+We may add cookie-based tracking or analytics technologies in the future, in which case we will update this Policy accordingly. If you clear your browser's local storage or session storage, certain preferences and your session state will be reset.
+
+7. DISCLOSURE OF YOUR INFORMATION
+We do not sell your personal information. We may share your information in the following circumstances:
+7.1 Within the Service
+Certain information you provide or generate is visible to other users of the Service by design. This includes:
+•	Your username, display name, and avatar, which are visible to other users in games you participate in.
+•	Your simulated portfolio performance, leaderboard ranking, and related statistics, which are visible to other participants in the same game.
+•	Posts, polls, reactions, and other content you submit to a game's activity feed, which are visible to other members of that game.
+•	The authors you follow for notifications, within the context of notification preferences you set within a game.
+Game visibility is controlled by game settings. Private games require host approval for new participants to join and access game content.
+
+7.2 Service Providers
+We may engage third-party companies and individuals to perform services on our behalf ("Service Providers"), such as hosting infrastructure providers, data storage vendors, and market data providers. These Service Providers have access to your personal information only to the extent necessary to perform their functions, and they are contractually prohibited from using it for any other purpose.
+
+7.3 Business Transfers
+If Simvest is involved in a merger, acquisition, reorganization, sale of assets, bankruptcy, or similar transaction, your personal information may be transferred as part of that transaction. We will provide notice before your personal information is transferred and becomes subject to a different privacy policy.
+
+7.4 Legal Requirements and Protection of Rights
+We may disclose your information if we believe in good faith that such disclosure is necessary to (a) comply with a legal obligation, court order, subpoena, or governmental authority; (b) protect and defend the rights or property of Simvest; (c) prevent or investigate possible wrongdoing in connection with the Service; or (d) protect the personal safety of users of the Service or the public.
+
+8. DATA RETENTION
+We retain your personal information for as long as necessary to provide you with the Service, to fulfill the purposes described in this Policy, and to comply with our legal obligations. The following general retention practices apply:
+•	Account Data: Your account information (including email, username, and profile data) is retained for the duration of your account and for a reasonable period thereafter in case you choose to reactivate your account, following which it will be deleted or anonymized upon a verified deletion request.
+•	Gameplay and Portfolio Data: Simulated trade histories, portfolio snapshots, and game membership records associated with completed games are retained for the duration of your account unless you request deletion.
+•	Activity Feed Content: Posts, reactions, and poll votes are retained for the duration of the associated game and your account. Deleted posts may be removed from the feed display but may be retained in logs or backups for a limited period.
+•	Push Notification Subscriptions: Push subscription endpoints are retained until you revoke your notification permissions or your subscription is otherwise invalidated by your browser or operating system.
+•	Server Log Data: Standard server access logs containing IP addresses, user agents, and request timestamps are retained for a limited period in accordance with our security and operational needs.
+
+If you request deletion of your account, we will delete or anonymize your personal information within a reasonable time, except where we are required to retain it by law, regulation, or for the resolution of disputes. Some data may persist in backups for a limited additional period before being permanently deleted.
+
+9. YOUR RIGHTS AND CHOICES
+9.1 Account and Profile Settings
+You may review, correct, or update your account profile information, contact preferences, and notification settings at any time through the Settings section of the App. You may also update or remove the list of authors for whom you receive post notifications through the feed notification preferences within each game.
+
+9.2 Push Notifications
+You may withdraw your consent to receive push notifications at any time by adjusting the notification permissions for the Simvest application in your browser's or device's operating system settings. Withdrawal of notification permission may also be available within the App's settings interface, where Simvest will attempt to direct you to the appropriate system settings if notifications have been blocked.
+
+9.3 Browser and Device Storage
+You may clear your browser's local storage and session storage at any time through your browser's settings. Please note that doing so will delete your stored User ID and session data, which may log you out and reset certain preferences.
+
+9.4 Data Rights (EEA, UK, and California Residents)
+Depending on your jurisdiction, you may have rights with respect to your personal information, which may include:
+•	Right of Access: The right to request a copy of the personal information we hold about you.
+•	Right to Rectification: The right to request correction of inaccurate or incomplete personal information.
+•	Right to Erasure ("Right to be Forgotten"): The right to request deletion of your personal information, subject to certain exceptions.
+•	Right to Restriction of Processing: The right to request that we limit the processing of your personal information in certain circumstances.
+•	Right to Data Portability: The right to receive your personal information in a structured, machine-readable format.
+•	Right to Object: The right to object to our processing of your personal information based on legitimate interests.
+•	Right to Withdraw Consent: Where processing is based on your consent, the right to withdraw that consent at any time.
+•	Right to Non-Discrimination: California residents who exercise their privacy rights will not receive discriminatory treatment from Simvest.
+
+To exercise any of the above rights, please contact us using the information provided in Section 15. We may require you to verify your identity before processing your request. We will respond to verified requests within the timeframes required by applicable law.
+
+10. CHILDREN'S PRIVACY
+The Service is intended for users who are at least 13 years of age. Simvest does not knowingly collect personal information from children under the age of 13 without verifiable parental consent. If you are a parent or guardian and believe that your child under the age of 13 has provided us with personal information without your consent, please contact us immediately using the information in Section 15. We will take prompt steps to investigate and, if confirmed, delete such information from our systems.
+
+Users between the ages of 13 and 17 may use the Service subject to the consent and supervision of a parent or legal guardian, where required by applicable law. If you are under 18 years of age, we encourage you to review this Policy with a parent or guardian.
+
+We do not direct the Service toward children under 13, and the App is not designed or intended for use by that age group. If we learn that we have collected personal information from a child under 13 without required parental consent, we will delete that information as quickly as possible.
+
+11. SECURITY
+We implement commercially reasonable technical and organizational security measures designed to protect your personal information against unauthorized access, disclosure, alteration, and destruction. These measures include, but are not limited to:
+•	Password Hashing: User passwords are hashed using a recognized, one-way cryptographic algorithm before storage. Passwords are never stored or logged in plaintext.
+•	Transport Security: The Service is designed to be accessed over HTTPS (Transport Layer Security) to encrypt data transmitted between your device and our servers. This is required for Web Push functionality and is our standard for all user-facing endpoints.
+•	Access Controls: Access to user data stored on our systems is restricted to authorized personnel who require such access to perform their job functions.
+
+Please note that no method of transmission over the Internet or method of electronic storage is 100% secure. While we strive to use commercially acceptable means to protect your personal information, we cannot guarantee its absolute security. You are responsible for maintaining the security of your account credentials and for any activity that occurs under your account.
+
+The current authentication model for the Service transmits user identifiers via request headers and query parameters. You should take care to use the Service over trusted network connections. We recommend that you enable device-level security features (such as screen lock) to further protect your data.
+
+12. INTERNATIONAL DATA TRANSFERS
+Simvest may store and process your personal information on servers and through service providers located in the United States or other countries, which may have data protection laws that differ from those of your country of residence. If you are located in the EEA, UK, or another jurisdiction with restrictions on international data transfers, we will ensure that appropriate safeguards are in place to protect your personal information in compliance with applicable law, such as Standard Contractual Clauses approved by the European Commission or equivalent mechanisms.
+
+By using the Service, you acknowledge that your personal information may be transferred to, and processed in, the United States or other jurisdictions.
+
+13. THIRD-PARTY LINKS AND SERVICES
+The Service may contain links to third-party websites, applications, or services, including the websites of our market data providers. This Policy does not apply to the privacy practices of those third parties. We encourage you to review the privacy policies of any third-party services you access through or in connection with the Service.
+
+14. DISCLAIMER REGARDING FINANCIAL INFORMATION
+The Simvest platform is a simulation and educational tool only. Nothing in the Service constitutes financial, investment, tax, or legal advice. All trading on the Service is simulated using virtual funds; no real money is invested or at risk. Market data provided through the Service, including stock quotes, price charts, and related financial data, is sourced from a third-party provider and is provided for simulation purposes only. Simvest does not guarantee the accuracy, completeness, or timeliness of any market data, and such data may be subject to the terms and conditions of our third-party data providers. Past simulated performance is not indicative of future real-world investment results.
+
+15. CHANGES TO THIS POLICY
+We may update this Privacy Policy from time to time to reflect changes in our practices, the Service, or applicable law. When we make material changes, we will notify you by posting the updated Policy in the App and updating the "Last Updated" date at the top of this Policy. If required by applicable law, we will provide additional notice (such as an in-app notification or email). Your continued use of the Service after the effective date of any updated Policy constitutes your acceptance of the revised Policy.
+
+We encourage you to review this Policy periodically to stay informed about how we collect, use, and protect your information.
+
+16. CONTACT US
+If you have any questions, concerns, or requests regarding this Privacy Policy or our privacy practices, or if you wish to exercise any of your data rights described in Section 9, please contact us at:
+
+Simvest
+Attn: Privacy Compliance
+Email: privacy@simvest.app
+
+We will endeavor to respond to all legitimate privacy inquiries within the timeframes required by applicable law.
+
+© 2025 Simvest. All Rights Reserved.
+This document constitutes the complete Privacy Policy of Simvest and supersedes all prior versions.
