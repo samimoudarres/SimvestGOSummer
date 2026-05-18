@@ -4,7 +4,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 const useHttpWebViewScheme = process.env.CAPACITOR_HTTP_SCHEME === '1'
 
 const config: CapacitorConfig = {
-  appId: 'com.simvest.app',
+  appId: 'com.simvest.myapp',
   appName: 'Simvest',
   webDir: 'dist',
   /* Deep blue near headers — reduces white flash before WebView paints */

@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Simvest</string>
     <string name="title_activity_main">Simvest</string>
-    <string name="package_name">com.simvest.app</string>
-    <string name="custom_url_scheme">com.simvest.app</string>
+    <string name="package_name">com.simvest.myapp</string>
+    <string name="custom_url_scheme">com.simvest.myapp</string>
 </resources>

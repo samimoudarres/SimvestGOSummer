@@ -1,4 +1,4 @@
-package com.simvest.app;
+package com.simvest.myapp;
 
 import com.getcapacitor.BridgeActivity;
 
