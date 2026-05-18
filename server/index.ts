@@ -2482,6 +2482,12 @@ app.get('/api/stocks/:ticker/bars', async (req, res) => {
   }
 })
 
+/** Store policy pages (privacy, terms, account deletion) — required for Play / App Store listings. */
+const publicLegalDir = path.join(__dirname, '..', 'public', 'legal')
+if (fs.existsSync(publicLegalDir)) {
+  app.use('/legal', express.static(publicLegalDir, { index: false }))
+}
+
 const distDir = path.join(__dirname, '..', 'dist')
 const simvestServeDist =
   process.env.SIMVEST_SERVE_DIST === '1' || process.env.SIMVEST_SERVE_DIST === 'true'
@@ -2499,7 +2505,7 @@ if (simvestServeDist) {
         next()
         return
       }
-      if (req.path.startsWith('/api')) {
+      if (req.path.startsWith('/api') || req.path.startsWith('/legal')) {
         next()
         return
       }
