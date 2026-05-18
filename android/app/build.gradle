@@ -3,11 +3,26 @@ apply plugin: 'com.android.application'
 def keystorePropertiesFile = rootProject.file('keystore.properties')
 def keystoreProperties = new Properties()
 def hasReleaseSigning = false
+
+/** Load keystore.properties; tolerate UTF-8 BOM from Windows editors. */
+def loadKeystoreProperties(File file) {
+    def props = new Properties()
+    if (!file.exists()) return props
+    file.withReader('UTF-8') { reader -> props.load(reader) }
+    def cleaned = new Properties()
+    props.each { key, value ->
+        cleaned.setProperty(key.toString().replace('\uFEFF', '').trim(), value.toString())
+    }
+    return cleaned
+}
+
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    keystoreProperties = loadKeystoreProperties(keystorePropertiesFile)
     def storeFilePath = keystoreProperties.getProperty('storeFile')?.trim()
     if (storeFilePath && rootProject.file(storeFilePath).exists()) {
         hasReleaseSigning = true
+    } else if (keystorePropertiesFile.exists()) {
+        logger.warn('[simvest] keystore.properties found but release signing is disabled — check storeFile path and keystore file.')
     }
 }
 
@@ -18,8 +33,8 @@ android {
         applicationId "com.simvest.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        versionCode 2
+        versionName "1.0.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
