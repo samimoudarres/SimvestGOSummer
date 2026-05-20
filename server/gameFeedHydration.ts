@@ -9,7 +9,8 @@ import { massiveGet } from './massiveClient'
 import type { GameFeedPost, RichTextSegment } from './gameFeedService'
 import { normalizeGameSlugParam } from './gameSlugNormalize'
 import { getRuntimeRules } from './gameRuntimeRulesService'
-import { normalizeTicker, normalizeCryptoSnapshotShape, pickTickerSnapshotPrice, unwrapCryptoSnapshotBody } from './stockService'
+import { normalizeTicker, normalizeCryptoSnapshotShape, unwrapCryptoSnapshotBody } from './stockService'
+import { isUsEquitySymbol, pickStockMarkPrice, pickUsEquityFrozenChangePct } from './usEquityMarkPrice'
 import { deriveLegacyUserId } from './userProfileService'
 import { ensureUserProfilesBatch } from './userProfileService'
 import { getPollVoteFromMap, loadAllPollVotes, tallyPollFromMap } from './feedPollVotesService'
@@ -77,8 +78,8 @@ export function fmtPctSigned(n: number): string {
   return `${n >= 0 ? '+' : '-'}${Math.abs(n).toFixed(2)}%`
 }
 
-function pickLivePrice(s: SnapshotTicker | undefined): number | null {
-  return pickTickerSnapshotPrice(s as never)
+function pickLivePrice(sym: string, s: SnapshotTicker | undefined, atMs: number): number | null {
+  return pickStockMarkPrice(sym, s, atMs)
 }
 
 function formatEtTimestamp(iso: string): string {
@@ -136,12 +137,18 @@ async function fetchLivePriceMap(uniqueTickers: string[]): Promise<
   const stockSyms = uniqueTickers.filter((s) => !s.startsWith('X:'))
   const cryptoSyms = uniqueTickers.filter((s) => s.startsWith('X:'))
 
+  const atMs = Date.now()
   const ingest = (sym: string, t: SnapshotTicker | null | undefined): void => {
     const norm = normalizeCryptoSnapshotShape(t as never) ?? t ?? undefined
-    let pct =
-      norm?.todaysChangePerc != null && Number.isFinite(norm.todaysChangePerc) ? norm.todaysChangePerc : null
+    let pct: number | null = null
+    if (isUsEquitySymbol(sym)) {
+      pct = pickUsEquityFrozenChangePct(norm, atMs)
+    }
+    if (pct == null && norm?.todaysChangePerc != null && Number.isFinite(norm.todaysChangePerc)) {
+      pct = norm.todaysChangePerc
+    }
     if ((pct == null || !Number.isFinite(pct)) && norm) {
-      const price = pickLivePrice(norm)
+      const price = pickLivePrice(sym, norm, atMs)
       const prev = norm.prevDay?.c
       if (price != null && prev != null && prev !== 0) {
         pct = ((price - prev) / prev) * 100
@@ -153,7 +160,7 @@ async function fetchLivePriceMap(uniqueTickers: string[]): Promise<
       }
     }
     liveMap.set(sym, {
-      price: pickLivePrice(norm),
+      price: pickLivePrice(sym, norm, atMs),
       todaysChangePerc: pct != null && Number.isFinite(pct) ? pct : null,
     })
   }

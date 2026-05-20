@@ -1,4 +1,9 @@
 import { massiveGet } from './massiveClient'
+import {
+  pickStockMarkPrice,
+  pickUsEquityFrozenChangePct,
+  pickUsEquityFrozenDayChangePerShare,
+} from './usEquityMarkPrice'
 
 /** Raw-ish Massive shapes we read (subset). */
 type TickerDetails = {
@@ -527,14 +532,23 @@ async function fetchCryptoDetailPayload(sym: string): Promise<StockDetailPayload
   }
 }
 
+const stockDetailCache = new Map<string, { exp: number; payload: StockDetailPayload }>()
+const STOCK_DETAIL_CACHE_MS = 30_000
+
 export async function fetchStockDetail(ticker: string): Promise<StockDetailPayload> {
   const sym = resolveMassiveTicker(ticker)
   if (!sym) {
     throw new Error('Invalid ticker')
   }
 
+  const now = Date.now()
+  const hit = stockDetailCache.get(sym)
+  if (hit && hit.exp > now) return hit.payload
+
   if (sym.startsWith('X:')) {
-    return fetchCryptoDetailPayload(sym)
+    const payload = await fetchCryptoDetailPayload(sym)
+    stockDetailCache.set(sym, { exp: now + STOCK_DETAIL_CACHE_MS, payload })
+    return payload
   }
 
   const [
@@ -627,10 +641,17 @@ export async function fetchStockDetail(ticker: string): Promise<StockDetailPaylo
   const tkr = snap?.ticker
   const day = tkr?.day
   const prev = tkr?.prevDay
-  const lastPrice = pickPrice(tkr)
+  const atMs = Date.now()
+  const lastPrice = pickStockMarkPrice(sym, tkr, atMs)
   const lastPriceLabel = fmtPrice(lastPrice)
-  const ch = tkr?.todaysChange ?? null
-  const chp = tkr?.todaysChangePerc ?? null
+  let ch = tkr?.todaysChange ?? null
+  let chp = tkr?.todaysChangePerc ?? null
+  const frozenChp = pickUsEquityFrozenChangePct(tkr, atMs)
+  if (frozenChp != null) {
+    chp = frozenChp
+    const frozenCh = pickUsEquityFrozenDayChangePerShare(tkr, atMs)
+    if (frozenCh != null && Number.isFinite(frozenCh)) ch = frozenCh
+  }
   const changeTodayLabel =
     chp != null && Number.isFinite(chp) ? `${chp >= 0 ? '+' : ''}${chp.toFixed(2)}%` : '—'
 
@@ -764,7 +785,7 @@ export async function fetchStockDetail(ticker: string): Promise<StockDetailPaylo
 
   const founded = r.list_date ? String(r.list_date).slice(0, 4) : '—'
 
-  return {
+  const payload: StockDetailPayload = {
     ticker: sym,
     name,
     description,
@@ -788,6 +809,8 @@ export async function fetchStockDetail(ticker: string): Promise<StockDetailPaylo
     financialsEpsQuarterly,
     updatedAt: new Date().toISOString(),
   }
+  stockDetailCache.set(sym, { exp: Date.now() + STOCK_DETAIL_CACHE_MS, payload })
+  return payload
 }
 
 export type ChartRange = '1D' | '5D' | '1M' | '3M' | '1Y' | '5Y'
@@ -807,6 +830,16 @@ export function normalizeAggTimestampMs(t: number): number {
   return Math.floor(t)
 }
 
+const stockBarsCache = new Map<string, { at: number; bars: StockDetailBar[] }>()
+const STOCK_BARS_CACHE_MS = 45_000
+
+function stockBarsCacheKey(sym: string, range: ChartRange, window?: FetchStockBarsWindow | null): string {
+  if (window && Number.isFinite(window.windowStartMs) && Number.isFinite(window.windowEndMs)) {
+    return `${sym}|${range}|${window.windowStartMs}|${window.windowEndMs}`
+  }
+  return `${sym}|${range}|open`
+}
+
 export async function fetchStockBars(
   ticker: string,
   range: ChartRange,
@@ -814,6 +847,12 @@ export async function fetchStockBars(
 ): Promise<StockDetailBar[]> {
   const sym = resolveMassiveTicker(ticker)
   if (!sym) return []
+
+  const cacheKey = stockBarsCacheKey(sym, range, window ?? null)
+  const cached = stockBarsCache.get(cacheKey)
+  if (cached && Date.now() - cached.at < STOCK_BARS_CACHE_MS) {
+    return cached.bars.map((b) => ({ ...b }))
+  }
   let to: Date
   let from: Date
   let multiplier = 1
@@ -942,10 +981,10 @@ export async function fetchStockBars(
       v: b.v ?? 0,
     }))
 
-  if (!window && range === '1D' && sym.startsWith('X:')) {
-    return clipCryptoRolling24hBars(bars)
-  }
-  return bars
+  const out =
+    !window && range === '1D' && sym.startsWith('X:') ? clipCryptoRolling24hBars(bars) : bars
+  stockBarsCache.set(cacheKey, { at: Date.now(), bars: out.map((b) => ({ ...b })) })
+  return out
 }
 
 const US_MARKET_TZ = 'America/New_York'

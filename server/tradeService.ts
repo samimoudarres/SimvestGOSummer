@@ -10,6 +10,7 @@ import {
   resolveMassiveTicker,
   unwrapCryptoSnapshotBody,
 } from './stockService'
+import { isUsEquitySymbol, pickStockMarkPrice, pickUsEquityFrozenChangePct } from './usEquityMarkPrice'
 
 export type TradeCategoryId =
   | 'popular'
@@ -154,13 +155,17 @@ function numFromObj(o: unknown, ...keys: string[]): number | null {
   return null
 }
 
-function pickPrice(s: SnapTicker | undefined): number | null {
-  return pickTickerSnapshotPrice(s as never)
+function pickPrice(sym: string, s: SnapTicker | undefined): number | null {
+  return pickStockMarkPrice(sym, s as never)
 }
 
 /** Use snapshot % change when present; else derive like the stock detail screen (stocks + crypto). */
-function changePctFromSnap(s: SnapTicker | undefined): number | null {
+function changePctFromSnap(sym: string, s: SnapTicker | undefined): number | null {
   if (!s) return null
+  if (isUsEquitySymbol(sym)) {
+    const frozen = pickUsEquityFrozenChangePct(s as never)
+    if (frozen != null) return frozen
+  }
   const raw = s as Record<string, unknown>
   const fromSnap =
     typeof s.todaysChangePerc === 'number' && Number.isFinite(s.todaysChangePerc)
@@ -171,7 +176,7 @@ function changePctFromSnap(s: SnapTicker | undefined): number | null {
           ? raw.todays_change_percent
           : null
   if (fromSnap != null && Number.isFinite(fromSnap)) return fromSnap
-  const last = pickPrice(s)
+  const last = pickPrice(sym, s)
   const prev = numFromObj(s.prevDay, 'c', 'C', 'close')
   if (last != null && prev != null && prev !== 0) {
     return ((last - prev) / prev) * 100
@@ -207,12 +212,9 @@ async function failNull<T>(p: Promise<T>): Promise<T | null> {
   }
 }
 
-/**
- * Crypto trade rows: spark from snapshot only (no per-row aggregate API — N× aggs causes timeouts / 429s).
- * Renders like a tiny trend from prior close → last, same point count as stocks for MiniSparkLine.
- */
-function cryptoSparkFromSnapshot(snap: SnapTicker | undefined): number[] {
-  const last = pickPrice(snap)
+/** Crypto rows only — snapshot-derived spark (no per-row aggs). */
+function sparkFromSnapshot(sym: string, snap: SnapTicker | undefined): number[] {
+  const last = pickPrice(sym, snap)
   const prev = numFromObj(snap?.prevDay, 'c', 'C', 'close')
   const n = 24
   if (last != null && prev != null && Number.isFinite(last) && Number.isFinite(prev) && prev > 0) {
@@ -241,11 +243,8 @@ function downsampleCloses(closes: number[], maxPoints: number): number[] {
   return out
 }
 
-/**
- * Per-ticker spark cache — keep TTL aligned with client quote polls so browse/search sparklines
- * do not sit on old closes while headline prices refresh.
- */
-const STOCK_SPARK_CACHE_MS = 5_000
+/** Stock spark cache — long TTL keeps browse/search fast while shapes stay accurate. */
+const STOCK_SPARK_CACHE_MS = 120_000
 const stockSparkCache = new Map<string, { exp: number; data: number[] }>()
 const stockSparkInflight = new Map<string, Promise<number[]>>()
 
@@ -264,7 +263,7 @@ async function sparkFor(sym: string): Promise<number[]> {
     if (data.length >= 2) {
       stockSparkCache.set(sym, { exp: Date.now() + STOCK_SPARK_CACHE_MS, data })
     }
-    return data
+    return data.length >= 2 ? data : sparkFromSnapshot(sym, undefined)
   })()
 
   stockSparkInflight.set(sym, work)
@@ -275,10 +274,9 @@ async function sparkFor(sym: string): Promise<number[]> {
   }
 }
 
-/** Parallel fetch of just the stock sparks (crypto are derived from snapshots elsewhere). */
 async function stockSparkBatch(stockSyms: string[]): Promise<Map<string, number[]>> {
   const map = new Map<string, number[]>()
-  for (const chunk of chunkArray(stockSyms, 10)) {
+  for (const chunk of chunkArray(stockSyms, 16)) {
     const part = await Promise.all(chunk.map(async (s) => [s, await sparkFor(s)] as const))
     for (const [s, sp] of part) {
       map.set(s, sp)
@@ -506,8 +504,8 @@ async function fetchStockSnapshotsBatch(tickers: string[]): Promise<Map<string, 
   const cryptoSyms = normalized.filter((s) => s.startsWith('X:'))
   const map = new Map<string, SnapTicker>()
 
-  const stockChunks = chunkArray(stockSyms, 18)
-  const SNAPSHOT_WAVE = 4
+  const stockChunks = chunkArray(stockSyms, 24)
+  const SNAPSHOT_WAVE = 6
   for (let w = 0; w < stockChunks.length; w += SNAPSHOT_WAVE) {
     const wave = stockChunks.slice(w, w + SNAPSHOT_WAVE)
     await Promise.all(
@@ -858,11 +856,9 @@ async function buildRowsForSymbols(
   maxRows = 28,
 ): Promise<TradeBrowseRow[]> {
   const syms = orderedSymbols.slice(0, maxRows)
+
   const stockSyms = syms.filter((s) => !s.startsWith('X:'))
 
-  /* Stock sparks don't depend on snapshots — kick them off in parallel with snapshots+names
-   * instead of waiting in series. On a cold load this roughly halves the perceived latency
-   * because the slow part (30 bar fetches) overlaps with the rest of the work. */
   const [snapMap, names, stockSparks] = await Promise.all([
     (async () => {
       const m = await fetchStockSnapshotsBatch(syms)
@@ -873,7 +869,7 @@ async function buildRowsForSymbols(
     stockSparkBatch(stockSyms),
   ])
 
-  const cryptoMissingPx = syms.filter((s) => s.startsWith('X:') && pickPrice(snapMap.get(s)) == null)
+  const cryptoMissingPx = syms.filter((s) => s.startsWith('X:') && pickPrice(s, snapMap.get(s)) == null)
   if (cryptoMissingPx.length) {
     const fills = await Promise.all(
       cryptoMissingPx.map(async (s) => [s, await pickLastCloseFromRecentAggs(s)] as const),
@@ -901,15 +897,17 @@ async function buildRowsForSymbols(
   const sparkMap = new Map<string, number[]>(stockSparks)
   for (const sym of syms) {
     if (sym.startsWith('X:')) {
-      sparkMap.set(sym, cryptoSparkFromSnapshot(snapMap.get(sym)))
+      sparkMap.set(sym, sparkFromSnapshot(sym, snapMap.get(sym)))
+    } else if (!sparkMap.has(sym) || (sparkMap.get(sym)?.length ?? 0) < 2) {
+      sparkMap.set(sym, sparkFromSnapshot(sym, snapMap.get(sym)))
     }
   }
 
   const rows: TradeBrowseRow[] = []
   for (const sym of syms) {
     const snap = snapMap.get(sym)
-    const lastPrice = pickPrice(snap)
-    const chp = changePctFromSnap(snap)
+    const lastPrice = pickPrice(sym, snap)
+    const chp = changePctFromSnap(sym, snap)
     const sparkline = sparkMap.get(sym) ?? []
     const spark =
       sparkline.length >= 2 ? sparkline : lastPrice != null ? [lastPrice, lastPrice] : [1, 1]
@@ -986,8 +984,13 @@ async function symbolsForCategory(
   }
 }
 
-/** In-flight only (no browse payload cache) so every poll returns fresh Massive quotes for all games. */
 const tradeBrowseInflight = new Map<string, Promise<TradeBrowsePayload>>()
+const tradeBrowsePayloadCache = new Map<string, { exp: number; payload: TradeBrowsePayload }>()
+/** Short TTL — coalesces tab switches + 5s polls without stale quotes for long. */
+const TRADE_BROWSE_CACHE_MS = 8_000
+
+const tradeSearchRowsCache = new Map<string, { exp: number; rows: TradeBrowseRow[] }>()
+const TRADE_SEARCH_CACHE_MS = 60_000
 
 function tradeBrowseInflightKey(gameSlug: string, viewerUserId: string | null, category: TradeCategoryId): string {
   return `${gameSlug}\t${viewerUserId ?? ''}\t${category}`
@@ -1005,16 +1008,22 @@ async function refreshTradeBrowse(
   category: TradeCategoryId,
 ): Promise<TradeBrowsePayload> {
   const k = tradeBrowseInflightKey(gameSlug, viewerUserId, category)
+  const now = Date.now()
+  const cached = tradeBrowsePayloadCache.get(k)
+  if (cached && cached.exp > now) return cached.payload
+
   const pending = tradeBrowseInflight.get(k)
   if (pending) return pending
   const work = (async (): Promise<TradeBrowsePayload> => {
     const syms = await symbolsForCategory(category, { gameSlug, userId: viewerUserId })
     const rows = await buildRowsForSymbols(syms, 30)
-    return {
+    const payload = {
       category,
       categories: TRADE_CATEGORY_OPTIONS,
       rows,
     }
+    tradeBrowsePayloadCache.set(k, { exp: Date.now() + TRADE_BROWSE_CACHE_MS, payload })
+    return payload
   })()
   tradeBrowseInflight.set(k, work)
   work.finally(() => tradeBrowseInflight.delete(k))
@@ -1096,13 +1105,30 @@ function scoreSearchMatch(qNorm: string, tickerRaw: string, nameRaw: string, mar
 
 const tradeSearchInflight = new Map<string, Promise<TradeBrowseRow[]>>()
 
+function shouldSearchCryptoReference(q: string): boolean {
+  const t = q.trim()
+  if (t.length < 1) return false
+  const u = t.toUpperCase()
+  if (u.startsWith('X:')) return true
+  if (/(USD|USDT|USDC|EUR)$/i.test(t)) return true
+  if (/^(BTC|ETH|SOL|XRP|DOGE|ADA|DOT|AVAX|LINK|LTC|BNB|SHIB|MATIC|POL|UNI|ATOM|NEAR|FIL|APT|ARB|OP|INJ|SEI)$/i.test(t)) {
+    return true
+  }
+  return false
+}
+
 async function refreshTradeSearch(cacheKey: string, q: string): Promise<TradeBrowseRow[]> {
+  const now = Date.now()
+  const cached = tradeSearchRowsCache.get(cacheKey)
+  if (cached && cached.exp > now) return cached.rows
+
   const pending = tradeSearchInflight.get(cacheKey)
   if (pending) return pending
   const work = (async (): Promise<TradeBrowseRow[]> => {
+    const wantCrypto = shouldSearchCryptoReference(q)
     const [stockHits, cryptoHits] = await Promise.all([
       referenceTickerSearch(q, 'stocks'),
-      referenceTickerSearch(q, 'crypto'),
+      wantCrypto ? referenceTickerSearch(q, 'crypto') : Promise.resolve([] as RefTickerRow[]),
     ])
 
     const merged = new Map<string, { ticker: string; name: string; marketCap: number; order: number }>()
@@ -1129,7 +1155,9 @@ async function refreshTradeSearch(cacheKey: string, q: string): Promise<TradeBro
     const symbols = ranked.slice(0, TRADE_SEARCH_MAX_ROWS).map((x) => x.sym)
     if (!symbols.length) return []
 
-    return buildRowsForSymbols(symbols, TRADE_SEARCH_MAX_ROWS)
+    const rows = await buildRowsForSymbols(symbols, TRADE_SEARCH_MAX_ROWS)
+    tradeSearchRowsCache.set(cacheKey, { exp: Date.now() + TRADE_SEARCH_CACHE_MS, rows })
+    return rows
   })()
   tradeSearchInflight.set(cacheKey, work)
   work.finally(() => tradeSearchInflight.delete(cacheKey))
@@ -1145,6 +1173,9 @@ export async function fetchTradeSearch(queryRaw: string): Promise<TradeBrowseRow
   return refreshTradeSearch(cacheKey, q)
 }
 
+const tradeRecentsRowsCache = new Map<string, { exp: number; rows: TradeBrowseRow[] }>()
+const TRADE_RECENTS_CACHE_MS = 12_000
+
 /** Hydrate browse rows for stored recent tickers (order preserved). */
 export async function fetchTradeRecentRows(orderSymbols: string[]): Promise<TradeBrowseRow[]> {
   const ordered: string[] = []
@@ -1156,5 +1187,11 @@ export async function fetchTradeRecentRows(orderSymbols: string[]): Promise<Trad
     ordered.push(t)
   }
   if (!ordered.length) return []
-  return buildRowsForSymbols(ordered.slice(0, 24), 24)
+  const key = ordered.slice(0, 24).join(',')
+  const now = Date.now()
+  const hit = tradeRecentsRowsCache.get(key)
+  if (hit && hit.exp > now) return hit.rows
+  const rows = await buildRowsForSymbols(ordered.slice(0, 24), 24)
+  tradeRecentsRowsCache.set(key, { exp: now + TRADE_RECENTS_CACHE_MS, rows })
+  return rows
 }

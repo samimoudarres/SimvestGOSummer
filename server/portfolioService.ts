@@ -10,6 +10,12 @@ import {
   resolveMassiveTicker,
   unwrapCryptoSnapshotBody,
 } from './stockService'
+import {
+  isUsEquitySymbol,
+  pickStockMarkPrice,
+  pickUsEquityFrozenChangePct,
+  pickUsEquityFrozenDayChangePerShare,
+} from './usEquityMarkPrice'
 import { getGameLeaderboardStanding } from './gameLeaderboardService'
 import { ensureGameFinalSnapshot } from './gameFinalSnapshotService'
 import { getRuntimeRules } from './gameRuntimeRulesService'
@@ -51,8 +57,16 @@ function numFromObj(o: unknown, ...keys: string[]): number | null {
   return null
 }
 
-function derivedChangePctFromSnapshot(s: NonNullable<Snapshot['ticker']> | undefined): number | null {
+function derivedChangePctFromSnapshot(
+  sym: string,
+  s: NonNullable<Snapshot['ticker']> | undefined,
+  atMs: number,
+): number | null {
   if (!s) return null
+  if (isUsEquitySymbol(sym)) {
+    const frozen = pickUsEquityFrozenChangePct(s, atMs)
+    if (frozen != null) return frozen
+  }
   const raw = s as Record<string, unknown>
   const fromSnap =
     typeof s.todaysChangePerc === 'number' && Number.isFinite(s.todaysChangePerc)
@@ -63,7 +77,7 @@ function derivedChangePctFromSnapshot(s: NonNullable<Snapshot['ticker']> | undef
           ? raw.todays_change_percent
           : null
   if (fromSnap != null && Number.isFinite(fromSnap)) return fromSnap
-  const last = pickTickerSnapshotPrice(s)
+  const last = pickStockMarkPrice(sym, s, atMs)
   const prev = numFromObj(s.prevDay, 'c', 'C', 'close')
   if (last != null && prev != null && prev !== 0) {
     return ((last - prev) / prev) * 100
@@ -489,9 +503,9 @@ export async function buildPortfolioRows(
     const frozenPx = opts?.frozenTickerPx?.get(sym)
     const useFrozen = frozenPx != null && Number.isFinite(frozenPx) && frozenPx > 0
 
-    let lastPrice = pickTickerSnapshotPrice(snap)
+    let lastPrice = pickStockMarkPrice(sym, snap, nowMs)
     const prevClose = numFromObj(snap?.prevDay, 'c', 'C', 'close')
-    let chp = derivedChangePctFromSnapshot(snap)
+    let chp = derivedChangePctFromSnapshot(sym, snap, nowMs)
     if (sym.startsWith('X:') && lastPrice != null) {
       if (prevClose != null && prevClose !== 0) {
         chp = ((lastPrice - prevClose) / prevClose) * 100
@@ -518,12 +532,15 @@ export async function buildPortfolioRows(
           : typeof rawSnap?.todays_change === 'number' && Number.isFinite(rawSnap.todays_change)
             ? rawSnap.todays_change
             : null
+    const frozenPerShare = isUsEquitySymbol(sym) ? pickUsEquityFrozenDayChangePerShare(snap, nowMs) : null
     let perShareDay =
-      dayMoveFromSnap != null && Number.isFinite(dayMoveFromSnap)
-        ? dayMoveFromSnap
-        : lastPrice != null && prevClose != null
-          ? lastPrice - prevClose
-          : null
+      frozenPerShare != null
+        ? frozenPerShare
+        : dayMoveFromSnap != null && Number.isFinite(dayMoveFromSnap)
+          ? dayMoveFromSnap
+          : lastPrice != null && prevClose != null
+            ? lastPrice - prevClose
+            : null
     let todayDollars =
       perShareDay != null && Number.isFinite(perShareDay) ? perShareDay * shares : null
     let spark = sparks.get(sym) ?? []
