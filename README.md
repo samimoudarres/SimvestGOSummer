@@ -79,7 +79,7 @@ docker compose up --build
 
 Copy **`.env.example`** → **`.env`** and fill required keys before **`docker run`** / **`docker compose`** (same variables as local API). The image sets **`SIMVEST_SERVE_DIST=true`** and **`NODE_ENV=production`**; **`PORT`** defaults to **3001** inside **`server/index.ts`** unless you override it. To publish a different host port, set **`SIMVEST_DOCKER_PORT`** (maps to container **3001**).
 
-The **`Dockerfile`** runs **`npm run qa:phase7-automation`** during **`docker build`** so the client bundle matches the Phase 7 gates (same as a release candidate build). For a quicker **local-only** image build that skips that gate, use **`docker build --build-arg SKIP_QUALITY_CHECKS=1 ...`** or **`SKIP_QUALITY_CHECKS=1 docker compose build`** (PowerShell: **`$env:SKIP_QUALITY_CHECKS='1'; docker compose build`**), then **`docker compose up`** without **`--build`** if the image is already built.
+The **`Dockerfile`** can run **`npm run qa:phase7-automation`** during **`docker build`** when **`RUN_QA_CHECKS=1`** (needs **`MASSIVE_API_KEY`** at build time). Render and most hosts only inject env at **runtime**, so the **`Dockerfile`** defaults to **`npm run build`** (no Massive API calls during image build). For a **local** image that runs the full Phase 7 gate, use **`docker build --build-arg RUN_QA_CHECKS=1 ...`** or **`RUN_QA_CHECKS=1 docker compose build`** (PowerShell: **`$env:RUN_QA_CHECKS='1'; docker compose build`**), then **`docker compose up`** without **`--build`** if the image is already built.
 
 No UI or route behavior changes in dev: **`npm run dev`** still uses Vite’s **`/api` proxy**; **`VITE_API_ORIGIN`** stays unset.
 

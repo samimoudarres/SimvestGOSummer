@@ -7,7 +7,7 @@
 #   docker compose up --build -d   # detached
 #
 # Faster image builds (skips Phase 7 gate inside Dockerfile — dev-only):
-#   SKIP_QUALITY_CHECKS=1 docker compose build
+#   RUN_QA_CHECKS=0 docker compose build
 
 services:
   simvest:
@@ -15,7 +15,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        SKIP_QUALITY_CHECKS: ${SKIP_QUALITY_CHECKS:-0}
+        RUN_QA_CHECKS: ${RUN_QA_CHECKS:-0}
     ports:
       - "${SIMVEST_DOCKER_PORT:-3001}:3001"
     env_file:

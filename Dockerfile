@@ -10,9 +10,11 @@ RUN npm ci
 
 COPY . .
 
-ARG SKIP_QUALITY_CHECKS=0
-RUN if [ "$SKIP_QUALITY_CHECKS" = "1" ]; then npm run build; \
-    else npm run qa:phase7-automation; fi
+# QA scripts call Massive (needs MASSIVE_API_KEY). Render only injects env at runtime, not
+# during `docker build`, so default to compile-only. Local: docker build --build-arg RUN_QA_CHECKS=1 .
+ARG RUN_QA_CHECKS=0
+RUN if [ "$RUN_QA_CHECKS" = "1" ]; then npm run qa:phase7-automation; \
+    else npm run build; fi
 
 ENV NODE_ENV=production
 ENV SIMVEST_SERVE_DIST=true
