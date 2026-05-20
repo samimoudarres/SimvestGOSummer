@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core'
 
 /** Baked at build time when set in `.env` / `.env.capacitor` (empty string if unset). */
 function viteApiOriginFromEnv(): string {
-  const raw = import.meta.env.VITE_API_ORIGIN
+  const raw = import.meta.env?.VITE_API_ORIGIN
   if (typeof raw !== 'string') return ''
   return raw.trim().replace(/\/+$/, '')
 }
@@ -84,8 +84,8 @@ export function resolveApiUrl(pathOrUrl: string): string {
 
 /** Dev-only: catch common `VITE_API_ORIGIN` mistakes early in the console. */
 export function logDevApiOriginMisconfiguration(): void {
-  if (!import.meta.env.DEV) return
-  const raw = import.meta.env.VITE_API_ORIGIN
+  if (!import.meta.env?.DEV) return
+  const raw = import.meta.env?.VITE_API_ORIGIN
   if (typeof raw !== 'string') return
   const t = raw.trim()
   if (!t) return

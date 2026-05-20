@@ -11,6 +11,7 @@ export function warnIfNativeWithoutApiOrigin(): void {
     return
   }
   const fromEnv =
-    typeof import.meta.env.VITE_API_ORIGIN === 'string' && import.meta.env.VITE_API_ORIGIN.trim().length > 0
+    typeof import.meta.env?.VITE_API_ORIGIN === 'string' &&
+    (import.meta.env?.VITE_API_ORIGIN ?? '').trim().length > 0
   console.info('[simvest] Native API origin:', origin, fromEnv ? '(from VITE_API_ORIGIN)' : '(dev default)')
 }

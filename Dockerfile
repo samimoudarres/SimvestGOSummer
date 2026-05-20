@@ -6,6 +6,8 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 
 COPY package.json package-lock.json ./
+# Render injects NODE_ENV=production before build; without this, npm ci skips devDependencies (tsc, vite).
+ENV NPM_CONFIG_PRODUCTION=false
 RUN npm ci
 
 COPY . .
