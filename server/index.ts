@@ -10,6 +10,7 @@ import cors from 'cors'
 import { gameHostLine, gameTitle, slugToVariant } from '../src/challenge/gameMeta'
 import { sanitizeLoadScreenEmoji } from '../src/game/loadScreenEmoji.ts'
 import { emptyPerformDashboard } from '../src/perform/performDummy'
+import { ensureDataDirReady, getDataDir } from './dataDir.ts'
 import { sendBrandingIcon } from './branding'
 import { massiveGet, MassiveApiError } from './massiveClient'
 import {
@@ -372,7 +373,12 @@ function formatEtTimestamp(iso: string): string {
 }
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'simvest-api' })
+  res.json({
+    ok: true,
+    service: 'simvest-api',
+    dataDir: getDataDir(),
+    persistentData: Boolean(process.env.SIMVEST_DATA_DIR?.trim()),
+  })
 })
 
 /** Resolve a six-digit join code to the welcome payload (player count is live from membership). */
@@ -2594,13 +2600,20 @@ async function runStartupReconciles(): Promise<void> {
 
 const port = Number(process.env.PORT ?? 3001)
 const host = process.env.SIMVEST_LISTEN_HOST?.trim() || '0.0.0.0'
-app.listen(port, host, () => {
-  console.log(`Simvest API listening on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (bound ${host})`)
-  void runStartupReconciles()
-  void initVapidKeys().catch((err) => {
-    console.warn(
-      '[simvest] Web Push init skipped:',
-      err instanceof Error ? err.message : err,
-    )
+void ensureDataDirReady()
+  .then(() => {
+    app.listen(port, host, () => {
+      console.log(`Simvest API listening on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (bound ${host})`)
+      void runStartupReconciles()
+      void initVapidKeys().catch((err) => {
+        console.warn(
+          '[simvest] Web Push init skipped:',
+          err instanceof Error ? err.message : err,
+        )
+      })
+    })
   })
-})
+  .catch((err) => {
+    console.error('[simvest] Failed to initialize data directory:', err)
+    process.exit(1)
+  })

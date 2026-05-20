@@ -1,9 +1,7 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const STREAK_PATH = path.join(__dirname, 'data', 'perform-rank-streaks.json')
+const STREAK_PATH = dataFilePath('perform-rank-streaks.json')
 
 type Entry = { lastRank: number; streakDays: number; lastCheckedDay: string }
 type StreakFile = { version: 1; entries: Record<string, Entry> }

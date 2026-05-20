@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
+import { dataFilePath } from './dataDir.ts'
 import { normalizeUserId } from './followsService'
 import { canonicalGameSlugKey } from './gameSlugNormalize'
 import { getFeedPostById } from './gameFeedService'
@@ -9,8 +8,7 @@ import { ensureUserProfilesBatch } from './userProfileService'
 import { loadAllSetupProfilesByKey } from './userSetupProfileService'
 import { resolveProfileAvatarUrl } from '../src/user/resolveProfileAvatarUrl.ts'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const STORE_PATH = path.join(__dirname, 'data', 'feed-post-social.json')
+const STORE_PATH = dataFilePath('feed-post-social.json')
 
 export type FeedSocialCommentDoc = {
   id: string

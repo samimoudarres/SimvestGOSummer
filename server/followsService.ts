@@ -1,11 +1,9 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { runSerializedByKey } from './fsMutationQueue'
 import { normalizeTicker, resolveMassiveTicker } from './stockService'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const FOLLOWS_PATH = path.join(__dirname, 'data', 'follows.json')
+const FOLLOWS_PATH = dataFilePath('follows.json')
 const FOLLOWS_LOCK_KEY = FOLLOWS_PATH
 
 /** userId → gameSlug → ticker list (canonical symbols). */

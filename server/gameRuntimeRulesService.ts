@@ -1,7 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { runSerializedByKey } from './fsMutationQueue'
 import type { TradeCategoryId } from './tradeService'
 import { isTradeCategory } from './tradeService'
@@ -15,8 +14,7 @@ import {
 } from '../src/game/gameThemePresets.ts'
 import { sanitizeLoadScreenEmoji } from '../src/game/loadScreenEmoji.ts'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const RULES_PATH = path.join(__dirname, 'data', 'game-runtime-rules.json')
+const RULES_PATH = dataFilePath('game-runtime-rules.json')
 
 const MS_DAY = 86_400_000
 

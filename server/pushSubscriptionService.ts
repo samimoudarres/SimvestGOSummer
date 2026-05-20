@@ -1,11 +1,9 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { normalizeUserId } from './followsService'
 import { invalidateJsonFileCache } from './jsonFileCache'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const SUBS_PATH = path.join(__dirname, 'data', 'user-web-push-subscriptions.json')
+const SUBS_PATH = dataFilePath('user-web-push-subscriptions.json')
 
 export type StoredPushSubscription = {
   endpoint: string

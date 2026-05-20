@@ -1,11 +1,9 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { normalizeUserId } from './followsService'
 import { invalidateJsonFileCache } from './jsonFileCache'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const NOTIFY_PATH = path.join(__dirname, 'data', 'activity-author-notify-preferences.json')
+const NOTIFY_PATH = dataFilePath('activity-author-notify-preferences.json')
 
 /** viewerUserId → author userIds (normalized) they want alerts for when those authors post. */
 type NotifyFile = { watchers: Record<string, string[]> }

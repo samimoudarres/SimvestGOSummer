@@ -1,12 +1,10 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
+import { dataFilePath } from './dataDir.ts'
 import { normalizeUserId } from './followsService'
 import { canonicalGameSlugKey, normalizeGameSlugParam } from './gameSlugNormalize'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const FEED_PATH = path.join(__dirname, 'data', 'game-feed.json')
+const FEED_PATH = dataFilePath('game-feed.json')
 
 /** Serialize read–modify–write on `game-feed.json` so concurrent posts/trades cannot drop rows. */
 let feedFileMutex = Promise.resolve()

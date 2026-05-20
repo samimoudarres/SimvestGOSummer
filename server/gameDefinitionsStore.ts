@@ -1,9 +1,7 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DEFS_PATH = path.join(__dirname, 'data', 'game-definitions.json')
+const DEFS_PATH = dataFilePath('game-definitions.json')
 
 export type GamePrizeDef = {
   rank: number

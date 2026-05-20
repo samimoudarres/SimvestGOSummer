@@ -1,9 +1,7 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const KEYS_PATH = path.join(__dirname, 'data', 'vapid-keys.json')
+const KEYS_PATH = dataFilePath('vapid-keys.json')
 
 export type VapidKeyPair = {
   publicKey: string

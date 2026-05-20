@@ -1,12 +1,10 @@
 import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
 import { runSerializedByKey } from './fsMutationQueue'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const SETUP_PROFILE_PATH = path.join(__dirname, 'data', 'user-setup-profiles.json')
+const SETUP_PROFILE_PATH = dataFilePath('user-setup-profiles.json')
 const SETUP_PROFILE_LOCK_KEY = SETUP_PROFILE_PATH
 
 /** Character length of full data URLs stored in JSON (~33% overhead vs binary JPEG). */

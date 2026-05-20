@@ -7,6 +7,11 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /api/health
+    # Persistent disk — player games, activity, accounts survive redeploys (required).
+    disk:
+      name: simvest-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -14,5 +19,7 @@ services:
         value: "true"
       - key: PORT
         value: "3001"
+      - key: SIMVEST_DATA_DIR
+        value: /var/data
       - key: MASSIVE_API_KEY
         sync: false

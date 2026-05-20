@@ -20,11 +20,10 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const ACCOUNTS_PATH = path.join(__dirname, 'data', 'user-accounts.json')
+const ACCOUNTS_PATH = dataFilePath('user-accounts.json')
 
 export type AccountContactKind = 'email' | 'phone'
 

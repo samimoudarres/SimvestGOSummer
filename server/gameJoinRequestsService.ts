@@ -1,15 +1,13 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { normalizeUserId } from './followsService'
 import { runSerializedByKey } from './fsMutationQueue'
 import { ensureGameJoinedAt } from './gameMembershipService'
 import { canonicalGameSlugKey, normalizeGameSlugParam } from './gameSlugNormalize'
 import { getRuntimeRules } from './gameRuntimeRulesService'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const REQ_PATH = path.join(__dirname, 'data', 'game-join-requests.json')
+const REQ_PATH = dataFilePath('game-join-requests.json')
 const REQ_LOCK_KEY = REQ_PATH
 
 export type JoinRequestStatus = 'pending' | 'approved' | 'rejected'

@@ -1,10 +1,8 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { runSerializedByKey } from './fsMutationQueue'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const MEMBERSHIP_PATH = path.join(__dirname, 'data', 'user-game-membership.json')
+const MEMBERSHIP_PATH = dataFilePath('user-game-membership.json')
 const MEMBERSHIP_LOCK_KEY = MEMBERSHIP_PATH
 
 type MembershipFile = { joins: Record<string, string> }

@@ -1,10 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { runSerializedByKey } from './fsMutationQueue'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const VIEWS_PATH = path.join(__dirname, 'data', 'user-finished-game-home-views.json')
+const VIEWS_PATH = dataFilePath('user-finished-game-home-views.json')
 const LOCK_KEY = VIEWS_PATH
 
 /** After this many home opens following game end, hide from "Your games" (still in API if queried directly). */

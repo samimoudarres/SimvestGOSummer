@@ -1,12 +1,10 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { isPlaceholderProfileAvatarUrl } from '../src/user/resolveProfileAvatarUrl.ts'
 import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
 import { runSerializedByKey } from './fsMutationQueue'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const PROFILE_PATH = path.join(__dirname, 'data', 'user-profiles.json')
+const PROFILE_PATH = dataFilePath('user-profiles.json')
 const PROFILE_LOCK_KEY = PROFILE_PATH
 
 /** Blank Instagram-style silhouette — used when a user hasn't picked a photo yet.

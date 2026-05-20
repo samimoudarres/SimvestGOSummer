@@ -1,13 +1,11 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { getRuntimeRules } from './gameRuntimeRulesService'
 import { getLedgerHoldingsForGame, getUserLedger } from './userGameStateService'
 import { listParticipantIdsForGame } from './gameParticipantIds'
 import { fetchLastCloseAtOrBefore, resolveMassiveTicker } from './stockService'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const SNAP_PATH = path.join(__dirname, 'data', 'game-final-snapshots.json')
+const SNAP_PATH = dataFilePath('game-final-snapshots.json')
 
 export type GameFinalPlayerSnap = {
   netWorth: number

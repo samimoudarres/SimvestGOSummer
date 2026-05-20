@@ -169,6 +169,10 @@ export function SimvestHome() {
       recordFinishedReopensNextLoadRef.current = true
       void load({ countFinishedReopens: true })
     }
+    const onNativeResume = () => {
+      recordFinishedReopensNextLoadRef.current = true
+      void load({ countFinishedReopens: true })
+    }
     const onStorageUser = (e: StorageEvent) => {
       if (e.key === SIMVEST_USER_ID_STORAGE_KEY) {
         recordFinishedReopensNextLoadRef.current = true
@@ -176,6 +180,7 @@ export function SimvestHome() {
       }
     }
     document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('simvest:native-app-resume', onNativeResume)
     window.addEventListener('simvest:activity-refresh', onActivity)
     window.addEventListener('simvest:holdings-refresh', onActivity)
     window.addEventListener('simvest:join-requests-changed', onJoinReq)
@@ -184,6 +189,7 @@ export function SimvestHome() {
     return () => {
       cancelled = true
       document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('simvest:native-app-resume', onNativeResume)
       window.removeEventListener('simvest:activity-refresh', onActivity)
       window.removeEventListener('simvest:holdings-refresh', onActivity)
       window.removeEventListener('simvest:join-requests-changed', onJoinReq)

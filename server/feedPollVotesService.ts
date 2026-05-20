@@ -1,10 +1,8 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const VOTES_PATH = path.join(__dirname, 'data', 'feed-poll-votes.json')
+const VOTES_PATH = dataFilePath('feed-poll-votes.json')
 
 type VotesFile = { votes: Record<string, string> }
 

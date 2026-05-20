@@ -1,13 +1,11 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataFilePath } from './dataDir.ts'
 import { normalizeCryptoCompositeTicker, normalizeTicker, resolveMassiveTicker } from './stockService'
 import { runSerializedByKey } from './fsMutationQueue'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const STATE_PATH = path.join(__dirname, 'data', 'user-game-state.json')
+const STATE_PATH = dataFilePath('user-game-state.json')
 const PORTFOLIO_LOCK_KEY = STATE_PATH
-const LEGACY_HOLDINGS_PATH = path.join(__dirname, 'data', 'holdings.json')
+const LEGACY_HOLDINGS_PATH = dataFilePath('holdings.json')
 
 export type HoldingRecord = { ticker: string; shares: number; avgCost: number }
 export type PositionLot = {
