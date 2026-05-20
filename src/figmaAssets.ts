@@ -1,12 +1,14 @@
+import { apiAssetSrc } from './config/apiAssetSrc'
+
 /** Local copies of Figma MCP export assets (see `public/figma-assets`). */
 export const assets = {
-  settings: '/figma-assets/vector-setting.png',
-  settingsAlt: '/figma-assets/vector-setting-alt.png',
-  notification: '/figma-assets/notification.png',
-  chevron: '/figma-assets/vertical-container.svg',
-  ellipsis: '/figma-assets/vector-ellipsis.svg',
-  stockUp: '/figma-assets/vector-stock.png',
-  graphBlue: '/figma-assets/group-graph.png',
-  graphGold: '/figma-assets/group3.png',
-  bulb: '/figma-assets/bulb.png',
+  settings: apiAssetSrc('/figma-assets/vector-setting.png'),
+  settingsAlt: apiAssetSrc('/figma-assets/vector-setting-alt.png'),
+  notification: apiAssetSrc('/figma-assets/notification.png'),
+  chevron: apiAssetSrc('/figma-assets/vertical-container.svg'),
+  ellipsis: apiAssetSrc('/figma-assets/vector-ellipsis.svg'),
+  stockUp: apiAssetSrc('/figma-assets/vector-stock.png'),
+  graphBlue: apiAssetSrc('/figma-assets/group-graph.png'),
+  graphGold: apiAssetSrc('/figma-assets/group3.png'),
+  bulb: apiAssetSrc('/figma-assets/challenge/bulb.svg'),
 } as const

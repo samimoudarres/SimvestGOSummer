@@ -1,17 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { simvestFetch } from '../api/simvestFetch'
+import { challengeAssets as a } from '../challenge/challengeAssets'
+import { ApiImage } from '../components/ApiImage'
 import { getSimvestUserId } from '../user/simvestUserId'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import type { CompletedTradeSnapshot } from './tradeOrderTypes'
 import './stockOrderReceived.css'
-
-const OU_CHECK =
-  'https://www.figma.com/api/mcp/asset/5fd63e03-d440-4639-b346-9d86c67c0371'
-const OU_TEXTAREA_BG =
-  'https://www.figma.com/api/mcp/asset/8d3b9a7e-e232-439d-a87c-4f7d6a84570b'
-const OU_BULB_SM =
-  'https://www.figma.com/api/mcp/asset/50cc6b0f-1bbb-4d1c-a377-19f70e9e7920'
 
 export type StockOrderReceivedSheetProps = {
   open: boolean
@@ -56,7 +51,6 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
     setSubmitting(true)
     try {
       const slug = trade.draft.gameSlug
-      /* Trade + ledger already saved at “Place Order”; optional PATCH rationale only */
       if (trade.postId) {
         const trimmed = rationale.trim()
         if (trimmed.length > 0) {
@@ -147,8 +141,17 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
         onClick={(e) => e.stopPropagation()}
       >
         <div className="ou-scroll">
-          <div className="ou-checkWrap">
-            <img className="ou-checkImg" src={OU_CHECK} alt="" width={86} height={86} />
+          <div className="ou-iconWrap">
+            <ApiImage
+              className="ou-stockIcon"
+              src={
+                trade.iconUrl ||
+                `/api/stocks/${encodeURIComponent(trade.apiTicker)}/branding-icon`
+              }
+              alt=""
+              width={72}
+              height={72}
+            />
           </div>
           <h2 className="ou-title" id="ou-title">
             {headerTitle}
@@ -184,14 +187,11 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
           ) : null}
 
           <div className="ou-rationaleHead">
-            <img className="ou-bulb" src={OU_BULB_SM} alt="" width={23} height={26} />
+            <ApiImage className="ou-bulb" src={a.bulb} alt="" width={23} height={26} />
             <span className="ou-rationaleLab">Share rationale for your post:</span>
           </div>
 
           <div className="ou-textShell">
-            <div className="ou-textBg" aria-hidden>
-              <img src={OU_TEXTAREA_BG} alt="" />
-            </div>
             <textarea
               ref={taRef}
               className="ou-textarea"

@@ -1,29 +1,37 @@
-import { useEffect, useState, type ImgHTMLAttributes } from 'react'
+import { useCallback, useEffect, useState, type ImgHTMLAttributes, type SyntheticEvent } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
 import { apiAssetSrc, isCapacitorShell } from '../config/apiAssetSrc'
 
+const DEFAULT_FALLBACK = '/figma-assets/blank-avatar.svg'
+
 type Props = ImgHTMLAttributes<HTMLImageElement> & {
   src: string | null | undefined
+  /** Shown when the primary `src` fails to load (404, network, empty blob). */
+  fallbackSrc?: string
 }
 
 /**
  * Renders API-hosted images on native: `<img src="http://…/api/…">` is blocked as mixed
  * content inside the HTTPS Capacitor WebView, but `fetch` works — we show a blob URL instead.
+ * Static `/figma-assets/...` paths are resolved via `apiAssetSrc` for Capacitor `base: './'`.
  */
-export function ApiImage({ src, alt = '', ...rest }: Props) {
+export function ApiImage({ src, alt = '', fallbackSrc, onError, ...rest }: Props) {
   const resolved = apiAssetSrc(src)
+  const fallback = apiAssetSrc(fallbackSrc ?? DEFAULT_FALLBACK)
   const [displaySrc, setDisplaySrc] = useState(resolved)
+  const [usingFallback, setUsingFallback] = useState(false)
 
   useEffect(() => {
+    setUsingFallback(false)
     if (!resolved) {
-      setDisplaySrc('')
+      setDisplaySrc(fallback)
+      setUsingFallback(true)
       return
     }
 
     const needsFetch =
-      isCapacitorShell() &&
-      /^https?:\/\//i.test(resolved) &&
-      /\/api\//i.test(resolved)
+      /\/api\//i.test(resolved) &&
+      (/^https?:\/\//i.test(resolved) || (isCapacitorShell() && resolved.startsWith('http')))
 
     if (!needsFetch) {
       setDisplaySrc(resolved)
@@ -42,7 +50,10 @@ export function ApiImage({ src, alt = '', ...rest }: Props) {
         objectUrl = URL.createObjectURL(blob)
         if (!cancelled) setDisplaySrc(objectUrl)
       } catch {
-        if (!cancelled) setDisplaySrc(resolved)
+        if (!cancelled) {
+          setDisplaySrc(fallback)
+          setUsingFallback(true)
+        }
       }
     })()
 
@@ -50,8 +61,19 @@ export function ApiImage({ src, alt = '', ...rest }: Props) {
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [resolved])
+  }, [resolved, fallback])
+
+  const handleError = useCallback(
+    (e: SyntheticEvent<HTMLImageElement>) => {
+      if (!usingFallback && fallback && displaySrc !== fallback) {
+        setDisplaySrc(fallback)
+        setUsingFallback(true)
+      }
+      onError?.(e)
+    },
+    [usingFallback, fallback, displaySrc, onError],
+  )
 
   if (!displaySrc) return null
-  return <img {...rest} src={displaySrc} alt={alt} />
+  return <img {...rest} src={displaySrc} alt={alt} onError={handleError} />
 }

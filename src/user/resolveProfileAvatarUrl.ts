@@ -13,8 +13,8 @@ const PLACEHOLDER_CHALLENGE_AVATAR =
 /** Safe `src` for `<img>`: real URL/data URL, or the grey default. */
 export function resolveProfileAvatarUrl(raw: string | null | undefined): string {
   const t = typeof raw === 'string' ? raw.trim() : ''
-  if (!t) return DEFAULT_PROFILE_AVATAR_URL
-  if (PLACEHOLDER_CHALLENGE_AVATAR.test(t)) return DEFAULT_PROFILE_AVATAR_URL
+  if (!t) return apiAssetSrc(DEFAULT_PROFILE_AVATAR_URL)
+  if (PLACEHOLDER_CHALLENGE_AVATAR.test(t)) return apiAssetSrc(DEFAULT_PROFILE_AVATAR_URL)
   return apiAssetSrc(t)
 }
 
