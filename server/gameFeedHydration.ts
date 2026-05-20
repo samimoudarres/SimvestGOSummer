@@ -10,7 +10,7 @@ import type { GameFeedPost, RichTextSegment } from './gameFeedService'
 import { normalizeGameSlugParam } from './gameSlugNormalize'
 import { getRuntimeRules } from './gameRuntimeRulesService'
 import { normalizeTicker, normalizeCryptoSnapshotShape, unwrapCryptoSnapshotBody } from './stockService'
-import { isUsEquitySymbol, pickStockMarkPrice, pickUsEquityFrozenChangePct } from './usEquityMarkPrice'
+import { pickStockMarkPrice, pickUsEquityFrozenChangePct } from './usEquityMarkPrice'
 import { deriveLegacyUserId } from './userProfileService'
 import { ensureUserProfilesBatch } from './userProfileService'
 import { getPollVoteFromMap, loadAllPollVotes, tallyPollFromMap } from './feedPollVotesService'
@@ -141,8 +141,8 @@ async function fetchLivePriceMap(uniqueTickers: string[]): Promise<
   const ingest = (sym: string, t: SnapshotTicker | null | undefined): void => {
     const norm = normalizeCryptoSnapshotShape(t as never) ?? t ?? undefined
     let pct: number | null = null
-    if (isUsEquitySymbol(sym)) {
-      pct = pickUsEquityFrozenChangePct(norm, atMs)
+    if (!sym.startsWith('X:')) {
+      pct = pickUsEquityFrozenChangePct(sym, norm, atMs)
     }
     if (pct == null && norm?.todaysChangePerc != null && Number.isFinite(norm.todaysChangePerc)) {
       pct = norm.todaysChangePerc
@@ -306,7 +306,7 @@ export async function hydrateGameFeedPosts(
       p.purchasePrice > 0 &&
       livePx != null
     ) {
-      // Buys keep "since purchase" relative to fill price vs the live market.
+      // `livePx` is a stable session close when the US market is closed (see pickStockMarkPrice).
       const raw = ((livePx - p.purchasePrice) / p.purchasePrice) * 100
       changePct = fmtPctSigned(raw)
     } else if (kind === 'trade' && changePct === '—' && live?.todaysChangePerc != null) {

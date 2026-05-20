@@ -3,6 +3,10 @@
  * regular session is closed (weekends, pre-market, after-hours).
  *
  * Crypto (`X:`) is unaffected — it trades 24/7.
+ *
+ * Snapshots can return different fields on batch vs single-ticker calls; we cache
+ * one stable quote per symbol per NY calendar day so feed/leaderboard numbers
+ * do not flicker between refreshes.
  */
 
 import { pickTickerSnapshotPrice } from './stockService'
@@ -10,6 +14,7 @@ import { pickTickerSnapshotPrice } from './stockService'
 const NY_TZ = 'America/New_York'
 const SESSION_OPEN_MIN = 9 * 60 + 30 // 9:30 ET
 const SESSION_CLOSE_MIN = 16 * 60 // 4:00 PM ET
+const STABLE_QUOTE_CACHE_MS = 10 * 60_000
 
 export type SnapshotTickerLike = {
   day?: { c?: number; o?: number }
@@ -20,6 +25,14 @@ export type SnapshotTickerLike = {
   todaysChange?: number
   todaysChangePerc?: number
 }
+
+type StableUsQuote = {
+  markPx: number
+  dayChangePerShare: number
+  dayChangePct: number
+}
+
+const stableQuoteCache = new Map<string, { exp: number; quote: StableUsQuote }>()
 
 function numFromObj(o: unknown, ...keys: string[]): number | null {
   if (!o || typeof o !== 'object') return null
@@ -50,6 +63,16 @@ function nyWallClock(atMs: number): { weekday: number; minutes: number } {
   return { weekday: map[wd] ?? 1, minutes: hour * 60 + minute }
 }
 
+/** `YYYY-MM-DD` in US/Eastern — cache key for stable closes. */
+export function etDateKey(atMs = Date.now()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: NY_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(atMs))
+}
+
 export function isUsEquitySymbol(sym: string): boolean {
   return !!sym && !sym.toUpperCase().startsWith('X:')
 }
@@ -65,32 +88,6 @@ export function isUsEquityRegularSessionOpen(atMs = Date.now()): boolean {
   if (!isUsEquityCalendarTradingDay(atMs)) return false
   const { minutes } = nyWallClock(atMs)
   return minutes >= SESSION_OPEN_MIN && minutes < SESSION_CLOSE_MIN
-}
-
-/** Last regular-session close from the snapshot day aggregate (not after-hours prints). */
-export function pickUsEquityOfficialClose(s: SnapshotTickerLike | undefined): number | null {
-  if (!s) return null
-  const dayClose = numFromObj(s.day, 'c', 'C', 'close')
-  if (dayClose != null) return dayClose
-  return numFromObj(s.prevDay, 'c', 'C', 'close')
-}
-
-/**
- * Mark price for portfolio, feed, and browse.
- * US stocks outside regular session use the official session close; crypto stays live.
- */
-export function pickStockMarkPrice(
-  sym: string,
-  s: SnapshotTickerLike | undefined,
-  atMs = Date.now(),
-): number | null {
-  if (!isUsEquitySymbol(sym)) {
-    return pickTickerSnapshotPrice(s as never)
-  }
-  if (isUsEquityRegularSessionOpen(atMs)) {
-    return pickTickerSnapshotPrice(s as never)
-  }
-  return pickUsEquityOfficialClose(s) ?? pickTickerSnapshotPrice(s as never)
 }
 
 function readTodaysChangePerc(s: SnapshotTickerLike | undefined): number | null {
@@ -116,37 +113,132 @@ function readTodaysChangeDollars(s: SnapshotTickerLike | undefined): number | nu
 }
 
 /**
+ * Stable US equity mark when the regular session is closed.
+ * - Weekends/holidays (non trading day): `prevDay.c` only (last completed session).
+ * - After hours on a trading day: `day.c` then `prevDay.c`.
+ * Never uses lastTrade / min / quote (those caused feed flicker).
+ */
+function computeStableUsQuote(s: SnapshotTickerLike | undefined, atMs: number): StableUsQuote | null {
+  const prev = numFromObj(s?.prevDay, 'c', 'C', 'close')
+  const dayClose = numFromObj(s?.day, 'c', 'C', 'close')
+
+  let markPx: number | null = null
+  if (!isUsEquityCalendarTradingDay(atMs)) {
+    // Weekends: `day` often still holds the last session (e.g. Friday); `prevDay` can be one session older.
+    markPx = dayClose ?? prev
+  } else if (!isUsEquityRegularSessionOpen(atMs)) {
+    markPx = dayClose ?? prev
+  } else {
+    return null
+  }
+
+  if (markPx == null || !Number.isFinite(markPx) || markPx <= 0) return null
+
+  let dayChangePerShare = 0
+  let dayChangePct = 0
+
+  if (!isUsEquityCalendarTradingDay(atMs)) {
+    dayChangePerShare = 0
+    dayChangePct = 0
+  } else {
+    const fromSnap$ = readTodaysChangeDollars(s)
+    const fromSnapPct = readTodaysChangePerc(s)
+    if (fromSnap$ != null && Number.isFinite(fromSnap$)) {
+      dayChangePerShare = fromSnap$
+    } else if (prev != null && prev !== 0 && dayClose != null) {
+      dayChangePerShare = dayClose - prev
+    }
+    if (fromSnapPct != null && Number.isFinite(fromSnapPct)) {
+      dayChangePct = fromSnapPct
+    } else if (prev != null && prev !== 0) {
+      dayChangePct = (dayChangePerShare / prev) * 100
+    }
+  }
+
+  return { markPx, dayChangePerShare, dayChangePct }
+}
+
+function getStableUsEquityQuote(
+  sym: string,
+  s: SnapshotTickerLike | undefined,
+  atMs: number,
+): StableUsQuote | null {
+  if (!isUsEquitySymbol(sym) || isUsEquityRegularSessionOpen(atMs)) return null
+
+  const cacheKey = `${sym}:${etDateKey(atMs)}`
+  const hit = stableQuoteCache.get(cacheKey)
+  if (hit && hit.exp > atMs) return hit.quote
+
+  const computed = computeStableUsQuote(s, atMs)
+  if (!computed) return null
+
+  stableQuoteCache.set(cacheKey, { exp: atMs + STABLE_QUOTE_CACHE_MS, quote: computed })
+  return computed
+}
+
+export function pickUsEquityOfficialClose(
+  sym: string,
+  s: SnapshotTickerLike | undefined,
+  atMs = Date.now(),
+): number | null {
+  return getStableUsEquityQuote(sym, s, atMs)?.markPx ?? computeStableUsQuote(s, atMs)?.markPx ?? null
+}
+
+/**
+ * Mark price for portfolio, feed, and browse.
+ * US stocks outside regular session use a cached stable close; crypto stays live.
+ */
+export function pickStockMarkPrice(
+  sym: string,
+  s: SnapshotTickerLike | undefined,
+  atMs = Date.now(),
+): number | null {
+  if (!isUsEquitySymbol(sym)) {
+    return pickTickerSnapshotPrice(s as never)
+  }
+  if (isUsEquityRegularSessionOpen(atMs)) {
+    return pickTickerSnapshotPrice(s as never)
+  }
+  const stable = getStableUsEquityQuote(sym, s, atMs)
+  if (stable) return stable.markPx
+  const fallback = computeStableUsQuote(s, atMs)
+  return fallback?.markPx ?? null
+}
+
+/**
  * Per-share $ move vs prior close for the **completed** regular session.
  * Returns 0 on non-trading days and before the open; `null` during regular session (caller uses live math).
  */
 export function pickUsEquityFrozenDayChangePerShare(
+  sym: string,
   s: SnapshotTickerLike | undefined,
   atMs = Date.now(),
 ): number | null {
-  if (isUsEquityRegularSessionOpen(atMs)) return null
+  if (!isUsEquitySymbol(sym) || isUsEquityRegularSessionOpen(atMs)) return null
+  const stable = getStableUsEquityQuote(sym, s, atMs)
+  if (stable) return stable.dayChangePerShare
   if (!isUsEquityCalendarTradingDay(atMs)) return 0
-
   const fromSnap = readTodaysChangeDollars(s)
   if (fromSnap != null && Number.isFinite(fromSnap)) return fromSnap
-
-  const close = pickUsEquityOfficialClose(s)
+  const dayClose = numFromObj(s?.day, 'c', 'C', 'close')
   const prev = numFromObj(s?.prevDay, 'c', 'C', 'close')
-  if (close != null && prev != null && prev !== 0) return close - prev
+  if (dayClose != null && prev != null && prev !== 0) return dayClose - prev
   return 0
 }
 
 /** Session % change when the regular US market is closed; `null` during regular session. */
 export function pickUsEquityFrozenChangePct(
+  sym: string,
   s: SnapshotTickerLike | undefined,
   atMs = Date.now(),
 ): number | null {
-  if (isUsEquityRegularSessionOpen(atMs)) return null
+  if (!isUsEquitySymbol(sym) || isUsEquityRegularSessionOpen(atMs)) return null
+  const stable = getStableUsEquityQuote(sym, s, atMs)
+  if (stable) return stable.dayChangePct
   if (!isUsEquityCalendarTradingDay(atMs)) return 0
-
   const fromSnap = readTodaysChangePerc(s)
   if (fromSnap != null && Number.isFinite(fromSnap)) return fromSnap
-
-  const perShare = pickUsEquityFrozenDayChangePerShare(s, atMs)
+  const perShare = pickUsEquityFrozenDayChangePerShare(sym, s, atMs)
   const prev = numFromObj(s?.prevDay, 'c', 'C', 'close')
   if (perShare != null && prev != null && prev !== 0) return (perShare / prev) * 100
   return 0

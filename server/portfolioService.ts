@@ -64,7 +64,7 @@ function derivedChangePctFromSnapshot(
 ): number | null {
   if (!s) return null
   if (isUsEquitySymbol(sym)) {
-    const frozen = pickUsEquityFrozenChangePct(s, atMs)
+    const frozen = pickUsEquityFrozenChangePct(sym, s, atMs)
     if (frozen != null) return frozen
   }
   const raw = s as Record<string, unknown>
@@ -532,7 +532,7 @@ export async function buildPortfolioRows(
           : typeof rawSnap?.todays_change === 'number' && Number.isFinite(rawSnap.todays_change)
             ? rawSnap.todays_change
             : null
-    const frozenPerShare = isUsEquitySymbol(sym) ? pickUsEquityFrozenDayChangePerShare(snap, nowMs) : null
+    const frozenPerShare = isUsEquitySymbol(sym) ? pickUsEquityFrozenDayChangePerShare(sym, snap, nowMs) : null
     let perShareDay =
       frozenPerShare != null
         ? frozenPerShare

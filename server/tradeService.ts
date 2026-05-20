@@ -163,7 +163,7 @@ function pickPrice(sym: string, s: SnapTicker | undefined): number | null {
 function changePctFromSnap(sym: string, s: SnapTicker | undefined): number | null {
   if (!s) return null
   if (isUsEquitySymbol(sym)) {
-    const frozen = pickUsEquityFrozenChangePct(s as never)
+    const frozen = pickUsEquityFrozenChangePct(sym, s as never)
     if (frozen != null) return frozen
   }
   const raw = s as Record<string, unknown>

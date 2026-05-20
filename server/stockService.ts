@@ -646,10 +646,10 @@ export async function fetchStockDetail(ticker: string): Promise<StockDetailPaylo
   const lastPriceLabel = fmtPrice(lastPrice)
   let ch = tkr?.todaysChange ?? null
   let chp = tkr?.todaysChangePerc ?? null
-  const frozenChp = pickUsEquityFrozenChangePct(tkr, atMs)
+  const frozenChp = pickUsEquityFrozenChangePct(sym, tkr, atMs)
   if (frozenChp != null) {
     chp = frozenChp
-    const frozenCh = pickUsEquityFrozenDayChangePerShare(tkr, atMs)
+    const frozenCh = pickUsEquityFrozenDayChangePerShare(sym, tkr, atMs)
     if (frozenCh != null && Number.isFinite(frozenCh)) ch = frozenCh
   }
   const changeTodayLabel =
