@@ -52,6 +52,10 @@
         <key>NSAllowsLocalNetworking</key>
         <true/>
     </dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Simvest uses the camera to scan QR codes when joining a game.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>

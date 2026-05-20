@@ -70,6 +70,17 @@ export async function removeAuthorNotifyPreference(viewerId: string, authorId: s
   })
 }
 
+export async function clearAllNotifyPreferencesForViewer(viewerId: string): Promise<void> {
+  const v = canonUser(viewerId)
+  if (!v) return
+  await runMutation(async () => {
+    const file = await readFile()
+    if (!(v in file.watchers)) return
+    delete file.watchers[v]
+    await writeFile(file)
+  })
+}
+
 export async function listWatchedAuthorIdsForViewer(viewerId: string): Promise<string[]> {
   const v = canonUser(viewerId)
   if (!v) return []

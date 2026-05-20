@@ -100,7 +100,7 @@ export function TradeScreen() {
   const buyJumpApplied = useRef(false)
 
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedQuery(query), 160)
+    const t = window.setTimeout(() => setDebouncedQuery(query), 80)
     return () => window.clearTimeout(t)
   }, [query])
 
@@ -223,6 +223,9 @@ export function TradeScreen() {
           </header>
 
           <div className="tr-mainScroll">
+            <p className="tr-simDisclaimer" role="note">
+              Simulated trading only — virtual funds. Not real money or investment advice.
+            </p>
             <div className="tr-catSection">
               <p className="tr-catSectionLabel">Start browsing</p>
               <div className="tr-catScroll">

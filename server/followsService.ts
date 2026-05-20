@@ -172,6 +172,16 @@ export async function renameGameSlugInFollows(fromSlug: string, toSlug: string):
 }
 
 /** Merge per-game follow lists from a browser id into the canonical account id. */
+export async function clearAllFollowsForUser(userId: string): Promise<void> {
+  if (!userId || userId.length < 8) return
+  return runSerializedByKey(FOLLOWS_LOCK_KEY, async () => {
+    const s = await readNested()
+    if (!(userId in s)) return
+    delete s[userId]
+    await writeNested(s)
+  })
+}
+
 export async function mergeFollowsViewerId(fromUserId: string, toUserId: string): Promise<void> {
   if (!fromUserId || !toUserId || fromUserId.length < 8 || toUserId.length < 8 || fromUserId === toUserId) return
   return runSerializedByKey(FOLLOWS_LOCK_KEY, async () => {

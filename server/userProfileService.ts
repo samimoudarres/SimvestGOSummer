@@ -179,6 +179,17 @@ export async function ensureUserProfilesBatch(userIds: string[]): Promise<Map<st
 }
 
 /** Move `user-profiles.json` row from anonymous viewer id to account id (account row wins on conflict). */
+export async function deleteUserPublicProfile(userId: string): Promise<void> {
+  if (!userId || userId.length < 8) return
+  return runSerializedByKey(PROFILE_LOCK_KEY, async () => {
+    const file = await readFile()
+    if (!file.profiles[userId]) return
+    const next: ProfileFile = { profiles: { ...file.profiles } }
+    delete next.profiles[userId]
+    await writeFile(next)
+  })
+}
+
 export async function mergePublicProfileViewerIds(fromUserId: string, toUserId: string): Promise<void> {
   if (!fromUserId || !toUserId || fromUserId.length < 8 || toUserId.length < 8 || fromUserId === toUserId) return
   return runSerializedByKey(PROFILE_LOCK_KEY, async () => {

@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { clearAuthSession } from '../auth/clearAuthSession'
-import { fetchMyAccount, type AccountPublicView } from './settingsClient'
+import { deleteMyAccount, fetchMyAccount, type AccountPublicView } from './settingsClient'
 import { apiAssetSrc } from '../config/apiAssetSrc'
 import './settingsScreens.css'
 
@@ -28,6 +28,10 @@ export function SettingsScreen() {
   const [missingAccount, setMissingAccount] = useState(false)
   const [errorText, setErrorText] = useState<string | null>(null)
   const [confirmLogout, setConfirmLogout] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -68,6 +72,28 @@ export function SettingsScreen() {
     setConfirmLogout(false)
     navigate('/login', { replace: true })
   }, [navigate])
+
+  const performDeleteAccount = useCallback(async () => {
+    if (deleteBusy) return
+    setDeleteBusy(true)
+    setDeleteError(null)
+    try {
+      const result = await deleteMyAccount(deletePassword)
+      if (!result.ok) {
+        const pw = result.error.fields.find((f) => f.field === 'currentPassword')
+        setDeleteError(pw?.message ?? result.error.message)
+        return
+      }
+      clearAuthSession()
+      setConfirmDelete(false)
+      setDeletePassword('')
+      navigate('/login', { replace: true })
+    } catch {
+      setDeleteError('Could not delete your account. Check your connection and try again.')
+    } finally {
+      setDeleteBusy(false)
+    }
+  }, [deleteBusy, deletePassword, navigate])
 
   return (
     <main className="ss-root">
@@ -186,9 +212,26 @@ export function SettingsScreen() {
                 </div>
                 <div className="ss-aboutRow">
                   <span>App version</span>
-                  <span className="ss-aboutVal">Simvest 1.0.0</span>
+                  <span className="ss-aboutVal">Simvest 1.0.7</span>
                 </div>
               </div>
+
+              <p className="ss-legalNote">
+                Simvest is a stock simulation for education and competition only. No real money is
+                traded.
+              </p>
+
+              <button
+                type="button"
+                className="ss-submit ss-submit--outlineDanger"
+                onClick={() => {
+                  setDeleteError(null)
+                  setDeletePassword('')
+                  setConfirmDelete(true)
+                }}
+              >
+                Delete account
+              </button>
 
               <button
                 type="button"
@@ -203,6 +246,59 @@ export function SettingsScreen() {
           )}
         </div>
       </section>
+
+      {confirmDelete ? (
+        <div
+          className="ss-modalBackdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ss-delete-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !deleteBusy) setConfirmDelete(false)
+          }}
+        >
+          <div className="ss-modal">
+            <h2 className="ss-modalTitle" id="ss-delete-title">
+              Delete your account?
+            </h2>
+            <p className="ss-modalBody">
+              This permanently removes your Simvest account, profile, simulated portfolios, game
+              memberships, and activity posts. This cannot be undone.
+            </p>
+            <label className="ss-modalLabel" htmlFor="ss-delete-password">
+              Confirm with your password
+            </label>
+            <input
+              id="ss-delete-password"
+              type="password"
+              className="ss-modalInput"
+              autoComplete="current-password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              disabled={deleteBusy}
+            />
+            {deleteError ? <p className="ss-modalError">{deleteError}</p> : null}
+            <div className="ss-modalActions">
+              <button
+                type="button"
+                className="ss-modalBtn ss-modalBtn--cancel"
+                disabled={deleteBusy}
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="ss-modalBtn ss-modalBtn--confirmDanger"
+                disabled={deleteBusy || deletePassword.length < 1}
+                onClick={() => void performDeleteAccount()}
+              >
+                {deleteBusy ? 'Deleting…' : 'Delete account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {confirmLogout ? (
         <div

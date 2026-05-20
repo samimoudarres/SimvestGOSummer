@@ -488,6 +488,24 @@
   box-shadow: 0 8px 18px rgba(163, 38, 28, 0.28);
 }
 
+.ss-submit--outlineDanger {
+  background: #fff;
+  color: #a3261c;
+  border: 2px solid #d05151;
+  box-shadow: none;
+}
+
+.ss-legalNote {
+  margin: 8px 0 4px;
+  padding: 0 4px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: #5d7c95;
+  text-align: center;
+}
+
 /* About panel ----------------------------------------------------------- */
 
 .ss-about {
@@ -593,6 +611,42 @@
 .ss-modalBtn--confirm {
   background: linear-gradient(90deg, #d05151 0%, #a3261c 100%);
   color: #fff;
+}
+
+.ss-modalBtn--confirmDanger {
+  background: linear-gradient(90deg, #d05151 0%, #a3261c 100%);
+  color: #fff;
+}
+
+.ss-modalBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ss-modalLabel {
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #07406a;
+}
+
+.ss-modalInput {
+  width: 100%;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid #c5d9e8;
+  padding: 0 12px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 15px;
+  box-sizing: border-box;
+}
+
+.ss-modalError {
+  margin: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b00020;
 }
 
 .ss-hintPara {

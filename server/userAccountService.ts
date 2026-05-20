@@ -327,6 +327,10 @@ function isValidAvatar(raw: string): boolean {
   )
 }
 
+export function verifyAccountPassword(rawAttempt: string, expectedHash: string): boolean {
+  return verifyPassword(rawAttempt, expectedHash)
+}
+
 function verifyPassword(rawAttempt: string, expectedHash: string): boolean {
   if (typeof rawAttempt !== 'string' || rawAttempt.length === 0) return false
   if (typeof expectedHash !== 'string' || expectedHash.length === 0) return false
@@ -585,4 +589,17 @@ export function toAccountPublicView(record: UserAccountRecord): AccountPublicVie
     createdAtIso: record.createdAtIso,
     updatedAtIso: record.updatedAtIso,
   }
+}
+
+/** Permanently remove the account row (after game data cleanup). */
+export async function deleteUserAccountRecord(userId: string): Promise<boolean> {
+  if (!userId || userId.length < 8) return false
+  return withWriteLock(async () => {
+    const file = await readFile()
+    if (!(userId in file.accounts)) return false
+    const next: AccountsFile = { accounts: { ...file.accounts } }
+    delete next.accounts[userId]
+    await writeFile(next)
+    return true
+  })
 }

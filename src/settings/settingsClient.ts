@@ -201,3 +201,15 @@ export async function removeNotifyAuthor(authorUserId: string): Promise<boolean>
   })
   return resp.ok
 }
+
+export type DeleteAccountResult = { ok: true } | { ok: false; error: AccountApiError }
+
+export async function deleteMyAccount(currentPassword: string): Promise<DeleteAccountResult> {
+  const resp = await simvestFetch('/api/me/account', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword }),
+  })
+  if (resp.ok) return { ok: true }
+  return { ok: false, error: await parseError(resp) }
+}

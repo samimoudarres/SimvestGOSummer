@@ -93,3 +93,14 @@ export async function listSubscriptionsForUser(viewerId: string): Promise<Stored
   const file = await readFile()
   return [...(file.byUserId[v] ?? [])]
 }
+
+export async function clearAllPushSubscriptionsForUser(viewerId: string): Promise<void> {
+  const v = canonViewer(viewerId)
+  if (!v) return
+  await runMutation(async () => {
+    const file = await readFile()
+    if (!(v in file.byUserId)) return
+    delete file.byUserId[v]
+    await writeFile(file)
+  })
+}

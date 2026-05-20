@@ -144,6 +144,7 @@ import {
   validateFullNameInput,
   type AccountContactKind,
 } from './userAccountService'
+import { deleteSimvestAccount } from './accountDeletionService'
 import { consumeNameDraft, createNameDraft } from './signupDraftService'
 import { mergeAnonymousViewerIntoAccount } from './viewerIdMergeService'
 import { fetchTradeBrowse, fetchTradeRecentRows, fetchTradeSearch, isTradeCategory } from './tradeService'
@@ -1283,6 +1284,39 @@ app.patch('/api/me/account/password', async (req, res) => {
     res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Password update failed' })
+  }
+})
+
+/** Permanently delete the viewer's account and associated data (App Store 5.1.1(v)). */
+app.delete('/api/me/account', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing or invalid X-Simvest-User-Id header' })
+    return
+  }
+  res.setHeader('Cache-Control', 'private, no-store')
+
+  const ipKey = requestIpKey(req)
+  if (rateLimitHit('accountWrite', ipKey)) {
+    res.status(429).json({ error: 'Too many account updates. Please wait a minute and try again.' })
+    return
+  }
+
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : ''
+
+  try {
+    const result = await deleteSimvestAccount(uid, currentPassword)
+    if (!result.ok) {
+      res.status(result.status).json({
+        error: result.message ?? 'Account deletion failed',
+        errors: result.errors,
+      })
+      return
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Account deletion failed' })
   }
 })
 
