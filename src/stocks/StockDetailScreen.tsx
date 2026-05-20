@@ -81,6 +81,7 @@ function buildCompletedTradeSnapshot(
     marketCapLabel,
     revenueLabel,
     gameTitle: resolvedGameTitle,
+    iconUrl: detail.iconUrl,
   }
 }
 

@@ -19,6 +19,8 @@ export type CompletedTradeSnapshot = {
   marketCapLabel: string
   revenueLabel: string
   gameTitle: string
+  /** Branding icon for Order Received (defaults to `/api/stocks/:ticker/branding-icon`). */
+  iconUrl?: string
   /** Sells only: total cost basis (shares × avgEntryPrice) of the FIFO lots unwound. */
   costBasis?: number
   /** Sells only: realized P&L = orderTotal − costBasis. */
