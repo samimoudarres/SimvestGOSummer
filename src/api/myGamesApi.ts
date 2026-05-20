@@ -76,8 +76,12 @@ function parseCardTheme(raw: unknown): MyGameCardTheme {
   }
 }
 
-export async function fetchMyJoinedGames(): Promise<MyGameSummary[]> {
-  const res = await simvestFetch('/api/me/games')
+export async function fetchMyJoinedGames(opts?: {
+  /** Once per app open — counts toward hiding finished games after 5 home visits. */
+  recordFinishedReopens?: boolean
+}): Promise<MyGameSummary[]> {
+  const q = opts?.recordFinishedReopens ? '?recordFinishedReopens=1' : ''
+  const res = await simvestFetch(`/api/me/games${q}`)
   if (!res.ok) {
     const t = await res.text().catch(() => '')
     throw new Error(t || `My games failed (${res.status})`)

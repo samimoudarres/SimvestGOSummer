@@ -49,6 +49,11 @@ import {
   togglePostLike,
 } from './feedPostSocialService'
 import { fetchHydratedHomeActivityForUser } from './homeActivityFeed'
+import {
+  bumpFinishedGameHomeView,
+  getFinishedGameHomeViewCount,
+  shouldShowFinishedGameOnHome,
+} from './finishedGameHomeViewsService'
 import { buildSuggestedGames } from './suggestedGamesService'
 import {
   fetchGameLeaderboardPayload,
@@ -918,10 +923,6 @@ app.put('/api/games/:slug/create-settings', async (req, res) => {
     return
   }
   try {
-    if (slug === 'new' && parsed.value.forceNewGameInstance !== true) {
-      const hostName = await resolveHostDisplayNameForGame(slug, uid)
-      await prepareNewSlotForHostDraft(uid, hostName)
-    }
     const prev = await getRuntimeRules(slug)
     if (prev && prev.hostUserId && prev.hostUserId !== uid) {
       if (slug !== 'new') {
@@ -1354,6 +1355,9 @@ app.get('/api/me/games', async (req, res) => {
     })
     return
   }
+  const recordFinishedReopens =
+    String(req.query.recordFinishedReopens ?? '').trim() === '1' ||
+    String(req.headers['x-simvest-record-finished-reopens'] ?? '').trim() === '1'
   res.setHeader('Cache-Control', 'private, no-store')
   try {
     const slugs = await listParticipationSlugsForUser(uid)
@@ -1406,6 +1410,17 @@ app.get('/api/me/games', async (req, res) => {
       const isHost = viewerIdsMatch(rules?.hostUserId, uid)
       const pendingJoinRequestCount =
         isHost && rules?.visibility === 'private' ? await countPendingForGame(slug) : 0
+
+      if (status === 'finished') {
+        let viewCount = await getFinishedGameHomeViewCount(uid, slug)
+        if (recordFinishedReopens) {
+          viewCount = await bumpFinishedGameHomeView(uid, slug)
+        }
+        if (!shouldShowFinishedGameOnHome(viewCount)) {
+          continue
+        }
+      }
+
       games.push({
         slug,
         title,

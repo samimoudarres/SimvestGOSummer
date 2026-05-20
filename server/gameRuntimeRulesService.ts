@@ -629,9 +629,13 @@ export async function upsertRuntimeRules(
     const setupComplete = input.setupComplete ?? prev?.setupComplete ?? false
     let joinCode: string | null = freshTimeline ? null : (prev?.joinCode ?? null)
     joinCode = normalizeSixDigitJoinCode(joinCode)
-    if (setupComplete && !joinCode) {
+    if (setupComplete) {
       const taken = await loadTakenJoinCodes({ version: 1, bySlug })
-      joinCode = allocateJoinCodeFromTaken(taken)
+      const prevCode = normalizeSixDigitJoinCode(prev?.joinCode)
+      if (prevCode) taken.delete(prevCode)
+      if (!joinCode || taken.has(joinCode)) {
+        joinCode = allocateJoinCodeFromTaken(taken)
+      }
     }
     const next: GameRuntimeRules = {
       hostUserId,

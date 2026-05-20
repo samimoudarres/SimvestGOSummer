@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchMyJoinedGames, type MyGameSummary } from '../api/myGamesApi'
 import { simvestFetch } from '../api/simvestFetch'
@@ -36,6 +36,7 @@ export function SimvestHome() {
   const sortWrapRef = useRef<HTMLDivElement>(null)
   const [myGames, setMyGames] = useState<MyGameSummary[]>([])
   const [hostJoinPendingTotal, setHostJoinPendingTotal] = useState(0)
+  const recordFinishedReopensNextLoadRef = useRef(true)
   const sortLabels = activitySortLabels()
 
   const [viewerUserId, setViewerUserId] = useState(() => getSimvestUserId())
@@ -132,9 +133,12 @@ export function SimvestHome() {
         if (!cancelled) setHostJoinPendingTotal(0)
       }
     }
-    const load = async () => {
+    const load = async (opts?: { countFinishedReopens?: boolean }) => {
       try {
-        const list = await fetchMyJoinedGames()
+        const recordFinishedReopens = opts?.countFinishedReopens === true
+        const list = await fetchMyJoinedGames(
+          recordFinishedReopens ? { recordFinishedReopens: true } : undefined,
+        )
         if (!cancelled) {
           setMyGames(list)
           const fromCards = list.reduce((sum, g) => sum + (g.pendingJoinRequestCount ?? 0), 0)
@@ -145,15 +149,31 @@ export function SimvestHome() {
       }
       await loadHostJoinInbox()
     }
-    void load()
+    const initialCountFinished = recordFinishedReopensNextLoadRef.current
+    recordFinishedReopensNextLoadRef.current = false
+    void load({ countFinishedReopens: initialCountFinished })
     const onVis = () => {
-      if (document.visibilityState === 'visible') void load()
+      if (document.visibilityState === 'hidden') {
+        recordFinishedReopensNextLoadRef.current = true
+        return
+      }
+      if (document.visibilityState === 'visible') {
+        const countFinished = recordFinishedReopensNextLoadRef.current
+        recordFinishedReopensNextLoadRef.current = false
+        void load({ countFinishedReopens: countFinished })
+      }
     }
     const onActivity = () => void load()
     const onJoinReq = () => void load()
-    const onUserId = () => void load()
+    const onUserId = () => {
+      recordFinishedReopensNextLoadRef.current = true
+      void load({ countFinishedReopens: true })
+    }
     const onStorageUser = (e: StorageEvent) => {
-      if (e.key === SIMVEST_USER_ID_STORAGE_KEY) void load()
+      if (e.key === SIMVEST_USER_ID_STORAGE_KEY) {
+        recordFinishedReopensNextLoadRef.current = true
+        void load({ countFinishedReopens: true })
+      }
     }
     document.addEventListener('visibilitychange', onVis)
     window.addEventListener('simvest:activity-refresh', onActivity)
@@ -251,11 +271,11 @@ export function SimvestHome() {
 
   return (
     <div className="sv-root">
-      <div className="sv-phone" data-node-id="4:2"         style={
-          nativeShell
-            ? ({ '--sv-feed-top': `${layout.feedTop}px` } as CSSProperties)
-            : { height: layout.phoneH, minHeight: 874 }
-        }>
+      <div
+        className={`sv-phone${nativeShell ? ' sv-phone--nativeScroll' : ''}`}
+        data-node-id="4:2"
+        style={nativeShell ? undefined : { height: layout.phoneH, minHeight: 874 }}
+      >
         <div className="sv-hero" data-node-id="2:2" />
         <button
           type="button"
@@ -408,7 +428,7 @@ export function SimvestHome() {
           })}
         </div>
 
-        <div className="sv-activity-header" style={{ top: layout.activityTop }}>
+        <div className="sv-activity-header" style={nativeShell ? undefined : { top: layout.activityTop }}>
           <h2 className="sv-activity-title" data-node-id="4:17">
             ACTIVITY
           </h2>
@@ -455,11 +475,7 @@ export function SimvestHome() {
         <div
           className="sv-feed-scroll"
           data-node-id="225:4564"
-          style={
-            nativeShell
-              ? { top: layout.feedTop }
-              : { top: layout.feedTop, height: layout.feedHeight }
-          }
+          style={nativeShell ? undefined : { top: layout.feedTop, height: layout.feedHeight }}
         >
           <div className="sv-feed-inner">
             {status === 'loading' || status === 'idle' ? (

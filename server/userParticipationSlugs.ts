@@ -1,6 +1,6 @@
 import { listGameSlugsWhereUserHasFeedPosts } from './gameFeedService'
 import { viewerIdsMatch } from './gameJoinRequestsService'
-import { listGameSlugsJoinedByUser } from './gameMembershipService'
+import { ensureGameJoinedAt, listGameSlugsJoinedByUser } from './gameMembershipService'
 import { canonicalGameSlugKey } from './gameSlugNormalize'
 import { listAllRuntimeRules } from './gameRuntimeRulesService'
 import { listGameSlugsWithUserLedger } from './userGameStateService'
@@ -17,10 +17,12 @@ async function listHostedPublishedSlugs(viewerUserId: string): Promise<string[]>
   const out: string[] = []
   for (const { slug, rules } of all) {
     if (!rules.setupComplete) continue
-    if (slug === 'new') continue
     if (!viewerIdsMatch(rules.hostUserId, viewerUserId)) continue
     const k = canonicalGameSlugKey(slug)
-    if (k) out.push(slug)
+    if (k) {
+      out.push(slug)
+      await ensureGameJoinedAt(viewerUserId, slug).catch(() => {})
+    }
   }
   return out
 }
