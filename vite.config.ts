@@ -83,9 +83,11 @@ export default defineConfig(({ mode }) => {
     }
   }
 
+  const capacitorBundle = mode === 'capacitor' || mode === 'capacitor-dev'
+
   return {
-    /* Relative asset URLs so the production bundle loads inside Capacitor WebView. */
-    base: './',
+    /* Web dev + Render: root-relative `/figma-assets/...`. Capacitor WebView needs `./`. */
+    base: capacitorBundle ? './' : '/',
     plugins: [react(), simvestDevApiPlugin(apiProxyTarget)],
     server: {
       host: true,
