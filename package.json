@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:client\"",
-    "dev:client": "wait-on tcp:127.0.0.1:3001 && vite",
+    "dev:client": "npx --yes cross-env@7.0.3 SIMVEST_DEV_API_EXTERNAL=1 wait-on tcp:127.0.0.1:3001 && vite",
     "dev:server": "tsx watch server/index.ts",
     "build": "tsc && vite build",
     "build:capacitor": "tsc && vite build --mode capacitor",

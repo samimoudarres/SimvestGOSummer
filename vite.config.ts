@@ -1,5 +1,61 @@
-import { defineConfig, loadEnv } from 'vite'
+import { spawn, type ChildProcess } from 'node:child_process'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+
+/** When Vite runs without `npm run dev`, start the Express API so `/api` proxy does not 502. */
+function simvestDevApiPlugin(apiTarget: string): Plugin {
+  let child: ChildProcess | null = null
+  const healthUrl = `${apiTarget.replace(/\/$/, '')}/api/health`
+
+  async function apiUp(): Promise<boolean> {
+    try {
+      const r = await fetch(healthUrl, { signal: AbortSignal.timeout(2000) })
+      return r.ok
+    } catch {
+      return false
+    }
+  }
+
+  async function ensureApi(): Promise<void> {
+    if (process.env.SIMVEST_DEV_API_EXTERNAL === '1') return
+    if (await apiUp()) return
+
+    console.log('[simvest] API not on :3001 — starting `npm run dev:server`…')
+    child = spawn('npm run dev:server', {
+      cwd: process.cwd(),
+      shell: true,
+      stdio: 'inherit',
+      env: process.env,
+    })
+
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 500))
+      if (await apiUp()) {
+        console.log('[simvest] API ready.')
+        return
+      }
+    }
+    console.warn('[simvest] API still not reachable — Activity may show 502 until the server is up.')
+  }
+
+  return {
+    name: 'simvest-dev-api',
+    apply: 'serve',
+    async configureServer() {
+      await ensureApi()
+      return () => {
+        if (process.env.SIMVEST_DEV_API_EXTERNAL === '1') return
+        if (child) {
+          child.kill('SIGTERM')
+          child = null
+        }
+      }
+    },
+    async configurePreviewServer() {
+      await ensureApi()
+    },
+  }
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -30,7 +86,7 @@ export default defineConfig(({ mode }) => {
   return {
     /* Relative asset URLs so the production bundle loads inside Capacitor WebView. */
     base: './',
-    plugins: [react()],
+    plugins: [react(), simvestDevApiPlugin(apiProxyTarget)],
     server: {
       host: true,
       port: 5173,

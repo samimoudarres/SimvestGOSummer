@@ -16,4 +16,6 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run qa:phase7-automation
+      - run: npm run build
+      - run: npm run test:join-invite
+      - run: npm run test:ledger

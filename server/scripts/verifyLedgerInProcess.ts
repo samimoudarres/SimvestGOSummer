@@ -14,6 +14,10 @@ function uid(): string {
 }
 
 async function main(): Promise<void> {
+  if (!process.env.MASSIVE_API_KEY?.trim()) {
+    console.log('SKIP: MASSIVE_API_KEY not set — ledger live-price checks skipped (OK in CI).')
+    return
+  }
   const userId = uid()
   const steps = [
     { ticker: 'AAPL', shares: 1, fillPrice: 180 },
