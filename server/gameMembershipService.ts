@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 import { runSerializedByKey } from './fsMutationQueue'
 
 const MEMBERSHIP_PATH = dataFilePath('user-game-membership.json')
@@ -22,7 +22,7 @@ async function readFile(): Promise<MembershipFile> {
 }
 
 async function writeFile(data: MembershipFile): Promise<void> {
-  await fs.mkdir(path.dirname(MEMBERSHIP_PATH), { recursive: true })
+  await ensureParentDirForFile(MEMBERSHIP_PATH)
   await fs.writeFile(MEMBERSHIP_PATH, JSON.stringify(data, null, 2), 'utf8')
 }
 

@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 
 const SNAP_PATH = dataFilePath('game-networth-snapshots.json')
 
@@ -27,7 +27,7 @@ async function readSnapFile(): Promise<SnapFile> {
 }
 
 async function writeSnapFile(data: SnapFile): Promise<void> {
-  await fs.mkdir(path.dirname(SNAP_PATH), { recursive: true })
+  await ensureParentDirForFile(SNAP_PATH)
   await fs.writeFile(SNAP_PATH, JSON.stringify(data, null, 2), 'utf8')
 }
 

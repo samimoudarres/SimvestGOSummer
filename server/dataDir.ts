@@ -27,6 +27,11 @@ export function dataFilePath(fileName: string): string {
   return path.join(getDataDir(), fileName)
 }
 
+/** Create parent directory before writing a JSON store file. */
+export async function ensureParentDirForFile(filePath: string): Promise<void> {
+  await fs.mkdir(path.dirname(filePath), { recursive: true })
+}
+
 /** Files copied from the repo only when missing on the persistent volume (static seeds). */
 const SEED_IF_MISSING = ['game-definitions.json'] as const
 

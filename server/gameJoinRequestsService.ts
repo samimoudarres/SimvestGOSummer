@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 import { normalizeUserId } from './followsService'
 import { runSerializedByKey } from './fsMutationQueue'
 import { ensureGameJoinedAt } from './gameMembershipService'
@@ -73,7 +73,7 @@ async function readAll(): Promise<GameJoinRequest[]> {
 }
 
 async function writeAllUnlocked(items: GameJoinRequest[]): Promise<void> {
-  await fs.mkdir(path.dirname(REQ_PATH), { recursive: true })
+  await ensureParentDirForFile(REQ_PATH)
   await fs.writeFile(REQ_PATH, JSON.stringify({ version: 1, items }, null, 2), 'utf8')
 }
 

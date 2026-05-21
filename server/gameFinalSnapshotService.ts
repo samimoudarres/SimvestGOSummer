@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 import { getRuntimeRules } from './gameRuntimeRulesService'
 import { getLedgerHoldingsForGame, getUserLedger } from './userGameStateService'
 import { listParticipantIdsForGame } from './gameParticipantIds'
@@ -38,7 +38,7 @@ async function readFile(): Promise<SnapFile> {
 }
 
 async function writeFile(data: SnapFile): Promise<void> {
-  await fs.mkdir(path.dirname(SNAP_PATH), { recursive: true })
+  await ensureParentDirForFile(SNAP_PATH)
   await fs.writeFile(SNAP_PATH, JSON.stringify(data, null, 2), 'utf8')
 }
 

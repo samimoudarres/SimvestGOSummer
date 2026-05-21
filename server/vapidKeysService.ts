@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 
 const KEYS_PATH = dataFilePath('vapid-keys.json')
 
@@ -47,7 +47,7 @@ export async function initVapidKeys(): Promise<void> {
 
   const webpush = await webPushModule()
   const keys = webpush.generateVAPIDKeys()
-  await fs.mkdir(path.dirname(KEYS_PATH), { recursive: true })
+  await ensureParentDirForFile(KEYS_PATH)
   await fs.writeFile(
     KEYS_PATH,
     JSON.stringify({ publicKey: keys.publicKey, privateKey: keys.privateKey }, null, 2),

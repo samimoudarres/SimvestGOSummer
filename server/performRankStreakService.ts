@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 
 const STREAK_PATH = dataFilePath('perform-rank-streaks.json')
 
@@ -28,7 +28,7 @@ async function readFile(): Promise<StreakFile> {
 }
 
 async function writeFile(data: StreakFile): Promise<void> {
-  await fs.mkdir(path.dirname(STREAK_PATH), { recursive: true })
+  await ensureParentDirForFile(STREAK_PATH)
   await fs.writeFile(STREAK_PATH, JSON.stringify(data, null, 2), 'utf8')
 }
 

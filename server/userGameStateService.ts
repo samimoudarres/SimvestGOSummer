@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 import { normalizeCryptoCompositeTicker, normalizeTicker, resolveMassiveTicker } from './stockService'
 import { runSerializedByKey } from './fsMutationQueue'
 
@@ -102,7 +102,7 @@ export async function listUserIdsWithLedgerForGame(gameSlug: string): Promise<st
 }
 
 async function writePortfolioStateToDisk(s: PortfolioStateV2): Promise<void> {
-  await fs.mkdir(path.dirname(STATE_PATH), { recursive: true })
+  await ensureParentDirForFile(STATE_PATH)
   await fs.writeFile(STATE_PATH, JSON.stringify(s, null, 2), 'utf8')
 }
 

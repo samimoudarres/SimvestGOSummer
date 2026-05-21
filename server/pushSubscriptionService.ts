@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 import { normalizeUserId } from './followsService'
 import { invalidateJsonFileCache } from './jsonFileCache'
 
@@ -34,7 +34,7 @@ async function readFile(): Promise<SubsFile> {
 }
 
 async function writeFile(data: SubsFile): Promise<void> {
-  await fs.mkdir(path.dirname(SUBS_PATH), { recursive: true })
+  await ensureParentDirForFile(SUBS_PATH)
   await fs.writeFile(SUBS_PATH, JSON.stringify(data, null, 2), 'utf8')
   invalidateJsonFileCache(SUBS_PATH)
 }

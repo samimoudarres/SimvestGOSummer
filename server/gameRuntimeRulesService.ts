@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import fs from 'node:fs/promises'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 import { runSerializedByKey } from './fsMutationQueue'
 import type { TradeCategoryId } from './tradeService'
 import { isTradeCategory } from './tradeService'
@@ -259,6 +259,7 @@ async function readFileRaw(): Promise<RulesFile> {
 }
 
 async function writeFileRaw(data: RulesFile): Promise<void> {
+  await ensureParentDirForFile(RULES_PATH)
   await fs.writeFile(RULES_PATH, JSON.stringify(data, null, 2), 'utf8')
 }
 

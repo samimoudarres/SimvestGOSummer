@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 import { normalizeUserId } from './followsService'
 import { canonicalGameSlugKey, normalizeGameSlugParam } from './gameSlugNormalize'
 
@@ -37,7 +37,7 @@ async function readFeedFileUnlocked(): Promise<FeedFile> {
     const code = typeof e === 'object' && e !== null && 'code' in e ? (e as NodeJS.ErrnoException).code : ''
     if (code === 'ENOENT') {
       const initial: FeedFile = { posts: [...SEED_POSTS] }
-      await fs.mkdir(path.dirname(FEED_PATH), { recursive: true })
+      await ensureParentDirForFile(FEED_PATH)
       await fs.writeFile(FEED_PATH, JSON.stringify(initial, null, 2), 'utf8')
       return initial
     }

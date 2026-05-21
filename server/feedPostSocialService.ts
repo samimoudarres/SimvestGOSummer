@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 import { normalizeUserId } from './followsService'
 import { canonicalGameSlugKey } from './gameSlugNormalize'
 import { getFeedPostById } from './gameFeedService'
@@ -49,7 +49,7 @@ async function readStoreUnlocked(): Promise<SocialStoreFile> {
     const code = typeof e === 'object' && e !== null && 'code' in e ? (e as NodeJS.ErrnoException).code : ''
     if (code === 'ENOENT') {
       const initial: SocialStoreFile = { postLikes: {}, comments: {}, commentLikes: {} }
-      await fs.mkdir(path.dirname(STORE_PATH), { recursive: true })
+      await ensureParentDirForFile(STORE_PATH)
       await fs.writeFile(STORE_PATH, JSON.stringify(initial, null, 2), 'utf8')
       return initial
     }

@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
 
 const VOTES_PATH = dataFilePath('feed-poll-votes.json')
@@ -24,7 +24,7 @@ async function readFile(): Promise<VotesFile> {
 }
 
 async function writeFile(data: VotesFile): Promise<void> {
-  await fs.mkdir(path.dirname(VOTES_PATH), { recursive: true })
+  await ensureParentDirForFile(VOTES_PATH)
   await fs.writeFile(VOTES_PATH, JSON.stringify(data, null, 2), 'utf8')
   invalidateJsonFileCache(VOTES_PATH)
 }

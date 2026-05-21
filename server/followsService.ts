@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 import { runSerializedByKey } from './fsMutationQueue'
 import { normalizeTicker, resolveMassiveTicker } from './stockService'
 
@@ -64,7 +64,7 @@ async function readNested(): Promise<FollowsNested> {
 }
 
 async function writeNested(data: FollowsNested): Promise<void> {
-  await fs.mkdir(path.dirname(FOLLOWS_PATH), { recursive: true })
+  await ensureParentDirForFile(FOLLOWS_PATH)
   await fs.writeFile(FOLLOWS_PATH, JSON.stringify(data, null, 2), 'utf8')
 }
 

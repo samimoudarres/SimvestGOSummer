@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
-import { dataFilePath } from './dataDir.ts'
+import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
 import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
 import { runSerializedByKey } from './fsMutationQueue'
 
@@ -90,7 +90,7 @@ async function loadSetupProfileFile(): Promise<SetupProfileFile> {
 }
 
 async function persistSetupProfileFile(data: SetupProfileFile): Promise<void> {
-  await fs.mkdir(path.dirname(SETUP_PROFILE_PATH), { recursive: true })
+  await ensureParentDirForFile(SETUP_PROFILE_PATH)
   await fs.writeFile(SETUP_PROFILE_PATH, JSON.stringify(data, null, 2), 'utf8')
   invalidateJsonFileCache(SETUP_PROFILE_PATH)
   cachedSetupMap = null
