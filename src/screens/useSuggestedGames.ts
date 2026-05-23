@@ -10,28 +10,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import type { PublicGameItem } from '../join/publicGamesTypes'
 
 /** Must stay in sync with `SUGGESTED_PAGE_SIZE` in `server/suggestedGamesService.ts`. */
 const SUGGESTED_PAGE_STRIDE = 3
 
-export type SuggestedGameTheme = {
-  gradientFrom: string
-  gradientTo: string
-  gradientAngleDeg: number
-  joinButtonColor: string
-  joinButtonBorderColor: string
-}
-
-export type SuggestedGame = {
-  slug: string
-  joinCode: string
-  title: string
-  hostedByLine: string | null
-  playerCount: number
+export type SuggestedGame = PublicGameItem & {
   playerLine: string
-  rulesSummary: string
-  durationLine: string
-  theme: SuggestedGameTheme
 }
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'

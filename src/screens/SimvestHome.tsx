@@ -27,6 +27,7 @@ import { apiAssetSrc } from '../config/apiAssetSrc'
 import './SimvestHome.css'
 import { isNativeAppShell } from '../hooks/useViewportShellHeight'
 import { useHomeActivityFeed } from './useHomeActivityFeed'
+import { PublicGameCard } from '../join/PublicGameCard'
 import { useSuggestedGames } from './useSuggestedGames'
 
 export function SimvestHome() {
@@ -57,6 +58,12 @@ export function SimvestHome() {
     reload: reloadSuggestions,
     rotate: rotateSuggestedGames,
   } = useSuggestedGames(showSuggestions)
+
+  useEffect(() => {
+    if (!showSuggestions || !suggestedCanRotateMore) return
+    const id = window.setInterval(() => rotateSuggestedGames(), 60_000)
+    return () => window.clearInterval(id)
+  }, [showSuggestions, suggestedCanRotateMore, rotateSuggestedGames])
 
   const gamesBelowNov = useMemo(
     () => myGames.filter((g) => g.slug !== GAME_SLUG.nov2024),
@@ -500,7 +507,7 @@ export function SimvestHome() {
                 No activity yet from your games. Open a game to post, or place a trade to see posts here.
               </p>
             ) : null}
-            {status === 'ready' && sortedPosts.length === 0 && showSuggestions ? (
+            {status === 'ready' && showSuggestions ? (
               <section className="sv-suggested" aria-label="Suggested games">
                 <header className="sv-suggested__head">
                   <h3 className="sv-suggested__title">Suggested games</h3>
@@ -528,78 +535,49 @@ export function SimvestHome() {
                       No public games are live at the moment. Tap{' '}
                       <strong>Create New Game</strong> above to start one and invite friends.
                     </p>
+                    <button
+                      type="button"
+                      className="sv-suggested__browseAll"
+                      onClick={() => navigate(gamePaths.joinPublicGames)}
+                    >
+                      Browse all public games
+                    </button>
                   </div>
                 ) : (
                   <>
                     <ul className="sv-suggested__list">
                       {suggestedGames.map((g) => (
                         <li key={g.slug} className="sv-suggested__item">
-                          <button
-                            type="button"
-                            className="sv-suggested__card"
-                            aria-label={`Join ${g.title}`}
-                            onClick={() => onOpenSuggestedGame(g.joinCode)}
-                            style={{
-                              borderColor: g.theme.joinButtonBorderColor,
-                            }}
-                          >
-                            <div
-                              className="sv-suggested__hero"
-                              style={{
-                                backgroundImage: `linear-gradient(${g.theme.gradientAngleDeg}deg, ${g.theme.gradientFrom}, ${g.theme.gradientTo})`,
-                              }}
-                              aria-hidden
-                            />
-                            <div className="sv-suggested__body">
-                              <div className="sv-suggested__topRow">
-                                <span className="sv-suggested__badge">SUGGESTED</span>
-                                <span className="sv-suggested__players">{g.playerLine}</span>
-                              </div>
-                              <h4
-                                className="sv-suggested__name"
-                                style={{
-                                  backgroundImage: `linear-gradient(${g.theme.gradientAngleDeg}deg, ${g.theme.gradientFrom}, ${g.theme.gradientTo})`,
-                                }}
-                              >
-                                {g.title}
-                              </h4>
-                              {g.hostedByLine ? (
-                                <p className="sv-suggested__host">{g.hostedByLine}</p>
-                              ) : null}
-                              <p className="sv-suggested__rules">
-                                <span>{g.rulesSummary}</span>
-                                <span aria-hidden> · </span>
-                                <span>{g.durationLine}</span>
-                              </p>
-                              <span
-                                className="sv-suggested__joinBtn"
-                                style={{
-                                  background: g.theme.joinButtonColor,
-                                  borderColor: g.theme.joinButtonBorderColor,
-                                }}
-                              >
-                                Join game
-                              </span>
-                            </div>
-                          </button>
+                          <PublicGameCard game={g} onSelect={onOpenSuggestedGame} />
                         </li>
                       ))}
                     </ul>
-                    {suggestedCanRotateMore ? (
+                    {(suggestedCanRotateMore || suggestedGames.length > 0) && (
                       <div className="sv-suggested__footer">
-                        <p className="sv-suggested__rotateHint">
-                          {suggestedTotalEligible} live games — tap refresh for three more you can join.
-                        </p>
+                        {suggestedCanRotateMore ? (
+                          <>
+                            <p className="sv-suggested__rotateHint">
+                              {suggestedTotalEligible} live games — tap refresh for three more you can join.
+                            </p>
+                            <button
+                              type="button"
+                              className="sv-suggested__refresh"
+                              disabled={suggestedBusy}
+                              onClick={() => rotateSuggestedGames()}
+                            >
+                              Refresh suggestions
+                            </button>
+                          </>
+                        ) : null}
                         <button
                           type="button"
-                          className="sv-suggested__refresh"
-                          disabled={suggestedBusy}
-                          onClick={() => rotateSuggestedGames()}
+                          className="sv-suggested__browseAll"
+                          onClick={() => navigate(gamePaths.joinPublicGames)}
                         >
-                          Refresh suggestions
+                          Browse all public games
                         </button>
                       </div>
-                    ) : null}
+                    )}
                   </>
                 )}
               </section>

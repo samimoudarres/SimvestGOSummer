@@ -16,6 +16,7 @@ import { CreateGameWizardScreen } from './createGame/CreateGameWizardScreen'
 import { CreateGameThemeScreen } from './createGame/CreateGameThemeScreen'
 import { CreateGameHostProfileScreen } from './createGame/CreateGameHostProfileScreen'
 import { JoinGameScreen } from './join/JoinGameScreen'
+import { BrowsePublicGamesScreen } from './join/BrowsePublicGamesScreen'
 import { GameWelcomeScreen } from './join/GameWelcomeScreen'
 import { JoinProfileSetupScreen } from './join/JoinProfileSetupScreen'
 import { HostJoinRequestsScreen } from './join/HostJoinRequestsScreen'
@@ -57,6 +58,7 @@ export default function App() {
           <Route path={gamePaths.createGameHostProfile} element={<CreateGameHostProfileScreen />} />
           <Route path="/join/welcome" element={<GameWelcomeScreen />} />
           <Route path="/join/profile-setup" element={<JoinProfileSetupScreen />} />
+          <Route path={gamePaths.joinPublicGames} element={<BrowsePublicGamesScreen />} />
           <Route path="/join" element={<JoinGameScreen />} />
           <Route path="/g/:gameSlug/join-requests" element={<HostJoinRequestsScreen />} />
           <Route path="/g/:gameSlug" element={<GameChallengeScreen />} />

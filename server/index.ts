@@ -55,6 +55,7 @@ import {
   getFinishedGameHomeViewCount,
   shouldShowFinishedGameOnHome,
 } from './finishedGameHomeViewsService'
+import { listPublicCatalogItems } from './publicGamesCatalogService'
 import { buildSuggestedGames } from './suggestedGamesService'
 import {
   fetchGameLeaderboardPayload,
@@ -1348,6 +1349,20 @@ app.get('/api/games/suggested', async (req, res) => {
   } catch (err) {
     res.status(500).json({
       error: err instanceof Error ? err.message : 'Suggested games failed',
+    })
+  }
+})
+
+/** Full list of live public games (browse from Join screen), sorted by popularity. */
+app.get('/api/games/public', async (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store')
+  const uid = userIdFromReq(req)
+  try {
+    const games = await listPublicCatalogItems(uid)
+    res.json({ games, total: games.length })
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : 'Public games failed',
     })
   }
 })

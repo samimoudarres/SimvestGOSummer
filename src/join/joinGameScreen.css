@@ -67,11 +67,36 @@
   z-index: 1;
 }
 
+.jg-browse-public {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 118px;
+  margin: 0;
+  padding: 0 18px;
+  height: 38px;
+  border: none;
+  border-radius: 19px;
+  background: rgba(0, 0, 0, 0.62);
+  color: rgba(255, 255, 255, 0.92);
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.jg-browse-public:focus-visible {
+  outline: 2px solid #0a9be3;
+  outline-offset: 2px;
+}
+
 .jg-section-title {
   position: absolute;
   left: 50%;
   transform: translate(-50%, -50%);
-  top: 210px;
+  top: 228px;
   margin: 0;
   width: 326px;
   text-align: center;
@@ -86,7 +111,7 @@
 .jg-code-row {
   position: absolute;
   left: 0;
-  top: 271px;
+  top: 289px;
   width: 402px;
   display: flex;
   justify-content: flex-start;
@@ -140,7 +165,7 @@
   position: absolute;
   left: 22px;
   /* Below .jg-code-row (top 271 + cell height 67 = 338) — keep error copy out of the digit boxes */
-  top: 352px;
+  top: 370px;
   width: 355px;
   margin: 0;
   min-height: 2.6em;

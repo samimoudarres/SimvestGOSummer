@@ -10,6 +10,7 @@ export const gamePaths = {
   /** After publishing: per-game username + photo (same persistence as join profile setup). */
   createGameHostProfile: '/create-game/your-in-game-profile',
   join: '/join',
+  joinPublicGames: '/join/public-games',
   joinWelcome: (code: string) => `/join/welcome?code=${encodeURIComponent(code)}`,
   joinProfileSetup: (code: string) => `/join/profile-setup?code=${encodeURIComponent(code)}`,
   nov2024StockChallenge: `/g/${GAME_SLUG.nov2024}`,

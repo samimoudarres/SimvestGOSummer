@@ -255,6 +255,14 @@ export function JoinGameScreen() {
         </button>
         <h1 className="jg-logo">SIMVEST</h1>
 
+        <button
+          type="button"
+          className="jg-browse-public"
+          onClick={() => navigate(gamePaths.joinPublicGames)}
+        >
+          Search public games
+        </button>
+
         <h2 className="jg-section-title">Enter Game Code</h2>
 
         <div className="jg-code-row" role="group" aria-label="Six-digit game code">
