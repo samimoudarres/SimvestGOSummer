@@ -31,11 +31,14 @@ import { SettingsContactScreen } from './settings/SettingsContactScreen'
 import { SettingsPasswordScreen } from './settings/SettingsPasswordScreen'
 import { SettingsPostNotificationsScreen } from './settings/SettingsPostNotificationsScreen'
 import { gamePaths } from './gameRoutes'
+import { AdminScreen } from './admin/AdminScreen'
 
 export default function App() {
   return (
     <BrowserRouter basename={reactRouterBasename()}>
       <Routes>
+        <Route path="/admin" element={<AdminScreen />} />
+
         <Route element={<GuestOnly />}>
           <Route path="/login" element={<LoginScreen />} />
           <Route path="/login/sign-in" element={<SimvestLoginFormScreen />} />

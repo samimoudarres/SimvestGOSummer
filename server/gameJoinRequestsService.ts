@@ -81,6 +81,12 @@ async function writeAll(items: GameJoinRequest[]): Promise<void> {
   return runSerializedByKey(REQ_LOCK_KEY, () => writeAllUnlocked(items))
 }
 
+/** Admin dashboard — all join requests, newest first. */
+export async function listAllJoinRequests(): Promise<GameJoinRequest[]> {
+  const all = await readAll()
+  return [...all].sort((a, b) => (a.createdAtIso < b.createdAtIso ? 1 : -1))
+}
+
 export async function findPendingRequest(gameSlug: string, userId: string): Promise<GameJoinRequest | null> {
   const all = await readAll()
   return (

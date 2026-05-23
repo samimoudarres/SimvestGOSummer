@@ -157,6 +157,13 @@ export async function listRecentActivityPosts(limit = 48): Promise<GameFeedPost[
   return [...posts].sort((a, b) => (a.timestampIso < b.timestampIso ? 1 : -1)).slice(0, Math.max(1, limit))
 }
 
+/** Admin dashboard — newest first, capped for response size. */
+export async function listAllFeedPostsForAdmin(limit = 2000): Promise<GameFeedPost[]> {
+  const cap = Math.max(1, Math.min(limit, 5000))
+  const { posts } = await readFeedStore()
+  return [...posts].sort((a, b) => (a.timestampIso < b.timestampIso ? 1 : -1)).slice(0, cap)
+}
+
 export async function appendGameFeedPost(post: Omit<GameFeedPost, 'id'> & { id?: string }): Promise<GameFeedPost> {
   return runFeedMutation(async () => {
     const file = await readFeedFileUnlocked()

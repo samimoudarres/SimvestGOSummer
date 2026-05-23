@@ -5,12 +5,14 @@ import dotenv from 'dotenv'
 import express from 'express'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-dotenv.config({ path: path.join(__dirname, '..', '.env') })
+dotenv.config({ path: path.join(__dirname, '..', '.env'), override: true })
 import cors from 'cors'
 import { gameHostLine, gameTitle, slugToVariant } from '../src/challenge/gameMeta'
 import { sanitizeLoadScreenEmoji } from '../src/game/loadScreenEmoji.ts'
 import { emptyPerformDashboard } from '../src/perform/performDummy'
 import { ensureDataDirReady, getDataDir } from './dataDir.ts'
+import { isAdminConfigured, requireAdminAuth } from './adminAuth.ts'
+import { buildAdminDashboard } from './adminDashboardService.ts'
 import { sendBrandingIcon } from './branding'
 import { massiveGet, MassiveApiError } from './massiveClient'
 import {
@@ -380,6 +382,23 @@ app.get('/api/health', (_req, res) => {
     dataDir: getDataDir(),
     persistentData: Boolean(process.env.SIMVEST_DATA_DIR?.trim()),
   })
+})
+
+/** Admin dashboard — not linked from the player app. */
+app.get('/api/admin/status', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.json({ configured: isAdminConfigured() })
+})
+
+app.get('/api/admin/dashboard', requireAdminAuth, async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  try {
+    res.json(await buildAdminDashboard())
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : 'Admin dashboard failed',
+    })
+  }
 })
 
 /** Resolve a six-digit join code to the welcome payload (player count is live from membership). */

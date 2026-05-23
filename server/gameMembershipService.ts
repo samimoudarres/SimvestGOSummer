@@ -105,6 +105,22 @@ export async function listGameSlugsJoinedByUser(userId: string): Promise<string[
   })
 }
 
+/** Admin / analytics — player counts per game slug. */
+export async function getMembershipCountsByGame(): Promise<Record<string, number>> {
+  return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {
+    const file = await readFile()
+    const counts: Record<string, number> = {}
+    for (const k of Object.keys(file.joins)) {
+      const idx = k.indexOf(':::')
+      if (idx <= 0) continue
+      const slug = k.slice(idx + 3)
+      if (!slug) continue
+      counts[slug] = (counts[slug] ?? 0) + 1
+    }
+    return counts
+  })
+}
+
 export async function listUserIdsJoinedGame(gameSlug: string): Promise<string[]> {
   if (!gameSlug) return []
   return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {

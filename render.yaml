@@ -23,3 +23,5 @@ services:
         value: /var/data
       - key: MASSIVE_API_KEY
         sync: false
+      - key: SIMVEST_ADMIN_SECRET
+        sync: false

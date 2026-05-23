@@ -22,7 +22,8 @@
     "test:ledger": "tsx server/scripts/verifyLedgerInProcess.ts",
     "test:join-invite": "tsx server/scripts/verifyJoinInvite.ts",
     "verify:massive-live": "tsx server/scripts/verifyMassiveLiveLag.ts",
-    "icons:generate": "node scripts/generateAppIcons.mjs"
+    "icons:generate": "node scripts/generateAppIcons.mjs",
+    "admin:render:env": "node scripts/setRenderAdminSecret.mjs"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.3.4",

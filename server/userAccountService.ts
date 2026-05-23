@@ -589,6 +589,14 @@ export function toAccountPublicView(record: UserAccountRecord): AccountPublicVie
   }
 }
 
+/** Admin dashboard — no password hashes; newest accounts first. */
+export async function listAllAccountsForAdmin(): Promise<AccountPublicView[]> {
+  const { byUserId } = await loadAccountsByContactKey()
+  return [...byUserId.values()]
+    .map(toAccountPublicView)
+    .sort((a, b) => (a.createdAtIso < b.createdAtIso ? 1 : -1))
+}
+
 /** Permanently remove the account row (after game data cleanup). */
 export async function deleteUserAccountRecord(userId: string): Promise<boolean> {
   if (!userId || userId.length < 8) return false

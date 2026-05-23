@@ -1,0 +1,274 @@
+/* Simvest admin — high contrast, readable tables, no app chrome dependencies */
+
+.sv-admin {
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.sv-admin__skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  padding: 0.5rem 1rem;
+  background: #1e293b;
+  color: #fff;
+  z-index: 100;
+}
+
+.sv-admin__skip:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+}
+
+.sv-admin__wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+}
+
+.sv-admin__header {
+  margin-bottom: 1.5rem;
+}
+
+.sv-admin__title {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.sv-admin__subtitle {
+  margin: 0;
+  color: #475569;
+  font-size: 0.95rem;
+}
+
+.sv-admin__card {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.sv-admin__label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.sv-admin__input {
+  display: block;
+  width: 100%;
+  max-width: 24rem;
+  padding: 0.55rem 0.65rem;
+  font-size: 1rem;
+  border: 2px solid #64748b;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.sv-admin__input:focus {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+  border-color: #2563eb;
+}
+
+.sv-admin__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.sv-admin__btn {
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.sv-admin__btn--primary {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.sv-admin__btn--primary:hover {
+  background: #1e40af;
+}
+
+.sv-admin__btn--primary:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.sv-admin__btn--secondary {
+  background: #fff;
+  color: #1e293b;
+  border-color: #64748b;
+}
+
+.sv-admin__btn--secondary:hover {
+  background: #f8fafc;
+}
+
+.sv-admin__btn--ghost {
+  background: transparent;
+  color: #475569;
+  text-decoration: underline;
+  border: none;
+  min-height: auto;
+  padding: 0.25rem 0.5rem;
+}
+
+.sv-admin__error {
+  margin: 0.75rem 0 0;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.sv-admin__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.sv-admin__stat {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.sv-admin__stat-value {
+  display: block;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.sv-admin__stat-label {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.sv-admin__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 0;
+}
+
+.sv-admin__tab {
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.5rem 0.85rem;
+  border: none;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  min-height: 44px;
+}
+
+.sv-admin__tab[aria-selected='true'] {
+  color: #1d4ed8;
+  background: #fff;
+  box-shadow: inset 0 -3px 0 #1d4ed8;
+}
+
+.sv-admin__tab:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.sv-admin__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.sv-admin__search-wrap {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.sv-admin__meta {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.sv-admin__table-scroll {
+  overflow-x: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.sv-admin__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.sv-admin__table caption {
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  font-weight: 600;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sv-admin__table th,
+.sv-admin__table td {
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+}
+
+.sv-admin__table th {
+  background: #f1f5f9;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sv-admin__table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.sv-admin__mono {
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
+.sv-admin__empty {
+  padding: 1.5rem;
+  text-align: center;
+  color: #64748b;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sv-admin * {
+    transition: none !important;
+  }
+}
