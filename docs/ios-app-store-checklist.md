@@ -7,7 +7,7 @@ Use this with [App Store Review Guidelines](https://developer.apple.com/App-stor
 1. Set `VITE_API_ORIGIN` in `.env.capacitor` to your **HTTPS** production API (e.g. `https://simvest-api.onrender.com`).
 2. Run `npm run cap:sync:release`.
 3. Open `ios/App/App.xcworkspace` in Xcode, select **Any iOS Device**, **Product → Archive**, upload to App Store Connect.
-4. Version: align **Marketing Version** / **Build** with Android if shipping together (currently **1.0.7** / build **8**).
+4. Version: align **Marketing Version** / **Build** with Android if shipping together (currently **1.0.7** / build **9**).
 
 ## App Store Connect metadata (required)
 
