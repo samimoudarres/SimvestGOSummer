@@ -19,6 +19,11 @@
   flex-shrink: 0;
 }
 
+/* Web preview keeps Figma absolute layout; native uses rules in nativeViewport.css */
+html:not(.sv-capacitor) .jp-phoneScroll {
+  display: contents;
+}
+
 .jp-back {
   position: absolute;
   left: 15px;

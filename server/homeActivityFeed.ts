@@ -13,10 +13,8 @@ import { listParticipationSlugsForUser } from './userParticipationSlugs'
 export async function fetchHydratedHomeActivityForUser(viewerUserId: string): Promise<HydratedFeedApiPost[]> {
   const slugs = await listParticipationSlugsForUser(viewerUserId)
 
-  const merged: GameFeedPost[] = []
-  for (const slug of slugs) {
-    merged.push(...(await listPostsForGame(slug)))
-  }
+  const perSlug = await Promise.all(slugs.map((slug) => listPostsForGame(slug)))
+  const merged: GameFeedPost[] = perSlug.flat()
 
   merged.sort((a, b) => (a.timestampIso < b.timestampIso ? 1 : -1))
 

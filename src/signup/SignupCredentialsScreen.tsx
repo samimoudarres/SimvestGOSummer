@@ -31,10 +31,13 @@ import { setSimvestLoggedIn } from '../login/loginState'
 import {
   clearDraft,
   completeSignup,
+  ensureSignupDraftFromStoredName,
   isValidEmail,
   isValidPassword,
   isValidPhone,
   readDraftId,
+  readDraftName,
+  SIGNUP_DRAFT_PENDING,
   type SignupValidationError,
 } from './signupClient'
 import './signupScreens.css'
@@ -51,12 +54,38 @@ export function SignupCredentialsScreen() {
   const navigate = useNavigate()
   const contactRef = useRef<HTMLInputElement>(null)
 
-  /* If the user lands here without a draft (e.g. opened the URL directly or
-   * the draft expired), send them back to step 1. We only do this on mount;
-   * after that the draft can be safely consumed by a submit. */
+  const [draftReady, setDraftReady] = useState(() => {
+    const id = readDraftId()
+    return Boolean(id && id !== SIGNUP_DRAFT_PENDING)
+  })
+  const [draftError, setDraftError] = useState<string | null>(null)
+
+  /* Step 1 navigates instantly; create the server draft here in the background. */
   useEffect(() => {
-    if (!readDraftId()) {
+    const { firstName, lastName } = readDraftName()
+    if (!firstName.trim() || !lastName.trim()) {
       navigate('/signup/name', { replace: true })
+      return
+    }
+    const id = readDraftId()
+    if (id && id !== SIGNUP_DRAFT_PENDING) {
+      setDraftReady(true)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const result = await ensureSignupDraftFromStoredName()
+      if (cancelled) return
+      if (!result.ok) {
+        setDraftError(result.error)
+        setDraftReady(false)
+        return
+      }
+      setDraftReady(true)
+      setDraftError(null)
+    })()
+    return () => {
+      cancelled = true
     }
   }, [navigate])
 
@@ -199,6 +228,8 @@ export function SignupCredentialsScreen() {
   )
 
   const canSubmit =
+    draftReady &&
+    !draftError &&
     contact.trim().length > 0 &&
     password.length > 0 &&
     !busy &&
@@ -232,6 +263,28 @@ export function SignupCredentialsScreen() {
           <p className="su-subprompt">
             Use your email or phone number — we’ll use this to sign you back in later.
           </p>
+          {draftError ? (
+            <div className="su-error" role="alert">
+              {draftError}{' '}
+              <button
+                type="button"
+                className="su-legalBtn"
+                onClick={() => void ensureSignupDraftFromStoredName().then((r) => {
+                  if (r.ok) {
+                    setDraftReady(true)
+                    setDraftError(null)
+                  } else setDraftError(r.error)
+                })}
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
+          {!draftReady && !draftError ? (
+            <p className="su-subprompt" aria-live="polite">
+              Preparing your signup…
+            </p>
+          ) : null}
 
           <div
             className="su-segment"

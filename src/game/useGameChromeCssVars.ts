@@ -2,6 +2,17 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { fetchGameChrome } from './gameChromeApi'
 import { getCachedGameChromeVars, setCachedGameChromeVars } from './gameShellCache'
 
+const FALLBACK_GAME_CHROME: Record<string, string> = {
+  '--sv-chrome-h1': '#099ae3',
+  '--sv-chrome-h2': '#05557d',
+  '--sv-chrome-h3': '#07406a',
+  '--sv-chrome-bar1': '#099ae3',
+  '--sv-chrome-bar2': '#05557d',
+  '--sv-chrome-bar3': '#07406a',
+  '--sv-chrome-accent-a': '#099ae3',
+  '--sv-chrome-accent-b': '#05557d',
+}
+
 /** Apply server-resolved palette variables to game shell roots (see `gameChallenge.css`). */
 export function useGameChromeCssVars(gameSlug: string | null | undefined): CSSProperties {
   const slug = gameSlug?.trim() || null
@@ -35,11 +46,11 @@ export function useGameChromeCssVars(gameSlug: string | null | undefined): CSSPr
   }, [slug])
 
   return useMemo(() => {
-    if (!vars) return {}
+    const merged = slug ? { ...FALLBACK_GAME_CHROME, ...(vars ?? {}) } : {}
     const out: CSSProperties = {}
-    for (const [k, v] of Object.entries(vars)) {
+    for (const [k, v] of Object.entries(merged)) {
       ;(out as Record<string, string>)[k] = v
     }
     return out
-  }, [vars])
+  }, [slug, vars])
 }

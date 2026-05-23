@@ -289,7 +289,11 @@ export async function listAllRuntimeRules(): Promise<Array<{ slug: string; rules
     const f = await readFileRaw()
     const out: Array<{ slug: string; rules: GameRuntimeRules }> = []
     for (const [slug, raw] of Object.entries(f.bySlug ?? {})) {
-      const rules = parseRules(raw, slug)
+      let rules = parseRules(raw, slug)
+      if (!rules && raw && typeof raw === 'object' && (raw as Record<string, unknown>).setupComplete === true) {
+        const repaired = attemptRepairRuntimeRawForParse(raw)
+        if (repaired) rules = parseRules(repaired, slug)
+      }
       if (rules) out.push({ slug, rules })
     }
     return out

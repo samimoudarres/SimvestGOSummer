@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PrivacyPolicyModal } from '../legal/PrivacyPolicyModal'
 import { TermsOfServiceModal } from '../legal/TermsOfServiceModal'
-import { readDraftName, saveDraftId, startSignup } from './signupClient'
+import { readDraftName, saveDraftNameForStep2 } from './signupClient'
 import './signupScreens.css'
 
 export function SignupNameScreen() {
@@ -23,7 +23,6 @@ export function SignupNameScreen() {
   const persisted = readDraftName()
   const [firstName, setFirstName] = useState(persisted.firstName)
   const [lastName, setLastName] = useState(persisted.lastName)
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [firstError, setFirstError] = useState<string | null>(null)
   const [lastError, setLastError] = useState<string | null>(null)
@@ -45,8 +44,6 @@ export function SignupNameScreen() {
   const onSubmit = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault()
-      if (busy) return
-
       const f = firstName.trim()
       const l = lastName.trim()
       const fErr = !f ? 'First name is required' : null
@@ -55,26 +52,13 @@ export function SignupNameScreen() {
       setLastError(lErr)
       if (fErr || lErr) return
 
-      setBusy(true)
-      setError(null)
-      try {
-        const result = await startSignup(f, l)
-        if (!result.ok) {
-          setError(result.error)
-          return
-        }
-        saveDraftId(result.data.draftId, f, l)
-        navigate('/signup/credentials')
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not save your name. Please try again.')
-      } finally {
-        setBusy(false)
-      }
+      saveDraftNameForStep2(f, l)
+      navigate('/signup/credentials')
     },
-    [busy, firstName, lastName, navigate],
+    [firstName, lastName, navigate],
   )
 
-  const canSubmit = firstName.trim().length > 0 && lastName.trim().length > 0 && !busy
+  const canSubmit = firstName.trim().length > 0 && lastName.trim().length > 0
 
   return (
     <main className="su-root">
@@ -117,7 +101,6 @@ export function SignupNameScreen() {
                 if (error) setError(null)
               }}
               maxLength={60}
-              disabled={busy}
               aria-invalid={Boolean(firstError)}
             />
             {firstError ? <span className="su-fieldError">{firstError}</span> : null}
@@ -140,7 +123,6 @@ export function SignupNameScreen() {
                 if (error) setError(null)
               }}
               maxLength={60}
-              disabled={busy}
               aria-invalid={Boolean(lastError)}
             />
             {lastError ? <span className="su-fieldError">{lastError}</span> : null}
@@ -169,8 +151,8 @@ export function SignupNameScreen() {
 
           <div className="su-spacer" />
 
-          <button type="submit" className="su-submit" disabled={!canSubmit} aria-busy={busy}>
-            {busy ? 'Saving…' : 'Continue'}
+          <button type="submit" className="su-submit" disabled={!canSubmit}>
+            Continue
           </button>
         </form>
       </section>

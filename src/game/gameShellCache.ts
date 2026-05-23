@@ -1,5 +1,6 @@
 import { slugToVariant } from '../challenge/gameMeta'
 import { fetchCreateGameSettings, type CreateSettingsGetResponse } from '../createGame/createGameSettingsApi'
+import { simvestFetch } from '../api/simvestFetch'
 import { fetchGameChrome } from './gameChromeApi'
 
 export type CachedGameHeaderState = {
@@ -92,11 +93,18 @@ export function cacheGameHeaderFromCreateSettings(
   return state
 }
 
-/** Warm chrome + header before route mount (e.g. home game card tap). */
+function prefetchGameFeed(slug: string): void {
+  const k = cacheKey(slug)
+  if (!k) return
+  void simvestFetch(`/api/games/${encodeURIComponent(slug)}/feed`, { method: 'GET' }).catch(() => {})
+}
+
+/** Warm chrome + header + feed before route mount (e.g. tab bar tap). */
 export function prefetchGameShell(slug: string): void {
   const k = cacheKey(slug)
   if (!k) return
   if (prefetchInflight.has(k)) return
+  prefetchGameFeed(slug)
   const job = Promise.all([
     fetchGameChrome(slug)
       .then((r) => setCachedGameChromeVars(slug, r.cssVars))

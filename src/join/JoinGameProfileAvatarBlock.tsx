@@ -102,7 +102,8 @@ export function JoinGameDefaultAvatarChoice({ useDefaultAvatar, setUseDefaultAva
         <span className="jp-defaultAvatarLabel">Use default profile picture</span>
       </label>
       <p className="jp-defaultAvatarHint">
-        Upload your own photo above, or check this box to use Simvest&apos;s default avatar for this game.
+        Your account photo is pre-filled when you have one. Upload a different image above, or check this box
+        to use Simvest&apos;s generic default avatar for this game only.
       </p>
     </div>
   )

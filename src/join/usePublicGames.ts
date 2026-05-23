@@ -45,7 +45,11 @@ export function usePublicGames(enabled: boolean) {
       if (document.visibilityState === 'visible') void load()
     }
     document.addEventListener('visibilitychange', onVis)
-    return () => document.removeEventListener('visibilitychange', onVis)
+    const pollId = window.setInterval(() => void load(), 20_000)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.clearInterval(pollId)
+    }
   }, [enabled, load])
 
   return { games, status, error, reload: load }

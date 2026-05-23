@@ -4,6 +4,8 @@ import { gamePaths } from '../gameRoutes'
 import { BackArrowIcon } from '../icons/BackArrowIcon'
 import { fetchJoinWelcome } from './fetchJoinWelcome'
 import { fetchExistingJoinSetup, saveJoinSetupProfile } from './joinSetupApi'
+import { accountPhotoForJoinDraft } from './joinProfileAccountPhoto'
+import { fetchMyAccount } from '../settings/settingsClient'
 import { MAX_PROFILE_AVATAR_FILE_BYTES } from '../profile/maxProfileAvatarUpload'
 import { JoinGameDefaultAvatarChoice, JoinGameProfileAvatarBlock, profileRowUsesDefaultGameAvatar } from './JoinGameProfileAvatarBlock'
 import type { JoinSetupDraftInput, JoinSetupFieldError } from './joinSetupTypes'
@@ -27,6 +29,23 @@ export function JoinProfileSetupScreen() {
   const [topError, setTopError] = useState<string | null>(null)
 
   useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const syncKb = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop ?? 0))
+      document.documentElement.style.setProperty('--jp-kb-offset', `${Math.round(inset)}px`)
+    }
+    syncKb()
+    vv.addEventListener('resize', syncKb)
+    vv.addEventListener('scroll', syncKb)
+    return () => {
+      vv.removeEventListener('resize', syncKb)
+      vv.removeEventListener('scroll', syncKb)
+      document.documentElement.style.removeProperty('--jp-kb-offset')
+    }
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
     async function load() {
       setLoading(true)
@@ -47,7 +66,10 @@ export function JoinProfileSetupScreen() {
         setGameSlug(welcome.gameSlug)
         /* If the user already set up this game (rare — happens on edit), pre-fill
          * the two fields we still show so they can update without restarting. */
-        const existing = await fetchExistingJoinSetup(welcome.gameSlug)
+        const [existing, acct] = await Promise.all([
+          fetchExistingJoinSetup(welcome.gameSlug),
+          fetchMyAccount(),
+        ])
         if (cancelled) return
         if (existing) {
           setDraft((prev) => ({
@@ -56,6 +78,12 @@ export function JoinProfileSetupScreen() {
             avatarUrl: profileRowUsesDefaultGameAvatar(existing.avatarUrl) ? '' : existing.avatarUrl || '',
           }))
           setUseDefaultAvatar(profileRowUsesDefaultGameAvatar(existing.avatarUrl))
+        } else if (acct.ok) {
+          const fromAccount = accountPhotoForJoinDraft(acct.account.avatarUrl)
+          if (fromAccount) {
+            setDraft((prev) => ({ ...prev, avatarUrl: fromAccount }))
+            setUseDefaultAvatar(false)
+          }
         }
       } catch (e) {
         if (!cancelled) {
@@ -173,56 +201,60 @@ export function JoinProfileSetupScreen() {
     )
   }
 
+  const phoneClass = 'jp-phone jp-phone--scroll'
+
   return (
     <div className="jp-root">
-      <div className="jp-phone" data-node-id="284:7217">
-        <button
-          type="button"
-          className="jp-back"
-          aria-label="Back"
-          onClick={() => navigate(gamePaths.joinWelcome(code))}
-        >
-          <BackArrowIcon />
-        </button>
-        <h1 className="jp-logo">SIMVEST</h1>
+      <div className={phoneClass} data-node-id="284:7217">
+        <div className="jp-phoneScroll">
+          <button
+            type="button"
+            className="jp-back"
+            aria-label="Back"
+            onClick={() => navigate(gamePaths.joinWelcome(code))}
+          >
+            <BackArrowIcon />
+          </button>
+          <h1 className="jp-logo">SIMVEST</h1>
 
-        <JoinGameProfileAvatarBlock
-          draft={draft}
-          useDefaultAvatar={useDefaultAvatar}
-          fileRef={fileRef}
-          onPickAvatar={onPickAvatar}
-        />
+          <JoinGameProfileAvatarBlock
+            draft={draft}
+            useDefaultAvatar={useDefaultAvatar}
+            fileRef={fileRef}
+            onPickAvatar={onPickAvatar}
+          />
 
-        <form className="jp-form" onSubmit={(e) => e.preventDefault()}>
-          <div className="jp-field">
-            <p className="jp-label">Create username</p>
-            <div className="jp-inputWrap">
-              <input
-                className="jp-input"
-                placeholder="Enter username"
-                value={draft.username}
-                onChange={(e) => setDraft((p) => ({ ...p, username: e.target.value }))}
-                autoCapitalize="none"
-                autoComplete="username"
-              />
+          <form className="jp-form" onSubmit={(e) => e.preventDefault()}>
+            <div className="jp-field">
+              <p className="jp-label">Create username</p>
+              <div className="jp-inputWrap">
+                <input
+                  className="jp-input"
+                  placeholder="Enter username"
+                  value={draft.username}
+                  onChange={(e) => setDraft((p) => ({ ...p, username: e.target.value }))}
+                  autoCapitalize="none"
+                  autoComplete="username"
+                />
+              </div>
+              {fieldError.get('username') ? <p className="jp-error">{fieldError.get('username')}</p> : null}
             </div>
-            {fieldError.get('username') ? <p className="jp-error">{fieldError.get('username')}</p> : null}
-          </div>
 
-          <p className="jp-note">
-            We’ll use your Simvest account info for everything else — your photo and username are the only
-            things you can customize per game.
-          </p>
-          {fieldError.get('avatarUrl') ? <p className="jp-error">{fieldError.get('avatarUrl')}</p> : null}
-          {topError ? <p className="jp-error">{topError}</p> : null}
-        </form>
+            <p className="jp-note">
+              We’ll use your Simvest account info for everything else — your photo and username are the only
+              things you can customize per game.
+            </p>
+            {fieldError.get('avatarUrl') ? <p className="jp-error">{fieldError.get('avatarUrl')}</p> : null}
+            {topError ? <p className="jp-error">{topError}</p> : null}
+          </form>
 
-        <JoinGameDefaultAvatarChoice
-          useDefaultAvatar={useDefaultAvatar}
-          setUseDefaultAvatar={setUseDefaultAvatar}
-          setDraft={setDraft}
-          fileRef={fileRef}
-        />
+          <JoinGameDefaultAvatarChoice
+            useDefaultAvatar={useDefaultAvatar}
+            setUseDefaultAvatar={setUseDefaultAvatar}
+            setDraft={setDraft}
+            fileRef={fileRef}
+          />
+        </div>
 
         <button type="button" className="jp-submit" disabled={submitting} onClick={() => void submit()}>
           {submitting ? 'Saving…' : 'Start trading'}

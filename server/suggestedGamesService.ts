@@ -55,7 +55,7 @@ export async function buildSuggestedGames(
       ? Math.min(Math.floor(offsetRaw), 1_000_000)
       : 0
 
-  const allItems = await listPublicCatalogItems(viewerUserId)
+  const allItems = await listPublicCatalogItems(viewerUserId, { excludeViewerParticipation: true })
   const allDtos = allItems.map(toSuggestedDto)
   const n = allDtos.length
 

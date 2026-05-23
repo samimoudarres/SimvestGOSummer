@@ -34,7 +34,9 @@ function withViewerQueryForSession(urlString: string): string {
     urlString.includes('/api/me/following') ||
     urlString.includes('/api/me/games') ||
     urlString.includes('/api/me/host/') ||
-    urlString.includes('/api/join/')
+    urlString.includes('/api/join/') ||
+    urlString.includes('/api/games/public') ||
+    urlString.includes('/api/games/suggested')
   if (!hits) return urlString
   try {
     const absolute = urlString.startsWith('http')
@@ -74,6 +76,8 @@ function gamesGetCache(urlString: string, init?: RequestInit): RequestCache | un
     urlString.includes('/api/me/games') ||
     urlString.includes('/api/me/host/') ||
     urlString.includes('/api/join/') ||
+    urlString.includes('/api/games/public') ||
+    urlString.includes('/api/games/suggested') ||
     urlString.includes('/api/stocks/')
   if (privateNoStore) return init?.cache ?? 'no-store'
   return init?.cache

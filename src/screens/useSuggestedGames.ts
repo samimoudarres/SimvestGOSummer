@@ -117,10 +117,12 @@ export function useSuggestedGames(enabled: boolean): UseSuggestedGamesResult {
     document.addEventListener('visibilitychange', onVis)
     window.addEventListener('simvest:activity-refresh', onActivity)
     window.addEventListener('simvest:holdings-refresh', onActivity)
+    const pollId = window.setInterval(() => void load('visibility'), 25_000)
     return () => {
       document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('simvest:activity-refresh', onActivity)
       window.removeEventListener('simvest:holdings-refresh', onActivity)
+      window.clearInterval(pollId)
     }
   }, [enabled, load])
 

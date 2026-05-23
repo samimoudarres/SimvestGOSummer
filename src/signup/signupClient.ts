@@ -13,6 +13,8 @@
 import { simvestFetch } from '../api/simvestFetch'
 
 const DRAFT_ID_KEY = 'simvest-signup-draft-id-v1'
+/** Written before `/api/auth/signup/start` returns — credentials step finishes the draft. */
+export const SIGNUP_DRAFT_PENDING = 'pending'
 const DRAFT_FIRST_KEY = 'simvest-signup-first-name-v1'
 const DRAFT_LAST_KEY = 'simvest-signup-last-name-v1'
 
@@ -42,6 +44,17 @@ export type SignupErrorBody = {
 /* --------------------------------------------------------------------- */
 /* sessionStorage helpers                                                 */
 /* --------------------------------------------------------------------- */
+
+/** Step 1: persist names locally and navigate immediately; draft id is created on step 2. */
+export function saveDraftNameForStep2(firstName: string, lastName: string): void {
+  try {
+    sessionStorage.setItem(DRAFT_ID_KEY, SIGNUP_DRAFT_PENDING)
+    sessionStorage.setItem(DRAFT_FIRST_KEY, firstName)
+    sessionStorage.setItem(DRAFT_LAST_KEY, lastName)
+  } catch {
+    /* ignore */
+  }
+}
 
 export function saveDraftId(id: string, firstName: string, lastName: string): void {
   try {
@@ -92,6 +105,25 @@ async function parseErrorBody(resp: Response): Promise<SignupErrorBody> {
   } catch {
     return {}
   }
+}
+
+/**
+ * Ensures a server draft exists for the name saved in step 1. Safe to call multiple times.
+ */
+export async function ensureSignupDraftFromStoredName(): Promise<
+  | { ok: true }
+  | { ok: false; error: string }
+> {
+  const existing = readDraftId()
+  if (existing && existing !== SIGNUP_DRAFT_PENDING) return { ok: true }
+  const { firstName, lastName } = readDraftName()
+  if (!firstName.trim() || !lastName.trim()) {
+    return { ok: false, error: 'Enter your name on the previous step.' }
+  }
+  const result = await startSignup(firstName, lastName)
+  if (!result.ok) return { ok: false, error: result.error }
+  saveDraftId(result.data.draftId, firstName, lastName)
+  return { ok: true }
 }
 
 export async function startSignup(

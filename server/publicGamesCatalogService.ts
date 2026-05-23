@@ -286,25 +286,39 @@ async function itemFromDefinition(
   }
 }
 
+export type ListPublicCatalogOptions = {
+  /**
+   * When true (home suggestions), hide games the viewer already joined, hosts,
+   * or has ledger/feed rows for. When false (browse-all), every live public game
+   * is listed so hosts can verify their game and new users see the full catalog.
+   */
+  excludeViewerParticipation?: boolean
+}
+
 /**
- * All joinable public games for this viewer, sorted by player count (desc) then
- * most recent start time.
+ * All joinable public games, sorted by player count (desc) then most recent start.
  */
 export async function listPublicCatalogItems(
   viewerUserId: string | null,
+  options: ListPublicCatalogOptions = {},
 ): Promise<PublicGameCatalogItem[]> {
+  const excludeViewerParticipation = options.excludeViewerParticipation === true
   const nowMs = Date.now()
 
   const [allRules, participationSlugs, definitions] = await Promise.all([
     listAllRuntimeRules(),
-    viewerUserId ? listParticipationSlugsForUser(viewerUserId) : Promise.resolve<string[]>([]),
+    excludeViewerParticipation && viewerUserId
+      ? listParticipationSlugsForUser(viewerUserId)
+      : Promise.resolve<string[]>([]),
     listGameDefinitions(),
   ])
 
   const participationKey = new Set<string>()
-  for (const s of participationSlugs) {
-    const k = canonicalGameSlugKey(s)
-    if (k) participationKey.add(k)
+  if (excludeViewerParticipation) {
+    for (const s of participationSlugs) {
+      const k = canonicalGameSlugKey(s)
+      if (k) participationKey.add(k)
+    }
   }
 
   const runtimeSlugsSeen = new Set<string>()
