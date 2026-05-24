@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { challengeAssets as a } from '../challenge/challengeAssets'
-import { ApiImage } from '../components/ApiImage'
+import { StockBrandingImage } from '../components/StockBrandingImage'
 import type { JoinedGameForTrade } from './useJoinedGamesForTrade'
 import type { TradeOrderDraft } from './tradeOrderTypes'
 import './stockReviewOrder.css'
@@ -145,7 +145,7 @@ export function StockReviewOrder({
 
         <div className="rv-scroll">
           <div className="rv-heroCard">
-            <ApiImage className="rv-logo" src={iconUrl} alt="" width={72} height={72} />
+            <StockBrandingImage className="rv-logo" src={iconUrl} alt="" width={72} height={72} />
             <p className="rv-coName">{companyName}</p>
             <p className="rv-tickerHuge">{displayTicker}</p>
             <p

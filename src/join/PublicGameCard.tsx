@@ -1,8 +1,6 @@
-import { apiAssetSrc } from '../config/apiAssetSrc'
+import { ProfileAvatar } from '../components/ProfileAvatar'
 import type { PublicGameItem } from './publicGamesTypes'
 import './publicGameCard.css'
-
-const BLANK_AVATAR = apiAssetSrc('/figma-assets/blank-avatar.svg')
 
 type Props = {
   game: PublicGameItem
@@ -42,11 +40,7 @@ export function PublicGameCard({ game, onSelect }: Props) {
               <ul className="pgc-card__avatars" aria-hidden>
                 {game.memberAvatars.map((m) => (
                   <li key={m.userId}>
-                    <img
-                      className="pgc-card__avatar"
-                      src={m.avatarUrl || BLANK_AVATAR}
-                      alt=""
-                    />
+                    <ProfileAvatar className="pgc-card__avatar" url={m.avatarUrl} alt="" />
                   </li>
                 ))}
               </ul>

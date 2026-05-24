@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { postActivity } from '../api/activityPostApi'
 import { simvestFetch } from '../api/simvestFetch'
-import { resolveProfileAvatarUrl } from '../user/resolveProfileAvatarUrl'
-import { ApiImage } from '../components/ApiImage'
+import { ProfileAvatar } from '../components/ProfileAvatar'
+import { StockBrandingImage } from '../components/StockBrandingImage'
 import { composerHasVisibleContent, plainCharCount } from './richPostDom'
 import { RichPostEditor, type RichPostEditorHandle, resetRichEditor } from './RichPostEditor'
 import './activityComposerRich.css'
@@ -232,7 +232,11 @@ export function ActivityComposerRich({
         onChange={onFile}
       />
       <button type="button" className={layout === 'game' ? 'gc-composerAvatarBtn' : 'sv-composer__avatarBtn'} onClick={onAvatarClick}>
-        <img className={layout === 'game' ? 'gc-composerAvatar' : 'sv-composer__avatar'} src={resolveProfileAvatarUrl(avatarUrl)} alt="" />
+        <ProfileAvatar
+          className={layout === 'game' ? 'gc-composerAvatar' : 'sv-composer__avatar'}
+          url={avatarUrl}
+          alt=""
+        />
       </button>
       <div className={layout === 'game' ? 'gc-composerEditorMount' : 'sv-composer__editorMount'}>
         <RichPostEditor
@@ -269,7 +273,7 @@ export function ActivityComposerRich({
                   insertTag(r.symbol, (r.companyName || r.symbol).trim().slice(0, 24))
                 }
               >
-                {r.logoUrl ? <ApiImage src={r.logoUrl} alt="" /> : <span className="ac-tagRowPh" />}
+                {r.logoUrl ? <StockBrandingImage src={r.logoUrl} alt="" /> : <span className="ac-tagRowPh" />}
                 <span className="ac-tagRowMeta">
                   <p className="ac-tagSym">{r.symbol}</p>
                   <p className="ac-tagCo">{r.companyName}</p>

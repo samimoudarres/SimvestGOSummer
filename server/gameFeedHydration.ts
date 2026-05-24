@@ -240,10 +240,10 @@ async function fetchLivePriceMap(uniqueTickers: string[]): Promise<
 
 export async function hydrateGameFeedPosts(
   feedPosts: GameFeedPost[],
-  opts?: { viewerUserId?: string | null },
+  opts?: { viewerUserId?: string | null; /** Home feed: skip Massive live quotes (uses stored %). */ skipLiveQuotes?: boolean },
 ): Promise<HydratedFeedApiPost[]> {
   const uniqueTickers = [...new Set(feedPosts.map((p) => normalizeTicker(p.tickerSymbol)).filter(Boolean))] as string[]
-  const liveMap = await fetchLivePriceMap(uniqueTickers)
+  const liveMap = opts?.skipLiveQuotes ? new Map<string, { price: number | null; todaysChangePerc: number | null }>() : await fetchLivePriceMap(uniqueTickers)
   const userIds = feedPosts
     .map((p) => normalizeUserId(typeof p.userId === 'string' ? p.userId.trim() : '') ?? deriveLegacyUserId(p.author || 'player'))
     .filter((id) => id.length >= 8)

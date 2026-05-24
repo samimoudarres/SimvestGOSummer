@@ -28,7 +28,7 @@ import { InviteGameSheet } from '../join/InviteGameSheet'
 import { fetchCreateGameSettings } from '../createGame/createGameSettingsApi'
 import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
 import { simvestFetch } from '../api/simvestFetch'
-import { ApiImage } from '../components/ApiImage'
+import { StockBrandingImage } from '../components/StockBrandingImage'
 import { apiAssetSrc } from '../config/apiAssetSrc'
 import './gameChallenge.css'
 
@@ -1035,7 +1035,7 @@ export function GameChallengeScreen() {
                         return (
                           <div className="gc-trade__top">
                             <div className="gc-trade__upper">
-                              <ApiImage className="gc-trade__logo" src={post.tickerImage} alt="" />
+                              <StockBrandingImage className="gc-trade__logo" src={post.tickerImage} alt="" />
                               <div className="gc-trade__mid">
                                 <p className="gc-trade__headline">{post.tradeTitle}</p>
                               </div>

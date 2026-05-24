@@ -17,14 +17,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { clearAuthSession } from '../auth/clearAuthSession'
+import { readCachedAccount, writeCachedAccount } from '../auth/accountSessionCache'
 import { deleteMyAccount, fetchMyAccount, type AccountPublicView } from './settingsClient'
-import { apiAssetSrc } from '../config/apiAssetSrc'
+import { ProfileAvatar } from '../components/ProfileAvatar'
 import './settingsScreens.css'
 
 export function SettingsScreen() {
   const navigate = useNavigate()
-  const [account, setAccount] = useState<AccountPublicView | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [account, setAccount] = useState<AccountPublicView | null>(() => readCachedAccount())
+  const [loading, setLoading] = useState(() => !readCachedAccount())
   const [missingAccount, setMissingAccount] = useState(false)
   const [errorText, setErrorText] = useState<string | null>(null)
   const [confirmLogout, setConfirmLogout] = useState(false)
@@ -42,6 +43,7 @@ export function SettingsScreen() {
       const result = await fetchMyAccount()
       if (cancelled) return
       if (result.ok) {
+        writeCachedAccount(result.account)
         setAccount(result.account)
       } else if (result.error.status === 404) {
         setMissingAccount(true)
@@ -151,11 +153,7 @@ export function SettingsScreen() {
           ) : account ? (
             <>
               <div className="ss-greeting">
-                <img
-                  className="ss-avatar"
-                  src={apiAssetSrc(account.avatarUrl || '/figma-assets/blank-avatar.svg')}
-                  alt=""
-                />
+                <ProfileAvatar className="ss-avatar" url={account.avatarUrl} alt="" />
                 <div className="ss-greetCopy">
                   <span className="ss-greetName">{account.displayName}</span>
                   <span className="ss-greetContact">{account.contact}</span>

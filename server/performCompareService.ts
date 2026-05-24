@@ -130,6 +130,7 @@ export type PerformChartWindow = {
 export async function resolvePerformChartWindow(
   gameSlug: string,
   range: ChartRange,
+  opts?: { /** When false, net-worth MTM uses the full 1M/3M/etc. window (not clamped to game open). */ clampStartToGameOpen?: boolean },
 ): Promise<PerformChartWindow> {
   const slug = String(gameSlug ?? '').trim()
   const now = Date.now()
@@ -160,15 +161,19 @@ export async function resolvePerformChartWindow(
    * Runtime / template "new" games: use full market range so MTM curves are not flat lines
    * when the challenge started recently (same behavior users see in long-running contests).
    */
-  const clampChartStartToGameOpen =
-    Boolean(timelineFromDef) && def != null && def.slug !== 'new' && gameStartMs != null
-  if (clampChartStartToGameOpen) {
+  const shouldClampStart =
+    opts?.clampStartToGameOpen !== false &&
+    Boolean(timelineFromDef) &&
+    def != null &&
+    def.slug !== 'new' &&
+    gameStartMs != null
+  if (shouldClampStart) {
     startMs = Math.max(startMs, gameStartMs)
   }
   if (startMs >= endEffective) {
     startMs = endEffective - MS_DAY
   }
-  if (clampChartStartToGameOpen) {
+  if (shouldClampStart) {
     startMs = Math.max(startMs, gameStartMs)
   }
 
@@ -561,7 +566,7 @@ export async function buildPlayerNetWorthChart(
 ): Promise<PlayerNetWorthChartPayload | null> {
   if (!userId || userId.length < 8) return null
   const slug = String(gameSlug ?? '').trim()
-  const w = await resolvePerformChartWindow(slug, range)
+  const w = await resolvePerformChartWindow(slug, range, { clampStartToGameOpen: false })
   const agg = await getPlayerPerformAggregate(slug, userId)
   if (!agg) return null
   const chartWin = { startMs: w.startMs, endMs: w.endEffective }

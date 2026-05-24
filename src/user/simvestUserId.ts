@@ -78,12 +78,9 @@ export function getSimvestUserId(): string {
 export function setSimvestUserId(nextId: string): boolean {
   const id = typeof nextId === 'string' ? nextId.trim() : ''
   if (!VALID_USER_ID_RE.test(id)) return false
-  try {
-    localStorage.setItem(SIMVEST_USER_ID_STORAGE_KEY, id)
-  } catch {
-    /* localStorage blocked — fall through to memory fallback. */
-  }
-  memoryFallbackId = id
+  const prev = readStoredUserId()
+  if (prev === id) return true
+  persistUserId(id)
   try {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('simvest:user-id-changed'))

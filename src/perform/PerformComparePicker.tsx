@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
-import { ApiImage } from '../components/ApiImage'
+import { StockBrandingImage } from '../components/StockBrandingImage'
 import { apiAssetSrc } from '../config/apiAssetSrc'
 import type { PerformCompareCandidatePlayer } from './performTypes'
 
@@ -247,7 +247,7 @@ export function PerformComparePicker({
                       onClick={() => (added ? onRemoveToken(tokenForStock(sym)) : addStock(sym))}
                     >
                       {r.logoUrl ? (
-                        <ApiImage className="pf-compareStockIcon" src={r.logoUrl} alt="" />
+                        <StockBrandingImage className="pf-compareStockIcon" src={r.logoUrl} alt="" />
                       ) : (
                         <span className="pf-compareStockIconPf" aria-hidden />
                       )}

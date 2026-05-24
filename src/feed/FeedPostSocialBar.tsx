@@ -9,7 +9,7 @@ import {
   toggleFeedPostLike,
   type FeedCommentRow,
 } from '../api/feedPostSocialApi'
-import { apiAssetSrc } from '../config/apiAssetSrc'
+import { ProfileAvatar } from '../components/ProfileAvatar'
 import { formatFeedPostShareText } from './formatFeedPostShare'
 import './feedPostSocial.css'
 
@@ -102,7 +102,7 @@ function CommentBranch({
       {children.map((c) => (
         <div key={c.id} className="fps-comment" style={{ marginLeft: depth === 0 ? 0 : Math.min(depth * 14, 56) }}>
           <div className="fps-commentTop">
-            <img className="fps-commentAvatar" src={apiAssetSrc(c.avatar)} alt="" />
+            <ProfileAvatar className="fps-commentAvatar" url={c.avatar} alt="" width={32} height={32} />
             <div className="fps-commentMain">
               <div className="fps-commentMeta">
                 <p className="fps-commentAuthor">{c.author}</p>
@@ -342,7 +342,7 @@ export function FeedPostSocialBar({
                 {!likersErr
                   ? likers.map((u) => (
                       <div key={u.userId} className="fps-liker">
-                        <img className="fps-likerAvatar" src={apiAssetSrc(u.avatarUrl)} alt="" />
+                        <ProfileAvatar className="fps-likerAvatar" url={u.avatarUrl} alt="" width={36} height={36} />
                         <p className="fps-likerName">{u.displayName}</p>
                       </div>
                     ))

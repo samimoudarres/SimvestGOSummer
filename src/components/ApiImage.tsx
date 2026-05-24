@@ -2,11 +2,9 @@ import { useCallback, useEffect, useState, type ImgHTMLAttributes, type Syntheti
 import { simvestFetch } from '../api/simvestFetch'
 import { apiAssetSrc, isCapacitorShell } from '../config/apiAssetSrc'
 
-const DEFAULT_FALLBACK = '/figma-assets/blank-avatar.svg'
-
 type Props = ImgHTMLAttributes<HTMLImageElement> & {
   src: string | null | undefined
-  /** Shown when the primary `src` fails to load (404, network, empty blob). */
+  /** When set, shown if the primary `src` fails (profile photos only — not stock logos). */
   fallbackSrc?: string
 }
 
@@ -17,15 +15,19 @@ type Props = ImgHTMLAttributes<HTMLImageElement> & {
  */
 export function ApiImage({ src, alt = '', fallbackSrc, onError, ...rest }: Props) {
   const resolved = apiAssetSrc(src)
-  const fallback = apiAssetSrc(fallbackSrc ?? DEFAULT_FALLBACK)
+  const fallback = fallbackSrc != null ? apiAssetSrc(fallbackSrc) : ''
   const [displaySrc, setDisplaySrc] = useState(resolved)
   const [usingFallback, setUsingFallback] = useState(false)
 
   useEffect(() => {
     setUsingFallback(false)
     if (!resolved) {
-      setDisplaySrc(fallback)
-      setUsingFallback(true)
+      if (fallback) {
+        setDisplaySrc(fallback)
+        setUsingFallback(true)
+      } else {
+        setDisplaySrc('')
+      }
       return
     }
 
@@ -51,8 +53,13 @@ export function ApiImage({ src, alt = '', fallbackSrc, onError, ...rest }: Props
         if (!cancelled) setDisplaySrc(objectUrl)
       } catch {
         if (!cancelled) {
-          setDisplaySrc(fallback)
-          setUsingFallback(true)
+          /* Stock branding: keep server initials/real icon URL — never swap to profile silhouette. */
+          if (fallback) {
+            setDisplaySrc(fallback)
+            setUsingFallback(true)
+          } else {
+            setDisplaySrc(resolved)
+          }
         }
       }
     })()
@@ -65,7 +72,7 @@ export function ApiImage({ src, alt = '', fallbackSrc, onError, ...rest }: Props
 
   const handleError = useCallback(
     (e: SyntheticEvent<HTMLImageElement>) => {
-      if (!usingFallback && fallback && displaySrc !== fallback) {
+      if (fallback && !usingFallback && displaySrc !== fallback) {
         setDisplaySrc(fallback)
         setUsingFallback(true)
       }

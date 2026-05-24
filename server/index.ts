@@ -6,6 +6,11 @@ import express from 'express'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.join(__dirname, '..', '.env'), override: true })
+if (!process.env.MASSIVE_API_KEY?.trim()) {
+  console.warn(
+    '[simvest] MASSIVE_API_KEY is missing in .env — live stock prices, sparklines, and logos will not load. See .env.example.',
+  )
+}
 import cors from 'cors'
 import { gameHostLine, gameTitle, slugToVariant } from '../src/challenge/gameMeta'
 import { sanitizeLoadScreenEmoji } from '../src/game/loadScreenEmoji.ts'

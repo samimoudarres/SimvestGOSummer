@@ -8,7 +8,7 @@ import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
 import '../perform/performScreen.css'
 import { MiniSparkLine } from '../components/MiniSparkLine'
 import { navigateToStock } from '../stocks/navigateToStock'
-import { ApiImage } from '../components/ApiImage'
+import { StockBrandingImage } from '../components/StockBrandingImage'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import type { CategoryIcon, CategoryVisual, TradeBrowseRow, TradeCategoryId } from './tradeTypes'
 import { TRADE_CATEGORY_OPTIONS, TRADE_CATEGORY_VISUALS, categoryIconSrc } from './tradeTypes'
@@ -20,7 +20,7 @@ import './tradeScreen.css'
 
 const RECENT_STORAGE_KEY = 'simvest-trade-recent-tickers-v1'
 
-/** Category card corner logos — same `ApiImage` path as the browse list (native-safe `/api/...`). */
+/** Category card corner logos — native-safe `/api/stocks/.../branding-icon` (no profile fallback). */
 function TradeCategoryIconStrip({
   icons,
 }: {
@@ -28,9 +28,9 @@ function TradeCategoryIconStrip({
 }) {
   return (
     <span className="tr-catBtnIcons" aria-hidden="true">
-      <ApiImage className="tr-catBtnIcon tr-catBtnIcon--left" src={categoryIconSrc(icons[2])} alt="" decoding="async" />
-      <ApiImage className="tr-catBtnIcon tr-catBtnIcon--mid" src={categoryIconSrc(icons[1])} alt="" decoding="async" />
-      <ApiImage className="tr-catBtnIcon tr-catBtnIcon--right" src={categoryIconSrc(icons[0])} alt="" decoding="async" />
+      <StockBrandingImage className="tr-catBtnIcon tr-catBtnIcon--left" src={categoryIconSrc(icons[2])} alt="" decoding="async" />
+      <StockBrandingImage className="tr-catBtnIcon tr-catBtnIcon--mid" src={categoryIconSrc(icons[1])} alt="" decoding="async" />
+      <StockBrandingImage className="tr-catBtnIcon tr-catBtnIcon--right" src={categoryIconSrc(icons[0])} alt="" decoding="async" />
     </span>
   )
 }
@@ -395,7 +395,7 @@ function TradeRow({
   return (
     <button type="button" className="pf-stockRow" onClick={onPick}>
       <span className="pf-stockLogoWrap">
-        <ApiImage className="pf-stockLogo" src={row.logoUrl} alt="" loading="lazy" decoding="async" />
+        <StockBrandingImage className="pf-stockLogo" src={row.logoUrl} alt="" loading="lazy" decoding="async" />
       </span>
       <div>
         <p className="pf-stockSym">{displaySym}</p>

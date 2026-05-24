@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
 import { challengeAssets as a } from '../challenge/challengeAssets'
 import { ApiImage } from '../components/ApiImage'
+import { StockBrandingImage } from '../components/StockBrandingImage'
 import { getSimvestUserId } from '../user/simvestUserId'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import type { CompletedTradeSnapshot } from './tradeOrderTypes'
@@ -142,7 +143,7 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
       >
         <div className="ou-scroll">
           <div className="ou-iconWrap">
-            <ApiImage
+            <StockBrandingImage
               className="ou-stockIcon"
               src={
                 trade.iconUrl ||

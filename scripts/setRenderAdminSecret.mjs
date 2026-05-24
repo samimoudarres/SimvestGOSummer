@@ -74,23 +74,11 @@ if (!service?.id) {
 const serviceId = service.id
 console.log(`Found service ${SERVICE_NAME} (${serviceId})`)
 
-const existing = await api(`/services/${serviceId}/env-vars`)
-const envList = Array.isArray(existing) ? existing : existing?.envVars ?? []
-const hasKey = envList.some((e) => (e.envVar ?? e).key === ENV_KEY)
-
-if (hasKey) {
-  await api(`/services/${serviceId}/env-vars/${ENV_KEY}`, {
-    method: 'PUT',
-    body: JSON.stringify({ value: secret }),
-  })
-  console.log(`Updated ${ENV_KEY}`)
-} else {
-  await api(`/services/${serviceId}/env-vars`, {
-    method: 'POST',
-    body: JSON.stringify([{ key: ENV_KEY, value: secret }]),
-  })
-  console.log(`Created ${ENV_KEY}`)
-}
+await api(`/services/${serviceId}/env-vars`, {
+  method: 'PUT',
+  body: JSON.stringify([{ key: ENV_KEY, value: secret }]),
+})
+console.log(`Set ${ENV_KEY} on ${SERVICE_NAME}`)
 
 await api(`/services/${serviceId}/deploys`, {
   method: 'POST',

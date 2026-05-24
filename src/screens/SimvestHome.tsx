@@ -19,11 +19,11 @@ import { FeedPollCard } from '../feed/FeedPollCard'
 import { FeedPostOverflowMenu } from '../feed/FeedPostOverflowMenu'
 import { FeedPostSocialBar } from '../feed/FeedPostSocialBar'
 import { fetchMyAccount } from '../settings/settingsClient'
-import { getSimvestUserId, setSimvestUserId, SIMVEST_USER_ID_STORAGE_KEY } from '../user/simvestUserId'
-import { resolveProfileAvatarUrl } from '../user/resolveProfileAvatarUrl'
+import { getSimvestUserId, SIMVEST_USER_ID_STORAGE_KEY } from '../user/simvestUserId'
 import { navigateToStock } from '../stocks/navigateToStock'
-import { ApiImage } from '../components/ApiImage'
-import { apiAssetSrc } from '../config/apiAssetSrc'
+import { StockBrandingImage } from '../components/StockBrandingImage'
+import { ProfileAvatar } from '../components/ProfileAvatar'
+import { readCachedAccount, writeCachedAccount } from '../auth/accountSessionCache'
 import './SimvestHome.css'
 import { isNativeAppShell } from '../hooks/useViewportShellHeight'
 import { useHomeActivityFeed } from './useHomeActivityFeed'
@@ -41,7 +41,9 @@ export function SimvestHome() {
   const sortLabels = activitySortLabels()
 
   const [viewerUserId, setViewerUserId] = useState(() => getSimvestUserId())
-  const [homeSettingsAvatarSrc, setHomeSettingsAvatarSrc] = useState(() => resolveProfileAvatarUrl(''))
+  const [homeAccountAvatarUrl, setHomeAccountAvatarUrl] = useState(
+    () => readCachedAccount()?.avatarUrl ?? '',
+  )
 
   const { posts, status, error, reload } = useHomeActivityFeed()
 
@@ -100,10 +102,10 @@ export function SimvestHome() {
       const result = await fetchMyAccount()
       if (cancelled) return
       if (result.ok) {
-        setSimvestUserId(result.account.userId)
-        setHomeSettingsAvatarSrc(resolveProfileAvatarUrl(result.account.avatarUrl))
+        writeCachedAccount(result.account)
+        setHomeAccountAvatarUrl(result.account.avatarUrl)
       } else {
-        setHomeSettingsAvatarSrc(resolveProfileAvatarUrl(''))
+        setHomeAccountAvatarUrl('')
       }
     }
     void loadAvatar()
@@ -304,7 +306,7 @@ export function SimvestHome() {
           aria-label="Open settings"
           onClick={() => navigate('/settings')}
         >
-          <img className="sv-settingsAvatar" src={homeSettingsAvatarSrc} alt="" />
+          <ProfileAvatar className="sv-settingsAvatar" url={homeAccountAvatarUrl} alt="" />
         </button>
         <h1 className="sv-logo" data-node-id="2:3">
           SIMVEST
@@ -625,9 +627,9 @@ export function SimvestHome() {
                         aria-label={`View ${p.author}'s profile`}
                         onClick={() => openProfile(p.gameSlug, p.userId)}
                       >
-                        <img
+                        <ProfileAvatar
                           className="sv-post__avatar"
-                          src={apiAssetSrc(p.avatar)}
+                          url={p.avatar}
                           alt={p.author}
                           width={60}
                           height={60}
@@ -738,7 +740,7 @@ export function SimvestHome() {
                           return (
                             <div className="sv-trade__top">
                               <div className="sv-trade__upper">
-                                <ApiImage
+                                <StockBrandingImage
                                   className="sv-trade__logo"
                                   src={p.tickerImage}
                                   alt=""

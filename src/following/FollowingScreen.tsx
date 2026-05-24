@@ -9,7 +9,7 @@ import '../perform/performScreen.css'
 import { MiniSparkLine } from '../components/MiniSparkLine'
 import { simvestFetch } from '../api/simvestFetch'
 import { navigateToStock } from '../stocks/navigateToStock'
-import { ApiImage } from '../components/ApiImage'
+import { StockBrandingImage } from '../components/StockBrandingImage'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
@@ -132,7 +132,7 @@ export function FollowingScreen() {
             ? rows.map((row) => (
                 <button key={row.symbol} type="button" className="pf-stockRow" onClick={() => onStock(row.symbol)}>
                   <span className="pf-stockLogoWrap">
-                    <ApiImage className="pf-stockLogo" src={row.logoUrl} alt="" loading="lazy" decoding="async" />
+                    <StockBrandingImage className="pf-stockLogo" src={row.logoUrl} alt="" loading="lazy" decoding="async" />
                   </span>
                   <div>
                     <p className="pf-stockSym">{displayTickerLabel(row.symbol)}</p>

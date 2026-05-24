@@ -25,7 +25,7 @@ import { useJoinedGamesForTrade, type JoinedGameForTrade } from './useJoinedGame
 import { useStockPosition } from './useStockPosition'
 import { postTradeComplete } from './completeGameTrade'
 import type { CompletedTradeSnapshot, TradeOrderDraft } from './tradeOrderTypes'
-import { ApiImage } from '../components/ApiImage'
+import { StockBrandingImage } from '../components/StockBrandingImage'
 import './stockDetail.css'
 
 const ABOUT_PREVIEW = 280
@@ -523,7 +523,7 @@ export function StockDetailScreen() {
         <div className="sd-phoneBody">
         <div className="sd-scroll">
           <div className="sd-hero">
-            <ApiImage className="sd-heroIcon" src={data.iconUrl} alt="" width={52} height={52} />
+            <StockBrandingImage className="sd-heroIcon" src={data.iconUrl} alt="" width={52} height={52} />
             <div className="sd-heroText">
               <p className="sd-ticker">{displayTickerLabel(data.ticker)}</p>
               <p className="sd-coName">{data.name}</p>

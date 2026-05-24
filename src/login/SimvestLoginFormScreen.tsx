@@ -22,6 +22,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { mergeCachedAccountFromLogin, writeCachedAccount } from '../auth/accountSessionCache'
+import { fetchMyAccount } from '../settings/settingsClient'
 import { ensurePreLoginViewerId, setSimvestUserId } from '../user/simvestUserId'
 import { setSimvestLoggedIn } from './loginState'
 import { simvestFetch } from '../api/simvestFetch'
@@ -115,6 +117,14 @@ export function SimvestLoginFormScreen() {
          * flag because the device id is also persisted. If/when sessions move
          * to short-lived tokens, gate this on `rememberMe`. */
         setSimvestLoggedIn(true)
+        mergeCachedAccountFromLogin({
+          userId: body.user.userId,
+          displayName: body.user.displayName,
+          avatarUrl: body.user.avatarUrl,
+        })
+        void fetchMyAccount().then((r) => {
+          if (r.ok) writeCachedAccount(r.account)
+        })
         navigate('/', { replace: true })
       } catch (err) {
         setError(err instanceof Error ? err.message : GENERIC_ERROR)

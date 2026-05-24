@@ -4,7 +4,8 @@ import { isSimvestLoggedIn } from '../login/loginState'
 import { fetchMyAccount } from '../settings/settingsClient'
 import { clearAuthSession } from './clearAuthSession'
 import { AuthBootScreen } from './AuthBootScreen'
-import { setSimvestUserId } from '../user/simvestUserId'
+import { readCachedAccount, writeCachedAccount, clearCachedAccount } from './accountSessionCache'
+import { getSimvestUserId, setSimvestUserId } from '../user/simvestUserId'
 
 type Gate = 'loading' | 'authed' | 'guest'
 
@@ -30,16 +31,27 @@ export function RequireAuth() {
       }
     }
 
+    const cached = readCachedAccount()
+    const storedId = getSimvestUserId()
+    if (!storedId && cached?.userId) {
+      setSimvestUserId(cached.userId)
+    }
+    if (storedId || cached?.userId) {
+      finish('authed')
+    }
+
     void (async () => {
       try {
         const result = await fetchMyAccount()
         if (cancelled) return
         if (result.ok) {
           setSimvestUserId(result.account.userId)
+          writeCachedAccount(result.account)
           finish('authed')
           return
         }
         if (result.error.status === 401 || result.error.status === 404) {
+          clearCachedAccount()
           clearAuthSession()
           finish('guest')
           return

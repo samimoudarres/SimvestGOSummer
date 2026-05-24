@@ -8,7 +8,7 @@ import { useGameChallengeHeader } from '../challenge/useGameChallengeHeader'
 import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
 import { MiniSparkLine } from '../components/MiniSparkLine'
 import { navigateToStock } from '../stocks/navigateToStock'
-import { ApiImage } from '../components/ApiImage'
+import { StockBrandingImage } from '../components/StockBrandingImage'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import '../perform/performScreen.css'
 import {
@@ -228,7 +228,7 @@ function PortfolioRow({ row, onPick }: { row: PortfolioApiRow; onPick: () => voi
   return (
     <button type="button" className="pf-stockRow" onClick={onPick}>
       <span className="pf-stockLogoWrap">
-        <ApiImage className="pf-stockLogo" src={row.logoUrl} alt="" />
+        <StockBrandingImage className="pf-stockLogo" src={row.logoUrl} alt="" />
       </span>
       <div>
         <p className="pf-stockSym">{row.ticker}</p>

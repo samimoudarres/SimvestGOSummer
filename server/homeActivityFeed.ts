@@ -10,6 +10,8 @@ import { listParticipationSlugsForUser } from './userParticipationSlugs'
  * (joined games, ledger games, and games where this user has a persisted feed row)
  * so home activity matches `/api/me/games` and survives membership-only glitches.
  */
+const HOME_FEED_CAP = 60
+
 export async function fetchHydratedHomeActivityForUser(viewerUserId: string): Promise<HydratedFeedApiPost[]> {
   const slugs = await listParticipationSlugsForUser(viewerUserId)
 
@@ -18,5 +20,8 @@ export async function fetchHydratedHomeActivityForUser(viewerUserId: string): Pr
 
   merged.sort((a, b) => (a.timestampIso < b.timestampIso ? 1 : -1))
 
-  return hydrateGameFeedPosts(merged, { viewerUserId })
+  return hydrateGameFeedPosts(merged.slice(0, HOME_FEED_CAP), {
+    viewerUserId,
+    skipLiveQuotes: true,
+  })
 }

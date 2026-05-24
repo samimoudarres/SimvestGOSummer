@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { readCachedHomeFeed, writeCachedHomeFeed } from '../home/homeFeedSessionCache'
 import { SIMVEST_USER_ID_STORAGE_KEY } from '../user/simvestUserId'
 import type { GameFeedPostRow } from '../challenge/useGameFeed'
 
@@ -8,8 +9,9 @@ type Status = 'idle' | 'loading' | 'ready' | 'error'
 const POLL_MS = 25_000
 
 export function useHomeActivityFeed() {
-  const [posts, setPosts] = useState<GameFeedPostRow[]>([])
-  const [status, setStatus] = useState<Status>('idle')
+  const cachedInitial = readCachedHomeFeed()
+  const [posts, setPosts] = useState<GameFeedPostRow[]>(() => cachedInitial ?? [])
+  const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
   const hasLoadedOnceRef = useRef(false)
 
@@ -39,7 +41,9 @@ export function useHomeActivityFeed() {
         }
         return
       }
-      setPosts(body.posts as GameFeedPostRow[])
+      const next = body.posts as GameFeedPostRow[]
+      setPosts(next)
+      writeCachedHomeFeed(next)
       hasLoadedOnceRef.current = true
       setStatus('ready')
     } catch {
@@ -56,9 +60,11 @@ export function useHomeActivityFeed() {
   }, [load])
 
   useEffect(() => {
-    const onUserId = () => void load('initial')
+    const onUserId = () => void load(hasLoadedOnceRef.current ? 'refresh' : 'initial')
     const onStorage = (e: StorageEvent) => {
-      if (e.key === SIMVEST_USER_ID_STORAGE_KEY) void load('initial')
+      if (e.key === SIMVEST_USER_ID_STORAGE_KEY) {
+        void load(hasLoadedOnceRef.current ? 'refresh' : 'initial')
+      }
     }
     window.addEventListener('simvest:user-id-changed', onUserId)
     window.addEventListener('storage', onStorage)
