@@ -345,6 +345,25 @@ html.sv-capacitor .sv-hero {
 /* Home activity list — grow to bottom of shell instead of a fixed 483px block */
 html.sv-capacitor .sv-phone {
   position: relative;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  flex: 1 1 auto;
+  box-shadow: none;
+}
+
+html.sv-capacitor .sv-activity-header {
+  top: var(--sv-activity-top, 371px) !important;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+html.sv-capacitor .sv-games-stack {
+  width: calc(100% - 24px);
+  max-width: none;
+  left: 12px;
+  box-sizing: border-box;
 }
 
 html.sv-capacitor .sv-feed-scroll {
@@ -352,6 +371,34 @@ html.sv-capacitor .sv-feed-scroll {
   bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   height: auto !important;
   max-height: none;
+  width: calc(100% - 24px);
+  max-width: none;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+html.sv-capacitor .sv-logo,
+html.sv-capacitor .sv-subhero {
+  max-width: calc(100% - 48px);
+}
+
+html.sv-capacitor .gc-phone {
+  width: 100%;
+  max-width: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  box-shadow: none;
+}
+
+html.sv-capacitor .gc-phoneCanvas {
+  width: 100%;
+  max-width: 100%;
+}
+
+html.sv-capacitor .gc-headerBand {
+  width: 100%;
+  max-width: 100%;
 }
 
 html.sv-capacitor .tr-topBand,

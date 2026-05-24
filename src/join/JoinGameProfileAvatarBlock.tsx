@@ -48,7 +48,7 @@ export function JoinGameProfileAvatarBlock({
           }}
         >
           {useDefaultAvatar ? (
-            <img className="jp-avatarImg" src={DEFAULT_PROFILE_AVATAR_URL} alt="" />
+            <img className="jp-avatarImg" src={apiAssetSrc(DEFAULT_PROFILE_AVATAR_URL)} alt="" />
           ) : draft.avatarUrl ? (
             <img className="jp-avatarImg" src={apiAssetSrc(draft.avatarUrl)} alt="" />
           ) : (

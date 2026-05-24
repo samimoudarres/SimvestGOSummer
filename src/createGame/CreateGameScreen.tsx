@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { beginNewGameDraft } from './createGameSettingsApi'
 import { gamePaths } from '../gameRoutes'
 import { BackArrowIcon } from '../icons/BackArrowIcon'
+import { apiAssetSrc } from '../config/apiAssetSrc'
 import './createGameScreen.css'
 
 const SLIDE_COUNT = 4
@@ -150,7 +151,7 @@ export function CreateGameScreen() {
                 <div
                   className={`cg-slideFigure${s.key === 'settings' || s.key === 'compete' ? ' cg-slideFigure--shadow' : ''}`}
                 >
-                  <img src={s.image} alt={s.imageAlt} draggable={false} />
+                  <img src={apiAssetSrc(s.image)} alt={s.imageAlt} draggable={false} />
                 </div>
                 <h2 className="cg-slideTitle">{s.title}</h2>
                 <p className="cg-slideBody">{s.body}</p>

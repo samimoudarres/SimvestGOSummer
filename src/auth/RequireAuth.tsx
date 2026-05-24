@@ -4,6 +4,7 @@ import { isSimvestLoggedIn } from '../login/loginState'
 import { fetchMyAccount } from '../settings/settingsClient'
 import { clearAuthSession } from './clearAuthSession'
 import { AuthBootScreen } from './AuthBootScreen'
+import { setSimvestUserId } from '../user/simvestUserId'
 
 type Gate = 'loading' | 'authed' | 'guest'
 
@@ -34,6 +35,7 @@ export function RequireAuth() {
         const result = await fetchMyAccount()
         if (cancelled) return
         if (result.ok) {
+          setSimvestUserId(result.account.userId)
           finish('authed')
           return
         }

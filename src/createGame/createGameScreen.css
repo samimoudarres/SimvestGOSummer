@@ -28,7 +28,7 @@
   transform: translateX(-50%);
   width: 402px;
   height: 874px;
-  background-image: url('/figma-assets/create-game/bg-gradient.svg');
+  background-image: url('../figma-assets/create-game/bg-gradient.svg');
   background-size: 402px 874px;
   background-repeat: no-repeat;
   background-position: center top;

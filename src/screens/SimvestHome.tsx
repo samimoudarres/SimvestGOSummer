@@ -19,7 +19,7 @@ import { FeedPollCard } from '../feed/FeedPollCard'
 import { FeedPostOverflowMenu } from '../feed/FeedPostOverflowMenu'
 import { FeedPostSocialBar } from '../feed/FeedPostSocialBar'
 import { fetchMyAccount } from '../settings/settingsClient'
-import { getSimvestUserId, SIMVEST_USER_ID_STORAGE_KEY } from '../user/simvestUserId'
+import { getSimvestUserId, setSimvestUserId, SIMVEST_USER_ID_STORAGE_KEY } from '../user/simvestUserId'
 import { resolveProfileAvatarUrl } from '../user/resolveProfileAvatarUrl'
 import { navigateToStock } from '../stocks/navigateToStock'
 import { ApiImage } from '../components/ApiImage'
@@ -100,6 +100,7 @@ export function SimvestHome() {
       const result = await fetchMyAccount()
       if (cancelled) return
       if (result.ok) {
+        setSimvestUserId(result.account.userId)
         setHomeSettingsAvatarSrc(resolveProfileAvatarUrl(result.account.avatarUrl))
       } else {
         setHomeSettingsAvatarSrc(resolveProfileAvatarUrl(''))
@@ -287,7 +288,14 @@ export function SimvestHome() {
       <div
         className={`sv-phone${nativeShell ? ' sv-phone--nativeScroll' : ''}`}
         data-node-id="4:2"
-        style={nativeShell ? undefined : { height: layout.phoneH, minHeight: 874 }}
+        style={
+          nativeShell
+            ? ({
+                ['--sv-activity-top' as string]: `${layout.activityTop}px`,
+                ['--sv-feed-top' as string]: `${layout.feedTop}px`,
+              } as React.CSSProperties)
+            : { height: layout.phoneH, minHeight: 874 }
+        }
       >
         <div className="sv-hero" data-node-id="2:2" />
         <button
@@ -441,7 +449,7 @@ export function SimvestHome() {
           })}
         </div>
 
-        <div className="sv-activity-header" style={nativeShell ? undefined : { top: layout.activityTop }}>
+        <div className="sv-activity-header" style={{ top: layout.activityTop }}>
           <h2 className="sv-activity-title" data-node-id="4:17">
             ACTIVITY
           </h2>
@@ -488,7 +496,7 @@ export function SimvestHome() {
         <div
           className="sv-feed-scroll"
           data-node-id="225:4564"
-          style={nativeShell ? undefined : { top: layout.feedTop, height: layout.feedHeight }}
+          style={{ top: layout.feedTop, height: layout.feedHeight }}
         >
           <div className="sv-feed-inner">
             {status === 'loading' || status === 'idle' ? (

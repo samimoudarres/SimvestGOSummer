@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PrivacyPolicyModal } from '../legal/PrivacyPolicyModal'
 import { TermsOfServiceModal } from '../legal/TermsOfServiceModal'
+import { apiAssetSrc } from '../config/apiAssetSrc'
 import './loginScreen.css'
 
 const SLIDE_COUNT = 4
@@ -135,7 +136,7 @@ export function LoginScreen() {
             {slides.map((slide) => (
               <article key={slide.key} className={`li-slide li-slide--${slide.key}`}>
                 <div className="li-artShell">
-                  <img src={slide.image} alt={slide.imageAlt} draggable={false} />
+                  <img src={apiAssetSrc(slide.image)} alt={slide.imageAlt} draggable={false} />
                 </div>
                 <h2 className="li-slideTitle">{slide.title}</h2>
                 <p className="li-slideBody">{slide.body}</p>

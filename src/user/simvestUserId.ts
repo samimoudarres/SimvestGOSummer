@@ -56,20 +56,14 @@ export function ensurePreLoginViewerId(): string {
   return id
 }
 
-function ensureLoggedInUserId(): string {
-  const existing = readStoredUserId()
-  if (existing) return existing
-  const id = randomId()
-  persistUserId(id)
-  return id
-}
-
 /** Viewer id for API calls after login. Returns empty string when signed out (no auto-create). */
 export function getSimvestUserId(): string {
   if (!isSimvestLoggedIn()) {
     return readStoredUserId() ?? ''
   }
-  return ensureLoggedInUserId()
+  /* Never mint a fresh random id while "logged in" — that orphans games on the server
+   * if WebView storage was partially cleared. Login/signup must set the account id. */
+  return readStoredUserId() ?? ''
 }
 
 /**
