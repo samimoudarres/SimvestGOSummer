@@ -10,7 +10,7 @@ Stock simulation and investing games — React + Vite client, Express API.
 2. In Render, set **`MASSIVE_API_KEY`** (from [massive.com](https://massive.com)); redeploy if needed.
 3. Copy your Render URL into **`.env.capacitor`** as `VITE_API_ORIGIN` (production: `https://simvest-api.onrender.com`), then run **`npm run cap:sync:release`**.
 4. **Google Play upload file** (after signing): `android/app/build/outputs/bundle/release/app-release.aab` — build with `cd android && .\gradlew.bat :app:bundleRelease` (requires `android/keystore.properties` on the build machine).
-5. Store listings: privacy policy URL → `https://simvest-api.onrender.com/legal/privacy-policy.txt` (terms: `.../legal/terms-of-service.txt`; account deletion: `.../legal/delete-account.html`).
+5. Store listings: privacy policy URL → `https://simvest-api.onrender.com/legal/privacy-policy.html` (terms: `.../legal/terms-of-service.html`; account deletion: `.../legal/delete-account.html`). Do not use `.txt` URLs in Play Console — Google requires HTML.
 6. **Store icon (512×512):** upload `design/play-store-icon-512.png` in Play Console → **Main store listing** → App icon. iOS uses `ios/App/App/Assets.xcassets/AppIcon.appiconset/` (regenerate from source: `npm run icons:generate`).
 
 ### Apple App Store (iOS)

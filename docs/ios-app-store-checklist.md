@@ -13,8 +13,8 @@ Use this with [App Store Review Guidelines](https://developer.apple.com/App-stor
 
 | Field | Value |
 |--------|--------|
-| Privacy Policy URL | `https://simvest-api.onrender.com/legal/privacy-policy.txt` |
-| Terms of Service (optional but recommended) | `https://simvest-api.onrender.com/legal/terms-of-service.txt` |
+| Privacy Policy URL | `https://simvest-api.onrender.com/legal/privacy-policy.html` |
+| Terms of Service (optional but recommended) | `https://simvest-api.onrender.com/legal/terms-of-service.html` |
 | Account deletion URL | `https://simvest-api.onrender.com/legal/delete-account.html` |
 | Age rating | Likely **12+** (simulated finance; no real gambling) — complete the questionnaire honestly |
 | Category | Finance or Education |

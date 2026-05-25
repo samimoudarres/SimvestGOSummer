@@ -2579,7 +2579,25 @@ app.get('/api/stocks/:ticker/bars', async (req, res) => {
 /** Store policy pages (privacy, terms, account deletion) — required for Play / App Store listings. */
 const publicLegalDir = path.join(__dirname, '..', 'public', 'legal')
 if (fs.existsSync(publicLegalDir)) {
-  app.use('/legal', express.static(publicLegalDir, { index: false }))
+  /** Google Play requires an HTML privacy policy URL, not plain text. */
+  app.get('/legal/privacy-policy', (_req, res) => {
+    res.redirect(301, '/legal/privacy-policy.html')
+  })
+  app.get('/legal/terms-of-service', (_req, res) => {
+    res.redirect(301, '/legal/terms-of-service.html')
+  })
+  app.use(
+    '/legal',
+    express.static(publicLegalDir, {
+      index: false,
+      setHeaders(res, filePath) {
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Content-Type', 'text/html; charset=utf-8')
+          res.setHeader('Cache-Control', 'public, max-age=3600')
+        }
+      },
+    }),
+  )
 }
 
 const distDir = path.join(__dirname, '..', 'dist')
