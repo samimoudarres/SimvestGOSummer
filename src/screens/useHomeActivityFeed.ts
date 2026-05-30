@@ -13,10 +13,13 @@ export function useHomeActivityFeed() {
   const [posts, setPosts] = useState<GameFeedPostRow[]>(() => cachedInitial ?? [])
   const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
-  const hasLoadedOnceRef = useRef(false)
+  const hasLoadedOnceRef = useRef(!!cachedInitial)
+  const skipInitialLoadingUiRef = useRef(!!cachedInitial)
 
   const load = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
-    const silent = mode === 'refresh' && hasLoadedOnceRef.current
+    const silent =
+      mode === 'refresh' ? hasLoadedOnceRef.current : skipInitialLoadingUiRef.current
+    if (mode === 'initial') skipInitialLoadingUiRef.current = false
     if (!silent) {
       setStatus('loading')
       setError(null)

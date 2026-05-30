@@ -4,18 +4,23 @@ import { isSimvestLoggedIn } from '../login/loginState'
 import { fetchMyAccount } from '../settings/settingsClient'
 import { clearAuthSession } from './clearAuthSession'
 import { AuthBootScreen } from './AuthBootScreen'
-
-type Gate = 'loading' | 'guest' | 'authed'
+import { initialGuestOnlyGate, type AuthGate } from './initialAuthGate'
 
 /** Login / signup carousel — skip when a valid session already exists. */
 export function GuestOnly() {
-  const [gate, setGate] = useState<Gate>('loading')
+  const [gate, setGate] = useState<AuthGate>(initialGuestOnlyGate)
 
   useEffect(() => {
     let cancelled = false
 
     if (!isSimvestLoggedIn()) {
       setGate('guest')
+      return () => {
+        cancelled = true
+      }
+    }
+
+    if (gate === 'authed') {
       return () => {
         cancelled = true
       }

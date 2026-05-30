@@ -7,8 +7,13 @@ import { AuthBootScreen } from './AuthBootScreen'
 import { readCachedAccount, writeCachedAccount, clearCachedAccount } from './accountSessionCache'
 import { getSimvestUserId, setSimvestUserId } from '../user/simvestUserId'
 import { registerSimvestPushIfPossible } from '../push/registerSimvestPush'
+import { initialRequireAuthGate, type AuthGate } from './initialAuthGate'
 
-type Gate = 'loading' | 'authed' | 'guest'
+function deferPushRegistration(): void {
+  const run = () => void registerSimvestPushIfPossible()
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 4000 })
+  else window.setTimeout(run, 1500)
+}
 
 /**
  * Protects app routes: requires `simvest-login-complete-v1` and a real `/api/me/account`.
@@ -16,12 +21,12 @@ type Gate = 'loading' | 'authed' | 'guest'
  */
 export function RequireAuth() {
   const location = useLocation()
-  const [gate, setGate] = useState<Gate>('loading')
+  const [gate, setGate] = useState<AuthGate>(initialRequireAuthGate)
 
   useEffect(() => {
     let cancelled = false
 
-    const finish = (next: Gate) => {
+    const finish = (next: AuthGate) => {
       if (!cancelled) setGate(next)
     }
 
@@ -39,7 +44,7 @@ export function RequireAuth() {
     }
     if (storedId || cached?.userId) {
       finish('authed')
-      void registerSimvestPushIfPossible()
+      deferPushRegistration()
     }
 
     void (async () => {
@@ -50,7 +55,7 @@ export function RequireAuth() {
           setSimvestUserId(result.account.userId)
           writeCachedAccount(result.account)
           finish('authed')
-          void registerSimvestPushIfPossible()
+          deferPushRegistration()
           return
         }
         if (result.error.status === 401 || result.error.status === 404) {

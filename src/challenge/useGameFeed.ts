@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { readCachedGameFeed, writeCachedGameFeed } from './gameFeedSessionCache'
 import type { FeedPollPayload, RichTextSegment } from '../feed/richTextTypes'
 
 export type GameFeedPostRow = {
@@ -45,15 +46,19 @@ type Status = 'idle' | 'loading' | 'ready' | 'error'
 const POLL_MS = 20_000
 
 export function useGameFeed(gameSlug: string | undefined) {
-  const [posts, setPosts] = useState<GameFeedPostRow[]>([])
-  const [status, setStatus] = useState<Status>('idle')
+  const cachedInitial = gameSlug ? readCachedGameFeed(gameSlug) : null
+  const [posts, setPosts] = useState<GameFeedPostRow[]>(() => cachedInitial ?? [])
+  const [status, setStatus] = useState<Status>(() => (cachedInitial?.length ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
-  const hasShownPostsRef = useRef(false)
+  const hasShownPostsRef = useRef(!!cachedInitial?.length)
+  const skipInitialLoadingUiRef = useRef(!!cachedInitial?.length)
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh' = 'initial') => {
       if (!gameSlug) return
-      const silent = mode === 'refresh' && hasShownPostsRef.current
+      const silent =
+        mode === 'refresh' ? hasShownPostsRef.current : skipInitialLoadingUiRef.current
+      if (mode === 'initial') skipInitialLoadingUiRef.current = false
       if (!silent) {
         setStatus('loading')
         setError(null)
@@ -64,6 +69,7 @@ export function useGameFeed(gameSlug: string | undefined) {
         if (r.ok && body && Array.isArray(body.posts)) {
           const next = body.posts as GameFeedPostRow[]
           setPosts(next)
+          writeCachedGameFeed(gameSlug, next)
           hasShownPostsRef.current = true
           setStatus('ready')
         } else if (silent) {
@@ -85,7 +91,17 @@ export function useGameFeed(gameSlug: string | undefined) {
   )
 
   useEffect(() => {
-    hasShownPostsRef.current = false
+    const cached = gameSlug ? readCachedGameFeed(gameSlug) : null
+    hasShownPostsRef.current = !!cached?.length
+    skipInitialLoadingUiRef.current = !!cached?.length
+    if (cached?.length) {
+      setPosts(cached)
+      setStatus('ready')
+      setError(null)
+    } else {
+      setPosts([])
+      setStatus('idle')
+    }
     void load('initial')
   }, [gameSlug, load])
 

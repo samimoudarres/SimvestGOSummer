@@ -29,13 +29,14 @@ import { isNativeAppShell } from '../hooks/useViewportShellHeight'
 import { useHomeActivityFeed } from './useHomeActivityFeed'
 import { PublicGameCard } from '../join/PublicGameCard'
 import { useSuggestedGames } from './useSuggestedGames'
+import { readCachedMyGames, writeCachedMyGames } from '../home/myGamesSessionCache'
 
 export function SimvestHome() {
   const navigate = useNavigate()
   const [filterOpen, setFilterOpen] = useState(false)
   const [activitySort, setActivitySort] = useState<ActivitySortMode>('recent')
   const sortWrapRef = useRef<HTMLDivElement>(null)
-  const [myGames, setMyGames] = useState<MyGameSummary[]>([])
+  const [myGames, setMyGames] = useState<MyGameSummary[]>(() => readCachedMyGames() ?? [])
   const [hostJoinPendingTotal, setHostJoinPendingTotal] = useState(0)
   const recordFinishedReopensNextLoadRef = useRef(true)
   const sortLabels = activitySortLabels()
@@ -151,6 +152,7 @@ export function SimvestHome() {
         )
         if (!cancelled) {
           setMyGames(list)
+          writeCachedMyGames(list)
           const fromCards = list.reduce((sum, g) => sum + (g.pendingJoinRequestCount ?? 0), 0)
           setHostJoinPendingTotal((cur) => Math.max(cur, fromCards))
         }

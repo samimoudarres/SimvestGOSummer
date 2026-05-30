@@ -1,25 +1,44 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
 import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
 import type { PortfolioApiRow, PortfolioTotals } from './portfolioTypes'
+import { readCachedPortfolio, writeCachedPortfolio } from './portfolioSessionCache'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
 
 export function usePortfolio(gameSlug: string | undefined) {
-  const [rows, setRows] = useState<PortfolioApiRow[]>([])
-  const [totals, setTotals] = useState<PortfolioTotals | null>(null)
-  const [status, setStatus] = useState<Status>('idle')
+  const cachedInitial = gameSlug ? readCachedPortfolio(gameSlug) : null
+  const [rows, setRows] = useState<PortfolioApiRow[]>(() => cachedInitial?.rows ?? [])
+  const [totals, setTotals] = useState<PortfolioTotals | null>(() => cachedInitial?.totals ?? null)
+  const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
+  const hasDataRef = useRef(!!cachedInitial)
+  const skipInitialLoadingUiRef = useRef(!!cachedInitial)
 
   useEffect(() => {
     if (!gameSlug) return
-    setRows([])
-    setTotals(null)
-    setStatus('loading')
-    setError(null)
+    const cached = readCachedPortfolio(gameSlug)
+    hasDataRef.current = !!cached
+    skipInitialLoadingUiRef.current = !!cached
+    if (cached) {
+      setRows(cached.rows)
+      setTotals(cached.totals)
+      setStatus('ready')
+      setError(null)
+    } else {
+      setRows([])
+      setTotals(null)
+      setStatus('idle')
+      hasDataRef.current = false
+    }
     let cancelled = false
-    const pull = () =>
+    const pull = (silent = false) => {
+      if (!silent && !hasDataRef.current) {
+        setStatus('loading')
+        setError(null)
+      }
+      skipInitialLoadingUiRef.current = false
       simvestFetch(`/api/games/${encodeURIComponent(gameSlug)}/portfolio`)
         .then((r) =>
           r
@@ -30,34 +49,42 @@ export function usePortfolio(gameSlug: string | undefined) {
         .then(({ ok, body }) => {
           if (cancelled) return
           if (ok && body && Array.isArray(body.rows) && body.totals && typeof body.totals === 'object') {
-            setRows(body.rows as PortfolioApiRow[])
-            setTotals(body.totals as PortfolioTotals)
+            const nextRows = body.rows as PortfolioApiRow[]
+            const nextTotals = body.totals as PortfolioTotals
+            setRows(nextRows)
+            setTotals(nextTotals)
+            writeCachedPortfolio(gameSlug, nextRows, nextTotals)
+            hasDataRef.current = true
             setStatus('ready')
             return
           }
-          setError(typeof body?.error === 'string' ? body.error : 'Could not load portfolio')
-          setStatus('error')
+          if (!hasDataRef.current) {
+            setError(typeof body?.error === 'string' ? body.error : 'Could not load portfolio')
+            setStatus('error')
+          }
         })
         .catch(() => {
-          if (!cancelled) {
+          if (!cancelled && !hasDataRef.current) {
             setError('Network error')
             setStatus('error')
           }
         })
+    }
 
-    pull()
-    const refresh = window.setInterval(pull, LIVE_MARKETS_POLL_MS)
+    pull(skipInitialLoadingUiRef.current)
+    const refresh = () => pull(true)
+    const refreshId = window.setInterval(refresh, LIVE_MARKETS_POLL_MS)
 
-    const offVisible = onDocumentVisible(pull)
+    const offVisible = onDocumentVisible(refresh)
     const onHoldingsRefresh = (ev: Event) => {
       const slug = (ev as CustomEvent<{ gameSlug?: string }>).detail?.gameSlug
-      if (!slug || slug === gameSlug) pull()
+      if (!slug || slug === gameSlug) refresh()
     }
     window.addEventListener('simvest:holdings-refresh', onHoldingsRefresh)
 
     return () => {
       cancelled = true
-      window.clearInterval(refresh)
+      window.clearInterval(refreshId)
       offVisible()
       window.removeEventListener('simvest:holdings-refresh', onHoldingsRefresh)
     }
