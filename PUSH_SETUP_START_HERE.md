@@ -33,7 +33,7 @@ Everything else is automated. You only sign in to Google and Render once, downlo
    Summer2026SimvestGO\setup-input\google-services.json
    ```
    (Your project folder path may be `Projects\Summer2026SimvestGO\setup-input\`.)
-7. Click **Next** → **Next** → **Continue to console** (you can skip the SDK steps).
+7. On **“Add Firebase SDK”** (step 3): **do not change any Gradle code** — Simvest is a Capacitor app and already has the right Android setup. Click **Next**, then **Continue to console**.
 
 ### A4. Server key (so Render can send notifications)
 

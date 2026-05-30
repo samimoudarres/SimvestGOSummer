@@ -38,9 +38,13 @@ if (!saPath) fail('Missing setup-input/firebase-service-account.json')
 if (!renderKeyPath) fail('Missing setup-input/render-api-key.txt')
 
 const gs = JSON.parse(fs.readFileSync(gsPath, 'utf8'))
-const pkg = gs?.client?.[0]?.client_info?.android_client_info?.package_name
-if (pkg && pkg !== 'com.simvest.myapp') {
-  fail(`google-services.json is for package "${pkg}", expected com.simvest.myapp`)
+const packages = (gs?.client ?? [])
+  .map((c) => c?.client_info?.android_client_info?.package_name)
+  .filter((p) => typeof p === 'string')
+if (!packages.includes('com.simvest.myapp')) {
+  fail(
+    `google-services.json must include com.simvest.myapp (found: ${packages.join(', ') || 'none'})`,
+  )
 }
 
 const androidDest = path.join(root, 'android', 'app', 'google-services.json')
