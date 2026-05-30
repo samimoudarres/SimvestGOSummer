@@ -17,6 +17,8 @@ dist-ssr
 .env
 .env.capacitor
 admin-credentials.local.txt
+setup-input/*
+!setup-input/README.txt
 
 # Auto-generated Web Push keys (dev); set VAPID_* in `.env` for production.
 server/data/vapid-keys.json

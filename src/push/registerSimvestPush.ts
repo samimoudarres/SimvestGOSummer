@@ -49,6 +49,8 @@ export async function registerSimvestPushIfPossible(): Promise<SimvestPushRegist
   let native = false
   if (Capacitor.isNativePlatform()) {
     native = await requestNativePushPermission()
+    const wr = await registerSimvestWebPushIfPossible()
+    web = wr.ok
   } else {
     const wr = await registerSimvestWebPushIfPossible()
     web = wr.ok
