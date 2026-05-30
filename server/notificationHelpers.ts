@@ -27,6 +27,10 @@ export function gameFeedPath(gameSlug: string): string {
   return `/g/${encodeURIComponent(canonicalGameSlugKey(gameSlug) || gameSlug)}`
 }
 
+export function leaderboardPath(gameSlug: string): string {
+  return `/g/${encodeURIComponent(canonicalGameSlugKey(gameSlug) || gameSlug)}/leaderboard`
+}
+
 export function joinRequestsPath(gameSlug: string): string {
   return `/g/${encodeURIComponent(canonicalGameSlugKey(gameSlug) || gameSlug)}/join-requests`
 }

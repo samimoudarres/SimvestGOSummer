@@ -2211,6 +2211,12 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
       : {}),
   })
 
+  queueMicrotask(() => {
+    void import('./leaderboardRankNotifyService')
+      .then((m) => m.checkLeaderboardRankAlerts(slug))
+      .catch(() => {})
+  })
+
   const sellExtras =
     action === 'sell' &&
     typeof unwoundCostBasis === 'number' &&

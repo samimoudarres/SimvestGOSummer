@@ -124,6 +124,11 @@ function passesThreshold(pct: number, window: 'day' | 'week'): boolean {
   return window === 'day' ? abs >= 5 : abs >= 10
 }
 
+async function runLeaderboardRankScan(): Promise<void> {
+  const { scanLeaderboardRankAlertsAllGames } = await import('./leaderboardRankNotifyService')
+  await scanLeaderboardRankAlertsAllGames()
+}
+
 export async function runStockMoveAlertScan(): Promise<void> {
   if (!process.env.MASSIVE_API_KEY?.trim()) return
 
@@ -250,6 +255,8 @@ export async function runStockMoveAlertScan(): Promise<void> {
       }
     }
   }
+
+  await runLeaderboardRankScan()
 }
 
 export function startStockMoveAlertScanner(): void {

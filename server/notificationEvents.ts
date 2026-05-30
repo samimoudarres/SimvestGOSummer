@@ -10,9 +10,11 @@ import {
   formatSignedPct,
   gameFeedPath,
   joinRequestsPath,
+  leaderboardPath,
   resolveGameDisplayName,
   stockDetailPath,
 } from './notificationHelpers'
+import { ordinalEnglish } from './gameLeaderboardService.ts'
 
 function excludeAuthor<T extends string>(ids: string[], authorId: string): string[] {
   const a = normalizeUserId(authorId) ?? authorId
@@ -180,6 +182,51 @@ export async function notifyStockWatchMove(input: {
     body: `${sym} is ${dir} ${pct} ${windowLabel} (watchlist)`,
     url: stockDetailPath(input.ticker),
     tag: `watch-${input.ticker}-${input.window}`,
+  })
+}
+
+/** Player climbed more than 3 spots on the Overall Return leaderboard — all game members. */
+export async function notifyLeaderboardBigJump(input: {
+  gameSlug: string
+  playerUserId: string
+  playerDisplayName: string
+  previousRank: number
+  newRank: number
+  totalPlayers: number
+  recipientUserIds: string[]
+}): Promise<void> {
+  const slug = input.gameSlug.trim()
+  if (!slug) return
+  const spots = input.previousRank - input.newRank
+  if (spots <= 3) return
+  const gameName = await resolveGameDisplayName(slug)
+  const who = input.playerDisplayName.trim() || 'A player'
+  const rankLabel = ordinalEnglish(input.newRank)
+  await sendPushToUsers(input.recipientUserIds, {
+    title: `${gameName} leaderboard`,
+    body: `${who} jumped ${spots} spots to ${rankLabel} place (Overall Return)`,
+    url: leaderboardPath(slug),
+    tag: `lb-jump-${slug}-${input.playerUserId}`,
+  })
+}
+
+/** Player reached 1st, 2nd, or 3rd on the Overall Return leaderboard. */
+export async function notifyLeaderboardPodium(input: {
+  userId: string
+  gameSlug: string
+  rank: number
+  totalPlayers: number
+}): Promise<void> {
+  const uid = input.userId.trim()
+  const rank = Math.floor(input.rank)
+  if (uid.length < 8 || rank < 1 || rank > 3) return
+  const gameName = await resolveGameDisplayName(input.gameSlug)
+  const rankLabel = ordinalEnglish(rank)
+  await sendPushToUser(uid, {
+    title: `${gameName} leaderboard`,
+    body: `You're now in ${rankLabel} place (Overall Return) — out of ${input.totalPlayers} players`,
+    url: leaderboardPath(input.gameSlug),
+    tag: `lb-podium-${input.gameSlug}-${rank}`,
   })
 }
 
