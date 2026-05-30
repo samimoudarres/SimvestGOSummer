@@ -19,6 +19,7 @@ import { ensureDataDirReady, getDataDir } from './dataDir.ts'
 import { isAdminConfigured, requireAdminAuth } from './adminAuth.ts'
 import { buildAdminDashboard } from './adminDashboardService.ts'
 import { sendBrandingIcon } from './branding'
+import { isPrivacyPolicyReady, registerLegalPages } from './legalPages.ts'
 import { massiveGet, MassiveApiError } from './massiveClient'
 import {
   getAllFollowTickersForUser,
@@ -385,12 +386,15 @@ function formatEtTimestamp(iso: string): string {
   }
 }
 
+registerLegalPages(app)
+
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
     service: 'simvest-api',
     dataDir: getDataDir(),
     persistentData: Boolean(process.env.SIMVEST_DATA_DIR?.trim()),
+    legal: { privacyPolicy: isPrivacyPolicyReady() },
   })
 })
 
@@ -2629,30 +2633,6 @@ app.get('/api/stocks/:ticker/bars', async (req, res) => {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Bars fetch failed' })
   }
 })
-
-/** Store policy pages (privacy, terms, account deletion) — required for Play / App Store listings. */
-const publicLegalDir = path.join(__dirname, '..', 'public', 'legal')
-if (fs.existsSync(publicLegalDir)) {
-  /** Google Play requires an HTML privacy policy URL, not plain text. */
-  app.get('/legal/privacy-policy', (_req, res) => {
-    res.redirect(301, '/legal/privacy-policy.html')
-  })
-  app.get('/legal/terms-of-service', (_req, res) => {
-    res.redirect(301, '/legal/terms-of-service.html')
-  })
-  app.use(
-    '/legal',
-    express.static(publicLegalDir, {
-      index: false,
-      setHeaders(res, filePath) {
-        if (filePath.endsWith('.html')) {
-          res.setHeader('Content-Type', 'text/html; charset=utf-8')
-          res.setHeader('Cache-Control', 'public, max-age=3600')
-        }
-      },
-    }),
-  )
-}
 
 const distDir = path.join(__dirname, '..', 'dist')
 const simvestServeDist =

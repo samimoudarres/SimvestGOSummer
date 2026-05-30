@@ -20,6 +20,11 @@ import { clearAuthSession } from '../auth/clearAuthSession'
 import { readCachedAccount, writeCachedAccount } from '../auth/accountSessionCache'
 import { deleteMyAccount, fetchMyAccount, type AccountPublicView } from './settingsClient'
 import { ProfileAvatar } from '../components/ProfileAvatar'
+import {
+  openLegalUrl,
+  PRIVACY_POLICY_URL,
+  TERMS_OF_SERVICE_URL,
+} from '../legal/legalUrls'
 import './settingsScreens.css'
 
 export function SettingsScreen() {
@@ -212,6 +217,24 @@ export function SettingsScreen() {
                   <span>App version</span>
                   <span className="ss-aboutVal">Simvest 1.0.7</span>
                 </div>
+              </div>
+
+              <p className="ss-sectionLabel">Legal</p>
+              <div className="ss-legalLinks">
+                <button
+                  type="button"
+                  className="ss-legalLinkBtn"
+                  onClick={() => openLegalUrl(PRIVACY_POLICY_URL)}
+                >
+                  Privacy Policy
+                </button>
+                <button
+                  type="button"
+                  className="ss-legalLinkBtn"
+                  onClick={() => openLegalUrl(TERMS_OF_SERVICE_URL)}
+                >
+                  Terms of Service
+                </button>
               </div>
 
               <p className="ss-legalNote">

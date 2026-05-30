@@ -39,6 +39,15 @@ const SHARED_STYLE = `
       }
       h1 { margin: 0 0 8px; font-size: 1.75rem; color: var(--bg); }
       .meta { margin: 0 0 24px; color: var(--muted); font-size: 0.95rem; }
+      .store-notice {
+        margin: 0 0 20px;
+        padding: 14px 16px;
+        background: #f0f9ff;
+        border: 1px solid #bae6fd;
+        border-radius: 10px;
+        font-size: 0.95rem;
+      }
+      .store-notice strong { color: var(--bg); }
       h2 { margin: 28px 0 12px; font-size: 1.15rem; color: var(--bg); }
       h3 { margin: 20px 0 8px; font-size: 1.05rem; color: var(--bg); }
       p { margin: 0 0 12px; }
@@ -87,6 +96,9 @@ function txtToBody(txt) {
       skippedHeader++
       continue
     }
+    if (t.includes('Effective Date') && t.includes('Last Updated')) {
+      continue
+    }
 
     if (t.startsWith('•') || t.startsWith('•\t')) {
       if (!inList) {
@@ -118,7 +130,7 @@ function txtToBody(txt) {
   return out.join('\n')
 }
 
-function buildPage({ title, slug, txtName, relatedLinks }) {
+function buildPage({ title, slug, txtName, relatedLinks, storeNoticeHtml = '' }) {
   const txt = fs.readFileSync(path.join(legalDir, txtName), 'utf8')
   const metaLine =
     txt
@@ -126,15 +138,16 @@ function buildPage({ title, slug, txtName, relatedLinks }) {
       .map((l) => l.trim())
       .find((l) => l.includes('Effective Date')) ?? ''
   const body = txtToBody(txt)
-  const canonical = `https://simvest-api.onrender.com/legal/${slug}.html`
+  const canonical = `https://simvest-api.onrender.com/legal/${slug}`
 
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="index,follow" />
     <title>Simvest — ${escapeHtml(title)}</title>
-    <meta name="description" content="Simvest ${escapeHtml(title)} for the Simvest simulated investing app." />
+    <meta name="description" content="Official ${escapeHtml(title)} for the Simvest mobile app (Google Play and Apple App Store)." />
     <link rel="canonical" href="${canonical}" />
     <style>${SHARED_STYLE}</style>
   </head>
@@ -142,6 +155,7 @@ function buildPage({ title, slug, txtName, relatedLinks }) {
     <main>
       <h1>Simvest ${escapeHtml(title)}</h1>
       <p class="meta">${escapeHtml(metaLine)}</p>
+      ${storeNoticeHtml}
       ${body}
       <footer>
         <p>${escapeHtml(metaLine)}</p>
@@ -153,12 +167,20 @@ function buildPage({ title, slug, txtName, relatedLinks }) {
 `
 }
 
+const privacyStoreNotice = `
+      <div class="store-notice" role="note">
+        <p><strong>Privacy Policy</strong> — This is the official privacy policy for the <strong>Simvest</strong> mobile application on Google Play and the Apple App Store. It describes what data we collect, how we use it, and your choices.</p>
+        <p><strong>Developer / operator:</strong> Simvest (contact: <a href="mailto:privacy@simvest.app">privacy@simvest.app</a>, <a href="mailto:backupsamimoudarres@gmail.com">backupsamimoudarres@gmail.com</a>).</p>
+        <p><strong>Delete your account:</strong> <a href="https://simvest-api.onrender.com/legal/delete-account">Account deletion instructions</a>.</p>
+      </div>`
+
 const privacyHtml = buildPage({
   title: 'Privacy Policy',
   slug: 'privacy-policy',
   txtName: 'privacy-policy.txt',
+  storeNoticeHtml: privacyStoreNotice,
   relatedLinks:
-    '<a href="/legal/terms-of-service.html">Terms of Service</a> · <a href="/legal/delete-account.html">Delete account</a>',
+    '<a href="/legal/terms-of-service">Terms of Service</a> · <a href="/legal/delete-account">Delete account</a>',
 })
 
 const termsHtml = buildPage({
@@ -166,7 +188,7 @@ const termsHtml = buildPage({
   slug: 'terms-of-service',
   txtName: 'terms-of-service.txt',
   relatedLinks:
-    '<a href="/legal/privacy-policy.html">Privacy Policy</a> · <a href="/legal/delete-account.html">Delete account</a>',
+    '<a href="/legal/privacy-policy">Privacy Policy</a> · <a href="/legal/delete-account">Delete account</a>',
 })
 
 fs.writeFileSync(path.join(legalDir, 'privacy-policy.html'), privacyHtml, 'utf8')

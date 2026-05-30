@@ -81,7 +81,7 @@ When all **3 files** are in `setup-input\`:
 2. **Create new release** → upload the new **app-release.aab** from the message above.
 3. Under **App content** → **Privacy policy**, confirm the URL is:
    ```
-   https://simvest-api.onrender.com/legal/privacy-policy.html
+   https://simvest-api.onrender.com/legal/privacy-policy
    ```
 4. Submit for review.
 

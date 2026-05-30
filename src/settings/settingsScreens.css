@@ -495,6 +495,30 @@
   box-shadow: none;
 }
 
+.ss-legalLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.ss-legalLinkBtn {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0f2fe;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ss-legalLinkBtn:active {
+  opacity: 0.85;
+}
+
 .ss-legalNote {
   margin: 8px 0 4px;
   padding: 0 4px;
