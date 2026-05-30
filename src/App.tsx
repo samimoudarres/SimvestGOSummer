@@ -1,4 +1,5 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { GuestOnly } from './auth/GuestOnly'
 import { RequireAuth } from './auth/RequireAuth'
 import { reactRouterBasename } from './util/reactRouterBasename'
@@ -33,9 +34,23 @@ import { SettingsPostNotificationsScreen } from './settings/SettingsPostNotifica
 import { gamePaths } from './gameRoutes'
 import { AdminScreen } from './admin/AdminScreen'
 
+function PushNavigationBridge() {
+  const navigate = useNavigate()
+  useEffect(() => {
+    const onNav = (ev: Event) => {
+      const url = (ev as CustomEvent<{ url?: string }>).detail?.url
+      if (typeof url === 'string' && url.startsWith('/')) navigate(url)
+    }
+    window.addEventListener('simvest-push-nav', onNav)
+    return () => window.removeEventListener('simvest-push-nav', onNav)
+  }, [navigate])
+  return null
+}
+
 export default function App() {
   return (
     <BrowserRouter basename={reactRouterBasename()}>
+      <PushNavigationBridge />
       <Routes>
         <Route path="/admin" element={<AdminScreen />} />
 

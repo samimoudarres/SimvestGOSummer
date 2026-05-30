@@ -84,6 +84,11 @@ import {
 } from './userProfileService'
 import { savePushSubscriptionForViewer } from './pushSubscriptionService'
 import { getVapidPublicKey, initVapidKeys } from './vapidKeysService'
+import { saveNativePushTokenForViewer } from './nativePushTokenService'
+import { isNativePushConfigured } from './fcmSendService'
+import { pushNotifyPostCommented, pushNotifyPostLiked } from './socialPushHooks'
+import { notifyHostMemberJoined, resolveHostUserId } from './notificationEvents'
+import { startStockMoveAlertScanner } from './stockMoveAlertScanner'
 import {
   ensureGameJoinedAt,
   getGameJoinedAtIso,
@@ -842,14 +847,26 @@ app.post('/api/games/:slug/profile/setup', async (req, res) => {
       return
     }
 
-    await ensureGameJoinedAt(uid, slug)
+    const priorJoin = await getGameJoinedAtIso(uid, slug)
+    const joinedAt = await ensureGameJoinedAt(uid, slug)
+    const hostId = await resolveHostUserId(slug)
+    const memberName = `${setup.firstName} ${setup.lastName}`.trim()
+    if (!priorJoin && joinedAt && hostId && !viewerIdsMatch(hostId, uid)) {
+      queueMicrotask(() => {
+        void notifyHostMemberJoined({
+          gameSlug: slug,
+          hostUserId: hostId,
+          memberDisplayName: memberName || 'A player',
+        }).catch(() => {})
+      })
+    }
     res.json({
       ok: true,
       pendingApproval: false,
       profile: {
         userId: uid,
         gameSlug: slug,
-        displayName: `${setup.firstName} ${setup.lastName}`.trim(),
+        displayName: memberName,
         username: setup.username,
         avatarUrl: setup.avatarUrl,
       },
@@ -1689,6 +1706,33 @@ app.post('/api/me/push/subscribe', async (req, res) => {
   }
 })
 
+app.get('/api/me/push/native-status', (_req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store')
+  res.json({ configured: isNativePushConfigured() })
+})
+
+/** FCM/APNs device token from Capacitor `@capacitor/push-notifications`. */
+app.post('/api/me/push/native-token', async (req, res) => {
+  const uid = userIdFromReq(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Missing viewer id' })
+    return
+  }
+  const body = (req.body ?? {}) as { token?: string; platform?: string }
+  const token = typeof body.token === 'string' ? body.token.trim() : ''
+  const platform = body.platform === 'ios' ? 'ios' : 'android'
+  if (token.length < 16) {
+    res.status(400).json({ error: 'Invalid device token' })
+    return
+  }
+  try {
+    await saveNativePushTokenForViewer(uid, { token, platform })
+    res.json({ ok: true, configured: isNativePushConfigured() })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Could not save token' })
+  }
+})
+
 app.get('/api/me/composer-context', async (req, res) => {
   const uid = userIdFromReq(req)
   if (!uid) {
@@ -1891,6 +1935,9 @@ app.post('/api/games/:slug/feed/posts/:postId/social/like', async (req, res) => 
       res.status(404).json({ error: r.error })
       return
     }
+    if (r.liked) {
+      void pushNotifyPostLiked(slug, postId, uid, true).catch(() => {})
+    }
     res.json(r)
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Like failed' })
@@ -1991,6 +2038,7 @@ app.post('/api/games/:slug/feed/posts/:postId/social/comments', async (req, res)
       res.status(400).json({ error: r.error })
       return
     }
+    void pushNotifyPostCommented(slug, postId, uid, text).catch(() => {})
     res.json({ ok: true, comment: r.comment })
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Comment failed' })
@@ -2668,6 +2716,12 @@ void ensureDataDirReady()
           err instanceof Error ? err.message : err,
         )
       })
+      startStockMoveAlertScanner()
+      if (!isNativePushConfigured()) {
+        console.warn(
+          '[simvest] Native push (FCM) is not configured — set FIREBASE_SERVICE_ACCOUNT_JSON on the server for iOS/Android alerts when the app is closed.',
+        )
+      }
     })
   })
   .catch((err) => {

@@ -23,8 +23,27 @@ export async function ensureGameAccess(input: {
   const isPrivate = rules?.visibility === 'private'
 
   if (!isPrivate) {
-    const joinedAtIso =
-      input.userId && input.autoJoinPublic ? await ensureGameJoinedAt(input.userId, input.gameSlug) : null
+    let joinedAtIso: string | null = null
+    if (input.userId && input.autoJoinPublic) {
+      const prior = await getGameJoinedAtIso(input.userId, input.gameSlug)
+      joinedAtIso = await ensureGameJoinedAt(input.userId, input.gameSlug)
+      if (!prior && joinedAtIso) {
+        const { resolveHostUserId, notifyHostMemberJoined } = await import('./notificationEvents')
+        const { getSetupProfileForUserGame } = await import('./userSetupProfileService')
+        const hostId = await resolveHostUserId(input.gameSlug)
+        if (hostId && !viewerIdsMatch(hostId, input.userId)) {
+          const setup = await getSetupProfileForUserGame(input.userId, input.gameSlug)
+          const name = setup ? `${setup.firstName} ${setup.lastName}`.trim() : ''
+          queueMicrotask(() => {
+            void notifyHostMemberJoined({
+              gameSlug: input.gameSlug,
+              hostUserId: hostId,
+              memberDisplayName: name || 'A player',
+            }).catch(() => {})
+          })
+        }
+      }
+    }
     return { ok: true, joinedAtIso, isHost: false, isPrivate: false }
   }
 

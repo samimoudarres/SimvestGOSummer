@@ -14,6 +14,7 @@ if (Capacitor.isNativePlatform()) {
 logDevApiOriginMisconfiguration()
 warnIfNativeWithoutApiOrigin()
 registerCapacitorNativeChromeListeners()
+void import('./push/simvestPushNavigation').then((m) => m.bindSimvestPushNavigation())
 void import('./capacitor/registerPhase6Chrome').then((m) => {
   void m.configureNativeStatusBar()
 })

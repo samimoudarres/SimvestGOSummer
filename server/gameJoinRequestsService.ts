@@ -122,6 +122,20 @@ export async function createJoinRequestIfNeeded(input: {
     }
     all.push(req)
     await writeAllUnlocked(all)
+    queueMicrotask(() => {
+      void import('./notificationEvents')
+        .then(async (m) => {
+          const rules = await getRuntimeRules(gameSlug)
+          const host = rules?.hostUserId?.trim()
+          if (!host) return
+          await m.notifyHostJoinRequest({
+            gameSlug,
+            hostUserId: host,
+            requesterDisplayName: req.displayName,
+          })
+        })
+        .catch(() => {})
+    })
     return { created: true, request: req }
   })
 }
@@ -171,6 +185,19 @@ export async function approveJoinRequest(
     const now = new Date().toISOString()
     all[idx] = { ...r, status: 'approved', resolvedAtIso: now }
     await writeAllUnlocked(all)
+    queueMicrotask(() => {
+      void import('./notificationEvents')
+        .then(async (m) => {
+          const host = rules.hostUserId?.trim()
+          if (!host) return
+          await m.notifyHostMemberJoined({
+            gameSlug: r.gameSlug,
+            hostUserId: host,
+            memberDisplayName: r.displayName,
+          })
+        })
+        .catch(() => {})
+    })
     return { ok: true }
   })
 }

@@ -6,6 +6,7 @@ import { clearAuthSession } from './clearAuthSession'
 import { AuthBootScreen } from './AuthBootScreen'
 import { readCachedAccount, writeCachedAccount, clearCachedAccount } from './accountSessionCache'
 import { getSimvestUserId, setSimvestUserId } from '../user/simvestUserId'
+import { registerSimvestPushIfPossible } from '../push/registerSimvestPush'
 
 type Gate = 'loading' | 'authed' | 'guest'
 
@@ -38,6 +39,7 @@ export function RequireAuth() {
     }
     if (storedId || cached?.userId) {
       finish('authed')
+      void registerSimvestPushIfPossible()
     }
 
     void (async () => {
@@ -48,6 +50,7 @@ export function RequireAuth() {
           setSimvestUserId(result.account.userId)
           writeCachedAccount(result.account)
           finish('authed')
+          void registerSimvestPushIfPossible()
           return
         }
         if (result.error.status === 401 || result.error.status === 404) {

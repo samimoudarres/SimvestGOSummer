@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
 import type { GameFeedPostRow } from '../challenge/useGameFeed'
 import { plainTextFromRichSegments } from './richSegmentsPlain'
-import { registerSimvestWebPushIfPossible } from './registerSimvestWebPush'
+import { registerSimvestPushIfPossible } from '../push/registerSimvestPush'
 import { challengeAssets as a } from '../challenge/challengeAssets'
 import { assets } from '../figmaAssets'
 import { FeedPostToast } from './FeedPostToast'
@@ -135,7 +135,7 @@ export function FeedPostOverflowMenu({
         setToast(typeof j?.error === 'string' ? j.error : 'Could not save')
         return
       }
-      const push = await registerSimvestWebPushIfPossible()
+      const push = await registerSimvestPushIfPossible()
       if (push.ok) {
         setToast('You’ll get a notification on this device when they post.')
         window.setTimeout(() => setToast(null), 4200)

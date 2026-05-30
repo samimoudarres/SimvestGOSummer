@@ -65,7 +65,7 @@ export function SettingsPostNotificationsScreen() {
         <div className="ss-body">
           <p className="ss-hintPara">
             When someone you follow posts or trades, Simvest can send a push notification to this
-            device (allow notifications in your browser when prompted).
+            device. Allow notifications when the app asks (phone) or in your browser when prompted.
           </p>
           {loading ? <p className="ss-loading">Loading…</p> : null}
           {err ? <div className="ss-error">{err}</div> : null}
