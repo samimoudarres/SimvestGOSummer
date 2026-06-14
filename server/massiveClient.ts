@@ -146,7 +146,9 @@ function parseRetryAfterSec(res: Response): number | null {
 export async function massiveGet<T>(path: string, params?: Record<string, string | undefined>): Promise<T> {
   const key = process.env.MASSIVE_API_KEY
   if (!key) {
-    throw new Error('MASSIVE_API_KEY is not set. Add it to a .env file in the project root.')
+    throw new Error(
+      'MASSIVE_API_KEY is not set. Add it to a .env file locally, or set MASSIVE_API_KEY in your host environment (e.g. Render dashboard → simvest-api → Environment).',
+    )
   }
   const url = new URL(path.startsWith('/') ? path : `/${path}`, MASSIVE_BASE)
   url.searchParams.set('apiKey', key)

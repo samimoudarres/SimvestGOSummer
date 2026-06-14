@@ -395,6 +395,7 @@ app.get('/api/health', (_req, res) => {
     dataDir: getDataDir(),
     persistentData: Boolean(process.env.SIMVEST_DATA_DIR?.trim()),
     legal: { privacyPolicy: isPrivacyPolicyReady() },
+    massive: { configured: Boolean(process.env.MASSIVE_API_KEY?.trim()) },
   })
 })
 
