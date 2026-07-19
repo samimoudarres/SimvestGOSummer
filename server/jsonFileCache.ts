@@ -1,37 +1,47 @@
-import fs from 'node:fs/promises'
-
 /**
- * Tiny mtime-aware cache for JSON files we read on every request (user profiles, setup
- * profiles, poll votes). Returns the parsed value and only re-reads from disk when the
- * file actually changed (mtimeMs) — so concurrent requests in the same poll window do
- * not stack up megabyte-sized JSON.parse calls. All writes happen through the existing
- * service write functions, which bump mtime and naturally invalidate the cache here.
+ * Tiny cache for JSON stores we read on every request.
+ * Filesystem: mtime-aware. Supabase/Postgres: generation counter (bumped on write/invalidate).
  */
+
+import { isSupabaseBackend } from './db/backend.ts'
+import { getPgPool } from './db/client.ts'
+import { readDataJsonText } from './db/persistedJson.ts'
+import { hasSupabaseServiceRole } from './db/backend.ts'
 
 type Loader<T> = (raw: string | null) => T
 
 type Entry<T> = {
-  mtimeMs: number
+  stamp: number
   value: T
 }
 
 const entries = new Map<string, Entry<unknown>>()
 const inflight = new Map<string, Promise<unknown>>()
+/** Bumped on each write/invalidate so DB-backed reads refresh. */
+const generations = new Map<string, number>()
 
-export async function readJsonWithMtimeCache<T>(
-  path: string,
-  parse: Loader<T>,
-): Promise<T> {
-  let mtimeMs = 0
-  try {
-    const stat = await fs.stat(path)
-    mtimeMs = stat.mtimeMs
-  } catch {
-    mtimeMs = 0
+function bumpGeneration(path: string): void {
+  generations.set(path, (generations.get(path) ?? 0) + 1)
+}
+
+async function currentStamp(path: string): Promise<number> {
+  if (isSupabaseBackend() && (getPgPool() || hasSupabaseServiceRole())) {
+    return generations.get(path) ?? 0
   }
+  try {
+    const { default: fs } = await import('node:fs/promises')
+    const stat = await fs.stat(path)
+    return stat.mtimeMs
+  } catch {
+    return 0
+  }
+}
+
+export async function readJsonWithMtimeCache<T>(path: string, parse: Loader<T>): Promise<T> {
+  const stamp = await currentStamp(path)
 
   const cached = entries.get(path) as Entry<T> | undefined
-  if (cached && cached.mtimeMs === mtimeMs) {
+  if (cached && cached.stamp === stamp) {
     return cached.value
   }
 
@@ -39,14 +49,10 @@ export async function readJsonWithMtimeCache<T>(
   if (existing) return existing
 
   const work = (async (): Promise<T> => {
-    let raw: string | null = null
-    try {
-      raw = await fs.readFile(path, 'utf8')
-    } catch {
-      raw = null
-    }
+    const raw = await readDataJsonText(path)
     const value = parse(raw)
-    entries.set(path, { mtimeMs, value })
+    const freshStamp = await currentStamp(path)
+    entries.set(path, { stamp: freshStamp, value })
     return value
   })()
 
@@ -58,7 +64,8 @@ export async function readJsonWithMtimeCache<T>(
   }
 }
 
-/** Clear after a successful write so the next read picks up new mtime. */
+/** Clear after a successful write so the next read picks up new data. */
 export function invalidateJsonFileCache(path: string): void {
   entries.delete(path)
+  bumpGeneration(path)
 }

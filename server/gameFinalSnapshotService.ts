@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 import { getRuntimeRules } from './gameRuntimeRulesService'
 import { getLedgerHoldingsForGame, getUserLedger } from './userGameStateService'
 import { listParticipantIdsForGame } from './gameParticipantIds'
@@ -28,18 +28,13 @@ const mem = new Map<string, GameFinalSnapshot>()
 const inflight = new Map<string, Promise<GameFinalSnapshot | null>>()
 
 async function readFile(): Promise<SnapFile> {
-  try {
-    const raw = JSON.parse(await fs.readFile(SNAP_PATH, 'utf8')) as SnapFile
-    if (raw && raw.bySlug && typeof raw.bySlug === 'object') return raw
-  } catch {
-    /* missing */
-  }
+  const raw = await readDataJsonObject<SnapFile>(SNAP_PATH)
+  if (raw && raw.bySlug && typeof raw.bySlug === 'object') return raw
   return { bySlug: {} }
 }
 
 async function writeFile(data: SnapFile): Promise<void> {
-  await ensureParentDirForFile(SNAP_PATH)
-  await fs.writeFile(SNAP_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(SNAP_PATH, data)
 }
 
 /** Move a frozen end-of-game snapshot to a permanent slug. */

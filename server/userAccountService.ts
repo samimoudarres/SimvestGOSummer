@@ -18,8 +18,8 @@
  */
 
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { writeDataJsonObject } from './db/persistedJson.ts'
 import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
 
 const ACCOUNTS_PATH = dataFilePath('user-accounts.json')
@@ -171,8 +171,7 @@ async function readFile(): Promise<AccountsFile> {
 }
 
 async function writeFile(data: AccountsFile): Promise<void> {
-  await ensureParentDirForFile(ACCOUNTS_PATH)
-  await fs.writeFile(ACCOUNTS_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(ACCOUNTS_PATH, data)
   invalidateJsonFileCache(ACCOUNTS_PATH)
 }
 

@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { writeDataJsonObject } from './db/persistedJson.ts'
 import { isPlaceholderProfileAvatarUrl } from '../src/user/resolveProfileAvatarUrl.ts'
 import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
 import { runSerializedByKey } from './fsMutationQueue'
@@ -37,8 +37,7 @@ async function readFile(): Promise<ProfileFile> {
 }
 
 async function writeFile(data: ProfileFile): Promise<void> {
-  await ensureParentDirForFile(PROFILE_PATH)
-  await fs.writeFile(PROFILE_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(PROFILE_PATH, data)
   invalidateJsonFileCache(PROFILE_PATH)
 }
 

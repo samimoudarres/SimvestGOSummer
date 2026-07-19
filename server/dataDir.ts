@@ -54,7 +54,14 @@ export async function ensureDataDirReady(): Promise<void> {
   }
 
   const persistent = dir !== BUNDLED_DATA_DIR
+  const usingDb = Boolean(
+    process.env.DATABASE_URL?.trim() ||
+      process.env.SUPABASE_DB_URL?.trim() ||
+      (process.env.SUPABASE_URL?.trim() && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
+  )
   console.log(
-    `[simvest] Data directory: ${dir}${persistent ? ' (SIMVEST_DATA_DIR — survives redeploy)' : ' (ephemeral — set SIMVEST_DATA_DIR on Render)'}`,
+    usingDb
+      ? `[simvest] Primary storage: Supabase (service role / DATABASE_URL). Local data dir: ${dir}`
+      : `[simvest] Data directory: ${dir}${persistent ? ' (SIMVEST_DATA_DIR — survives redeploy)' : ' (ephemeral — set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY or DATABASE_URL)'}`,
   )
 }

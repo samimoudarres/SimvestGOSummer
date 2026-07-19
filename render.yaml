@@ -1,5 +1,5 @@
 # Deploy on Render: https://dashboard.render.com → New → Blueprint → connect this repo.
-# Set MASSIVE_API_KEY in the Render dashboard (required). SIMVEST_SERVE_DIST is set below.
+# Set MASSIVE_API_KEY and DATABASE_URL (Supabase) in the Render dashboard (required).
 services:
   - type: web
     name: simvest-api
@@ -7,7 +7,7 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /api/health
-    # Persistent disk — player games, activity, accounts survive redeploys (required).
+    # Persistent disk kept for rollback / seed files; primary data is Supabase when DATABASE_URL is set.
     disk:
       name: simvest-data
       mountPath: /var/data
@@ -24,4 +24,12 @@ services:
       - key: MASSIVE_API_KEY
         sync: false
       - key: SIMVEST_ADMIN_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_DB_URL
         sync: false

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 import { runSerializedByKey } from './fsMutationQueue'
 import type { TradeCategoryId } from './tradeService'
 import { isTradeCategory } from './tradeService'
@@ -250,17 +250,13 @@ function parseRules(raw: unknown, gameSlug: string): GameRuntimeRules | null {
 }
 
 async function readFileRaw(): Promise<RulesFile> {
-  try {
-    const raw = await fs.readFile(RULES_PATH, 'utf8')
-    return JSON.parse(raw) as RulesFile
-  } catch {
-    return { version: 1, bySlug: {} }
-  }
+  const raw = await readDataJsonObject<RulesFile>(RULES_PATH)
+  if (raw) return raw
+  return { version: 1, bySlug: {} }
 }
 
 async function writeFileRaw(data: RulesFile): Promise<void> {
-  await ensureParentDirForFile(RULES_PATH)
-  await fs.writeFile(RULES_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(RULES_PATH, data)
 }
 
 export async function getRuntimeRules(gameSlug: string): Promise<GameRuntimeRules | null> {

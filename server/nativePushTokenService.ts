@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 import { normalizeUserId } from './followsService'
 
 const TOKENS_PATH = dataFilePath('user-native-push-tokens.json')
@@ -32,18 +32,13 @@ function canonViewer(raw: string): string | null {
 }
 
 async function readFile(): Promise<TokensFile> {
-  try {
-    const raw = JSON.parse(await fs.readFile(TOKENS_PATH, 'utf8')) as TokensFile
-    if (raw && typeof raw.byUserId === 'object' && !Array.isArray(raw.byUserId)) return raw
-  } catch {
-    /* missing */
-  }
+  const raw = await readDataJsonObject<TokensFile>(TOKENS_PATH)
+  if (raw && typeof raw.byUserId === 'object' && !Array.isArray(raw.byUserId)) return raw
   return { byUserId: {} }
 }
 
 async function writeFile(data: TokensFile): Promise<void> {
-  await ensureParentDirForFile(TOKENS_PATH)
-  await fs.writeFile(TOKENS_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(TOKENS_PATH, data)
 }
 
 export async function saveNativePushTokenForViewer(

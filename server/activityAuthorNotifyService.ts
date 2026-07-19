@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 import { normalizeUserId } from './followsService'
 import { invalidateJsonFileCache } from './jsonFileCache'
 
@@ -20,18 +20,13 @@ function runMutation<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function readFile(): Promise<NotifyFile> {
-  try {
-    const raw = JSON.parse(await fs.readFile(NOTIFY_PATH, 'utf8')) as NotifyFile
-    if (raw && typeof raw.watchers === 'object' && !Array.isArray(raw.watchers)) return raw
-  } catch {
-    /* missing */
-  }
+  const raw = await readDataJsonObject<NotifyFile>(NOTIFY_PATH)
+  if (raw && typeof raw.watchers === 'object' && !Array.isArray(raw.watchers)) return raw
   return { watchers: {} }
 }
 
 async function writeFile(data: NotifyFile): Promise<void> {
-  await ensureParentDirForFile(NOTIFY_PATH)
-  await fs.writeFile(NOTIFY_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(NOTIFY_PATH, data)
   invalidateJsonFileCache(NOTIFY_PATH)
 }
 

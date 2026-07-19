@@ -7,7 +7,7 @@ Stock simulation and investing games — React + Vite client, Express API.
 ### Production API (required before App Store / Play Store)
 
 1. [Render](https://render.com) → **New** → **Blueprint** → connect **SimvestGOSummer** (uses `render.yaml` in this repo).
-2. In Render, set **`MASSIVE_API_KEY`** (from [massive.com](https://massive.com)); redeploy if needed.
+2. In Render, set **`MASSIVE_API_KEY`** (from [massive.com](https://massive.com)) and **`DATABASE_URL`** (Supabase — see [SUPABASE_SETUP_START_HERE.md](SUPABASE_SETUP_START_HERE.md)); redeploy if needed.
 3. Copy your Render URL into **`.env.capacitor`** as `VITE_API_ORIGIN` (production: `https://simvest-api.onrender.com`), then run **`npm run cap:sync:release`**.
 4. **Google Play upload file** (after signing): `android/app/build/outputs/bundle/release/app-release.aab` — build with `cd android && .\gradlew.bat :app:bundleRelease` (requires `android/keystore.properties` on the build machine).
 5. Store listings: privacy policy URL → `https://simvest-api.onrender.com/legal/privacy-policy` (terms: `.../legal/terms-of-service`; account deletion: `.../legal/delete-account`). Use these exact URLs in Play Console (HTML, no `.txt`, no redirect).
@@ -43,7 +43,8 @@ Use `npm install` only when adding dependencies; for repeatable CI/mobile builds
 | `npm run cap:sync` | **`build:capacitor:local`** (`.env.capacitor-dev` → `http://10.0.2.2:3001`) then `npx cap sync` — run **`npm run dev:server`** on your PC first |
 | `npm run build:capacitor` | Same as **`vite build --mode capacitor`** after **`tsc`** — **requires** **`VITE_API_ORIGIN`** via **`.env.capacitor`** (copy **`.env.capacitor.example`**) |
 | `npm run cap:sync:release` | **`build:capacitor`** then **`cap sync`** — use this before Xcode / Android Studio release-shaped installs |
-| `npm run qa:phase7-automation` | Phase 7 gates: **`build`** + **`test:ledger`** + **`test:join-invite`** (see `docs/mobile-phase7-qa-checklist.md`) |
+| `npm run supabase:setup` | Create/link Supabase project, apply schema, import JSON (needs `setup-input/supabase-access-token.txt`) |
+| `npm run db:migrate-json` | Re-import `server/data/*.json` into Postgres (`DATABASE_URL` required) |
 
 The **`dist/`** folder is gitignored. It is the static web app synced into **Capacitor** (`ios/`, `android/`).
 

@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 import { fetchGameLeaderboardPayload } from './gameLeaderboardService.ts'
 import { listUserIdsJoinedGame } from './gameMembershipService.ts'
 import { notifyLeaderboardBigJump, notifyLeaderboardPodium } from './notificationEvents.ts'
@@ -23,30 +23,21 @@ function runMutation<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function readCache(): Promise<RankCacheFile> {
-  try {
-    const raw = JSON.parse(await fs.readFile(CACHE_PATH, 'utf8')) as RankCacheFile
-    if (raw && typeof raw.byGame === 'object' && !Array.isArray(raw.byGame)) return raw
-  } catch {
-    /* */
-  }
+  const raw = await readDataJsonObject<RankCacheFile>(CACHE_PATH)
+  if (raw && typeof raw.byGame === 'object' && !Array.isArray(raw.byGame)) return raw
   return { byGame: {} }
 }
 
 async function writeCache(data: RankCacheFile): Promise<void> {
-  await ensureParentDirForFile(CACHE_PATH)
-  await fs.writeFile(CACHE_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(CACHE_PATH, data)
 }
 
 /** Distinct game slugs from membership rows (active games only). */
 export async function listGameSlugsWithMembers(): Promise<string[]> {
   const membershipPath = dataFilePath('user-game-membership.json')
-  let joins: Record<string, string> = {}
-  try {
-    const raw = JSON.parse(await fs.readFile(membershipPath, 'utf8')) as { joins?: Record<string, string> }
-    joins = raw?.joins ?? {}
-  } catch {
-    return []
-  }
+  const raw = await readDataJsonObject<{ joins?: Record<string, string> }>(membershipPath)
+  if (!raw) return []
+  const joins = raw.joins ?? {}
   const slugs = new Set<string>()
   for (const k of Object.keys(joins)) {
     const idx = k.indexOf(':::')

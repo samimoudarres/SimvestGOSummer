@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 import { normalizeUserId } from './followsService'
 import { invalidateJsonFileCache } from './jsonFileCache'
 
@@ -24,18 +24,13 @@ function runMutation<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function readFile(): Promise<SubsFile> {
-  try {
-    const raw = JSON.parse(await fs.readFile(SUBS_PATH, 'utf8')) as SubsFile
-    if (raw && typeof raw.byUserId === 'object' && !Array.isArray(raw.byUserId)) return raw
-  } catch {
-    /* missing */
-  }
+  const raw = await readDataJsonObject<SubsFile>(SUBS_PATH)
+  if (raw && typeof raw.byUserId === 'object' && !Array.isArray(raw.byUserId)) return raw
   return { byUserId: {} }
 }
 
 async function writeFile(data: SubsFile): Promise<void> {
-  await ensureParentDirForFile(SUBS_PATH)
-  await fs.writeFile(SUBS_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(SUBS_PATH, data)
   invalidateJsonFileCache(SUBS_PATH)
 }
 

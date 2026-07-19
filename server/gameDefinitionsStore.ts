@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
 import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject } from './db/persistedJson.ts'
 
 const DEFS_PATH = dataFilePath('game-definitions.json')
 
@@ -172,11 +172,9 @@ function assertGame(raw: unknown): GameDefinition | null {
 
 async function loadAll(): Promise<GameDefinition[]> {
   let rawJson: DefinitionsFile = {}
-  try {
-    rawJson = JSON.parse(await fs.readFile(DEFS_PATH, 'utf8')) as DefinitionsFile
-  } catch {
-    return []
-  }
+  const parsed = await readDataJsonObject<DefinitionsFile>(DEFS_PATH)
+  if (!parsed) return []
+  rawJson = parsed
   const gamesRaw = rawJson.games ?? []
   const out: GameDefinition[] = []
   for (const g of gamesRaw) {

@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 
 const KEYS_PATH = dataFilePath('vapid-keys.json')
 
@@ -30,29 +30,19 @@ export async function initVapidKeys(): Promise<void> {
     return
   }
 
-  try {
-    const raw = JSON.parse(await fs.readFile(KEYS_PATH, 'utf8')) as {
-      publicKey?: string
-      privateKey?: string
-    }
+  const raw = await readDataJsonObject<{ publicKey?: string; privateKey?: string }>(KEYS_PATH)
+  if (raw) {
     const publicKey = typeof raw.publicKey === 'string' ? raw.publicKey.trim() : ''
     const privateKey = typeof raw.privateKey === 'string' ? raw.privateKey.trim() : ''
     if (publicKey && privateKey) {
       cached = { publicKey, privateKey, subject }
       return
     }
-  } catch {
-    /* generate below */
   }
 
   const webpush = await webPushModule()
   const keys = webpush.generateVAPIDKeys()
-  await ensureParentDirForFile(KEYS_PATH)
-  await fs.writeFile(
-    KEYS_PATH,
-    JSON.stringify({ publicKey: keys.publicKey, privateKey: keys.privateKey }, null, 2),
-    'utf8',
-  )
+  await writeDataJsonObject(KEYS_PATH, { publicKey: keys.publicKey, privateKey: keys.privateKey })
   cached = { publicKey: keys.publicKey, privateKey: keys.privateKey, subject }
   console.log(
     '[simvest] Web Push: generated VAPID keys (saved to server/data/vapid-keys.json). Restart not required.',

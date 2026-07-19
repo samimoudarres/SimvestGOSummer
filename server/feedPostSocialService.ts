@@ -1,6 +1,6 @@
-import fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonText, writeDataJsonObject } from './db/persistedJson.ts'
 import { normalizeUserId } from './followsService'
 import { canonicalGameSlugKey } from './gameSlugNormalize'
 import { getFeedPostById } from './gameFeedService'
@@ -37,8 +37,13 @@ function runSocialMutation<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function readStoreUnlocked(): Promise<SocialStoreFile> {
+  const raw = await readDataJsonText(STORE_PATH)
+  if (raw == null) {
+    const initial: SocialStoreFile = { postLikes: {}, comments: {}, commentLikes: {} }
+    await writeDataJsonObject(STORE_PATH, initial)
+    return initial
+  }
   try {
-    const raw = await fs.readFile(STORE_PATH, 'utf8')
     const o = JSON.parse(raw) as SocialStoreFile
     return {
       postLikes: o.postLikes && typeof o.postLikes === 'object' ? o.postLikes : {},
@@ -46,13 +51,6 @@ async function readStoreUnlocked(): Promise<SocialStoreFile> {
       commentLikes: o.commentLikes && typeof o.commentLikes === 'object' ? o.commentLikes : {},
     }
   } catch (e: unknown) {
-    const code = typeof e === 'object' && e !== null && 'code' in e ? (e as NodeJS.ErrnoException).code : ''
-    if (code === 'ENOENT') {
-      const initial: SocialStoreFile = { postLikes: {}, comments: {}, commentLikes: {} }
-      await ensureParentDirForFile(STORE_PATH)
-      await fs.writeFile(STORE_PATH, JSON.stringify(initial, null, 2), 'utf8')
-      return initial
-    }
     throw e instanceof Error ? e : new Error('feed-post-social read failed')
   }
 }
@@ -129,7 +127,7 @@ export async function togglePostLike(
       set.add(uid)
       store.postLikes[postKey] = [...set]
     }
-    await fs.writeFile(STORE_PATH, JSON.stringify(store, null, 2), 'utf8')
+    await writeDataJsonObject(STORE_PATH, store)
     const next = store.postLikes[postKey] ?? []
     return { liked: !had, likeCount: next.length }
   })
@@ -198,7 +196,7 @@ export async function addPostComment(
     }
     list.push(comment)
     store.comments[postKey] = list
-    await fs.writeFile(STORE_PATH, JSON.stringify(store, null, 2), 'utf8')
+    await writeDataJsonObject(STORE_PATH, store)
     return { ok: true, comment }
   })
 }
@@ -295,7 +293,7 @@ export async function toggleCommentLike(
       set.add(uid)
       store.commentLikes[lkKey] = [...set]
     }
-    await fs.writeFile(STORE_PATH, JSON.stringify(store, null, 2), 'utf8')
+    await writeDataJsonObject(STORE_PATH, store)
     const next = store.commentLikes[lkKey] ?? []
     return { liked: !had, likeCount: next.length }
   })

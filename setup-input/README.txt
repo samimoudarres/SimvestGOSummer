@@ -1,18 +1,21 @@
-DROP YOUR TWO FIREBASE DOWNLOADS HERE
-=====================================
+SETUP INPUT FILES (gitignored)
+==============================
 
-After you follow PUSH_SETUP_START_HERE.md, save files into THIS folder with these EXACT names:
-
+Firebase / push (see PUSH_SETUP_START_HERE.md):
 1) google-services.json
-   (from Firebase when you register the Android app)
-
 2) firebase-service-account.json
-   (from Firebase → Project settings → Service accounts → Generate new private key)
-
 3) render-api-key.txt
-   (one line only: your Render API key from dashboard.render.com → Account Settings → API Keys)
 
-Then tell Cursor to run:
-   node scripts/completePushSetup.mjs
+Supabase / database (see SUPABASE_SETUP_START_HERE.md):
+4) supabase-access-token.txt
+   (one line: personal access token from https://supabase.com/dashboard/account/tokens)
 
-Do not commit these files to GitHub (this folder is gitignored).
+Then run:
+   node scripts/completeSupabaseSetup.mjs
+
+Optional after first run (auto-written, do not commit):
+- supabase-env.txt
+- supabase-db-password.txt
+- supabase-database-url.txt  (only if you need to override the DB URI)
+
+Do not commit this folder’s secrets to GitHub.

@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 
 const SNAP_PATH = dataFilePath('game-networth-snapshots.json')
 
@@ -17,18 +17,13 @@ const MS_DAY = 86400000
 const MAX_POINTS_PER_USER = 500
 
 async function readSnapFile(): Promise<SnapFile> {
-  try {
-    const raw = JSON.parse(await fs.readFile(SNAP_PATH, 'utf8')) as SnapFile
-    if (raw && raw.games && typeof raw.games === 'object') return raw
-  } catch {
-    /* missing */
-  }
+  const raw = await readDataJsonObject<SnapFile>(SNAP_PATH)
+  if (raw && raw.games && typeof raw.games === 'object') return raw
   return { games: {} }
 }
 
 async function writeSnapFile(data: SnapFile): Promise<void> {
-  await ensureParentDirForFile(SNAP_PATH)
-  await fs.writeFile(SNAP_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(SNAP_PATH, data)
 }
 
 function migrateRow(raw: unknown): NwPoint[] {

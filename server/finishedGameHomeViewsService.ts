@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 import { runSerializedByKey } from './fsMutationQueue'
 
 const VIEWS_PATH = dataFilePath('user-finished-game-home-views.json')
@@ -15,18 +15,13 @@ function key(userId: string, gameSlug: string): string {
 }
 
 async function readFile(): Promise<ViewsFile> {
-  try {
-    const raw = JSON.parse(await fs.readFile(VIEWS_PATH, 'utf8')) as ViewsFile
-    if (raw?.views && typeof raw.views === 'object') return raw
-  } catch {
-    /* missing */
-  }
+  const raw = await readDataJsonObject<ViewsFile>(VIEWS_PATH)
+  if (raw?.views && typeof raw.views === 'object') return raw
   return { views: {} }
 }
 
 async function writeFile(data: ViewsFile): Promise<void> {
-  await ensureParentDirForFile(VIEWS_PATH)
-  await fs.writeFile(VIEWS_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(VIEWS_PATH, data)
 }
 
 export function finishedGameEnded(endsAtIso: string | null | undefined, nowMs = Date.now()): boolean {

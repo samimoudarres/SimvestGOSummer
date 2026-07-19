@@ -1,6 +1,6 @@
-import fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonText, writeDataJsonObject } from './db/persistedJson.ts'
 import { normalizeUserId } from './followsService'
 import { canonicalGameSlugKey, normalizeGameSlugParam } from './gameSlugNormalize'
 
@@ -28,19 +28,17 @@ function runFeedMutation<T>(fn: () => Promise<T>): Promise<T> {
  * We only auto-create the seed file when the file is missing (`ENOENT`). Other failures throw.
  */
 async function readFeedFileUnlocked(): Promise<FeedFile> {
+  const raw = await readDataJsonText(FEED_PATH)
+  if (raw == null) {
+    const initial: FeedFile = { posts: [...SEED_POSTS] }
+    await writeDataJsonObject(FEED_PATH, initial)
+    return initial
+  }
   try {
-    const raw = await fs.readFile(FEED_PATH, 'utf8')
     const parsed = JSON.parse(raw) as FeedFile
     if (parsed && Array.isArray(parsed.posts)) return parsed
     throw new Error('game-feed.json: missing posts array')
   } catch (e: unknown) {
-    const code = typeof e === 'object' && e !== null && 'code' in e ? (e as NodeJS.ErrnoException).code : ''
-    if (code === 'ENOENT') {
-      const initial: FeedFile = { posts: [...SEED_POSTS] }
-      await ensureParentDirForFile(FEED_PATH)
-      await fs.writeFile(FEED_PATH, JSON.stringify(initial, null, 2), 'utf8')
-      return initial
-    }
     throw e instanceof Error ? e : new Error('game-feed.json read failed')
   }
 }
@@ -145,7 +143,7 @@ export async function deleteAllFeedPostsForGame(gameSlug: string): Promise<numbe
     file.posts = file.posts.filter((p) => canonicalGameSlugKey(p.gameSlug) !== want)
     const removed = before - file.posts.length
     if (removed > 0) {
-      await fs.writeFile(FEED_PATH, JSON.stringify(file, null, 2), 'utf8')
+      await writeDataJsonObject(FEED_PATH, file)
     }
     return removed
   })
@@ -175,7 +173,7 @@ export async function appendGameFeedPost(post: Omit<GameFeedPost, 'id'> & { id?:
       id: post.id ?? randomUUID(),
     }
     file.posts.unshift(full)
-    await fs.writeFile(FEED_PATH, JSON.stringify(file, null, 2), 'utf8')
+    await writeDataJsonObject(FEED_PATH, file)
     queueMicrotask(() => {
       void import('./activityPostFanout')
         .then((m) => m.onNewFeedPost(full))
@@ -217,7 +215,7 @@ export async function renameGameSlugInFeedPosts(fromSlug: string, toSlug: string
       n += 1
     }
     if (n > 0) {
-      await fs.writeFile(FEED_PATH, JSON.stringify(file, null, 2), 'utf8')
+      await writeDataJsonObject(FEED_PATH, file)
     }
     return n
   })
@@ -236,7 +234,7 @@ export async function mergeFeedPostsViewerId(fromUserId: string, toUserId: strin
       n++
     }
     if (n > 0) {
-      await fs.writeFile(FEED_PATH, JSON.stringify(file, null, 2), 'utf8')
+      await writeDataJsonObject(FEED_PATH, file)
     }
     return n
   })
@@ -296,7 +294,7 @@ export async function deleteFeedPostsByUserInGame(userId: string, gameSlug: stri
     })
     const removed = before - file.posts.length
     if (removed > 0) {
-      await fs.writeFile(FEED_PATH, JSON.stringify(file, null, 2), 'utf8')
+      await writeDataJsonObject(FEED_PATH, file)
     }
     return removed
   })
@@ -315,7 +313,7 @@ export async function updateFeedPostRationale(
     if (i < 0) return { ok: false, error: 'Post not found' }
     if (!feedAuthorMatches(file.posts[i]!.userId, userId)) return { ok: false, error: 'Not your post' }
     file.posts[i] = { ...file.posts[i]!, rationale: rationale.slice(0, 2000) }
-    await fs.writeFile(FEED_PATH, JSON.stringify(file, null, 2), 'utf8')
+    await writeDataJsonObject(FEED_PATH, file)
     return { ok: true }
   })
 }
@@ -342,7 +340,7 @@ export async function updateFeedPostRichBody(
       richSegments: segments,
       rationale: rationaleTrim.length > 0 ? rationaleTrim : ' ',
     }
-    await fs.writeFile(FEED_PATH, JSON.stringify(file, null, 2), 'utf8')
+    await writeDataJsonObject(FEED_PATH, file)
     return { ok: true }
   })
 }

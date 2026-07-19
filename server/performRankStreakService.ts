@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 
 const STREAK_PATH = dataFilePath('perform-rank-streaks.json')
 
@@ -18,18 +18,13 @@ function runMutation<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function readFile(): Promise<StreakFile> {
-  try {
-    const raw = JSON.parse(await fs.readFile(STREAK_PATH, 'utf8')) as StreakFile
-    if (raw && raw.entries && typeof raw.entries === 'object') return { version: 1, entries: raw.entries }
-  } catch {
-    /* missing */
-  }
+  const raw = await readDataJsonObject<StreakFile>(STREAK_PATH)
+  if (raw && raw.entries && typeof raw.entries === 'object') return { version: 1, entries: raw.entries }
   return { version: 1, entries: {} }
 }
 
 async function writeFile(data: StreakFile): Promise<void> {
-  await ensureParentDirForFile(STREAK_PATH)
-  await fs.writeFile(STREAK_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(STREAK_PATH, data)
 }
 
 function streakKey(gameSlug: string, userId: string): string {

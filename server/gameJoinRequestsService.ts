@@ -1,6 +1,6 @@
-import fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 import { normalizeUserId } from './followsService'
 import { runSerializedByKey } from './fsMutationQueue'
 import { ensureGameJoinedAt } from './gameMembershipService'
@@ -44,28 +44,24 @@ function slugMatches(storedSlug: string, querySlug: string): boolean {
 }
 
 async function readAllUnlocked(): Promise<GameJoinRequest[]> {
-  try {
-    const raw = await fs.readFile(REQ_PATH, 'utf8')
-    const j = JSON.parse(raw) as FileShape
-    const items = Array.isArray(j.items) ? j.items : []
-    const out: GameJoinRequest[] = []
-    for (const row of items) {
-      if (!row || typeof row !== 'object') continue
-      const o = row as Record<string, unknown>
-      const id = typeof o.id === 'string' ? o.id : ''
-      const gameSlug = typeof o.gameSlug === 'string' ? o.gameSlug : ''
-      const userId = typeof o.userId === 'string' ? o.userId : ''
-      const displayName = typeof o.displayName === 'string' ? o.displayName : ''
-      const status = o.status === 'pending' || o.status === 'approved' || o.status === 'rejected' ? o.status : null
-      const createdAtIso = typeof o.createdAtIso === 'string' ? o.createdAtIso : ''
-      if (!id || !gameSlug || !userId || !status || !createdAtIso) continue
-      const resolvedAtIso = typeof o.resolvedAtIso === 'string' ? o.resolvedAtIso : undefined
-      out.push({ id, gameSlug, userId, displayName, status, createdAtIso, resolvedAtIso })
-    }
-    return out
-  } catch {
-    return []
+  const j = await readDataJsonObject<FileShape>(REQ_PATH)
+  if (!j) return []
+  const items = Array.isArray(j.items) ? j.items : []
+  const out: GameJoinRequest[] = []
+  for (const row of items) {
+    if (!row || typeof row !== 'object') continue
+    const o = row as Record<string, unknown>
+    const id = typeof o.id === 'string' ? o.id : ''
+    const gameSlug = typeof o.gameSlug === 'string' ? o.gameSlug : ''
+    const userId = typeof o.userId === 'string' ? o.userId : ''
+    const displayName = typeof o.displayName === 'string' ? o.displayName : ''
+    const status = o.status === 'pending' || o.status === 'approved' || o.status === 'rejected' ? o.status : null
+    const createdAtIso = typeof o.createdAtIso === 'string' ? o.createdAtIso : ''
+    if (!id || !gameSlug || !userId || !status || !createdAtIso) continue
+    const resolvedAtIso = typeof o.resolvedAtIso === 'string' ? o.resolvedAtIso : undefined
+    out.push({ id, gameSlug, userId, displayName, status, createdAtIso, resolvedAtIso })
   }
+  return out
 }
 
 async function readAll(): Promise<GameJoinRequest[]> {
@@ -73,8 +69,7 @@ async function readAll(): Promise<GameJoinRequest[]> {
 }
 
 async function writeAllUnlocked(items: GameJoinRequest[]): Promise<void> {
-  await ensureParentDirForFile(REQ_PATH)
-  await fs.writeFile(REQ_PATH, JSON.stringify({ version: 1, items }, null, 2), 'utf8')
+  await writeDataJsonObject(REQ_PATH, { version: 1, items })
 }
 
 async function writeAll(items: GameJoinRequest[]): Promise<void> {

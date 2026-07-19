@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 import { runSerializedByKey } from './fsMutationQueue'
 
 const MEMBERSHIP_PATH = dataFilePath('user-game-membership.json')
@@ -12,18 +12,13 @@ function key(userId: string, gameSlug: string): string {
 }
 
 async function readFile(): Promise<MembershipFile> {
-  try {
-    const raw = JSON.parse(await fs.readFile(MEMBERSHIP_PATH, 'utf8')) as MembershipFile
-    if (raw && raw.joins && typeof raw.joins === 'object') return raw
-  } catch {
-    /* missing */
-  }
+  const raw = await readDataJsonObject<MembershipFile>(MEMBERSHIP_PATH)
+  if (raw && raw.joins && typeof raw.joins === 'object') return raw
   return { joins: {} }
 }
 
 async function writeFile(data: MembershipFile): Promise<void> {
-  await ensureParentDirForFile(MEMBERSHIP_PATH)
-  await fs.writeFile(MEMBERSHIP_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(MEMBERSHIP_PATH, data)
 }
 
 /** First time the user participates in this game (ISO UTC). */

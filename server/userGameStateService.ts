@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 import { normalizeCryptoCompositeTicker, normalizeTicker, resolveMassiveTicker } from './stockService'
 import { runSerializedByKey } from './fsMutationQueue'
 
@@ -61,20 +61,16 @@ function mergeTickerLots(rows: HoldingRecord[]): HoldingRecord[] {
 }
 
 async function readLegacyHoldingsOnly(): Promise<Record<string, HoldingRecord[]>> {
-  try {
-    const raw = JSON.parse(await fs.readFile(LEGACY_HOLDINGS_PATH, 'utf8')) as unknown
-    if (!raw || typeof raw !== 'object') return {}
-    const o = raw as Record<string, unknown>
-    if (Array.isArray(o['nov-2024-stock-challenge']) || Object.values(o).some((v) => Array.isArray(v))) {
-      const out: Record<string, HoldingRecord[]> = {}
-      for (const [k, v] of Object.entries(o)) {
-        if (k === 'version') continue
-        if (Array.isArray(v)) out[k] = v as HoldingRecord[]
-      }
-      return out
+  const raw = await readDataJsonObject<unknown>(LEGACY_HOLDINGS_PATH)
+  if (!raw || typeof raw !== 'object') return {}
+  const o = raw as Record<string, unknown>
+  if (Array.isArray(o['nov-2024-stock-challenge']) || Object.values(o).some((v) => Array.isArray(v))) {
+    const out: Record<string, HoldingRecord[]> = {}
+    for (const [k, v] of Object.entries(o)) {
+      if (k === 'version') continue
+      if (Array.isArray(v)) out[k] = v as HoldingRecord[]
     }
-  } catch {
-    /* no legacy file */
+    return out
   }
   return {}
 }
@@ -102,49 +98,44 @@ export async function listUserIdsWithLedgerForGame(gameSlug: string): Promise<st
 }
 
 async function writePortfolioStateToDisk(s: PortfolioStateV2): Promise<void> {
-  await ensureParentDirForFile(STATE_PATH)
-  await fs.writeFile(STATE_PATH, JSON.stringify(s, null, 2), 'utf8')
+  await writeDataJsonObject(STATE_PATH, s)
 }
 
 /** Load + migrate portfolio JSON. Call only inside `runSerializedByKey(PORTFOLIO_LOCK_KEY, …)`. */
 async function loadPortfolioStateFromDisk(): Promise<PortfolioStateV2> {
-  try {
-    const raw = JSON.parse(await fs.readFile(STATE_PATH, 'utf8')) as unknown
-    if (raw && typeof raw === 'object') {
-      const r = raw as { version?: number; legacyHoldings?: Record<string, HoldingRecord[]>; users?: PortfolioStateV2['users'] }
-      if (r.version === 2 || r.version === 3) {
-        const s = raw as PortfolioStateV2
-        if (s.version === 2) {
-          for (const [uid, games] of Object.entries(s.users ?? {})) {
-            for (const [slug, ledger] of Object.entries(games ?? {})) {
-              const lots = (ledger.holdings ?? []).map((h) => ({
-                ticker: h.ticker,
-                shares: h.shares,
-                entryPrice: h.avgCost,
-                boughtAtIso: LEGACY_LOT_TIME,
-              }))
-              s.users[uid]![slug] = {
-                cash: ledger.cash,
-                holdings: mergeTickerLots(ledger.holdings ?? []),
-                lots,
-              }
+  const raw = await readDataJsonObject<unknown>(STATE_PATH)
+  if (raw && typeof raw === 'object') {
+    const r = raw as { version?: number; legacyHoldings?: Record<string, HoldingRecord[]>; users?: PortfolioStateV2['users'] }
+    if (r.version === 2 || r.version === 3) {
+      const s = raw as PortfolioStateV2
+      if (s.version === 2) {
+        for (const [uid, games] of Object.entries(s.users ?? {})) {
+          for (const [slug, ledger] of Object.entries(games ?? {})) {
+            const lots = (ledger.holdings ?? []).map((h) => ({
+              ticker: h.ticker,
+              shares: h.shares,
+              entryPrice: h.avgCost,
+              boughtAtIso: LEGACY_LOT_TIME,
+            }))
+            s.users[uid]![slug] = {
+              cash: ledger.cash,
+              holdings: mergeTickerLots(ledger.holdings ?? []),
+              lots,
             }
           }
-          s.version = 3
+        }
+        s.version = 3
+        await writePortfolioStateToDisk(s)
+      }
+      if (!s.legacyHoldings || Object.keys(s.legacyHoldings).length === 0) {
+        const leg = await readLegacyHoldingsOnly()
+        if (Object.keys(leg).length) {
+          s.legacyHoldings = { ...leg, ...s.legacyHoldings }
           await writePortfolioStateToDisk(s)
         }
-        if (!s.legacyHoldings || Object.keys(s.legacyHoldings).length === 0) {
-          const leg = await readLegacyHoldingsOnly()
-          if (Object.keys(leg).length) {
-            s.legacyHoldings = { ...leg, ...s.legacyHoldings }
-            await writePortfolioStateToDisk(s)
-          }
-        }
-        return s
       }
+      return s
     }
-  } catch {
-    /* missing */
   }
   const legacy = await readLegacyHoldingsOnly()
   const initial = emptyState()

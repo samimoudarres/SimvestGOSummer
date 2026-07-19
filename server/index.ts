@@ -20,6 +20,9 @@ import { isAdminConfigured, requireAdminAuth } from './adminAuth.ts'
 import { buildAdminDashboard } from './adminDashboardService.ts'
 import { sendBrandingIcon } from './branding'
 import { isPrivacyPolicyReady, registerLegalPages } from './legalPages.ts'
+import { storageBackendLabel, hasSupabaseServiceRole, getDatabaseUrl } from './db/backend.ts'
+import { pingDatabase } from './db/client.ts'
+import { getSupabaseAdmin } from './db/supabaseAdmin.ts'
 import { massiveGet, MassiveApiError } from './massiveClient'
 import {
   getAllFollowTickersForUser,
@@ -388,7 +391,29 @@ function formatEtTimestamp(iso: string): string {
 
 registerLegalPages(app)
 
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', async (_req, res) => {
+  const backend = storageBackendLabel()
+  let dbOk = true
+  if (backend === 'supabase') {
+    if (getDatabaseUrl()) {
+      dbOk = await pingDatabase()
+    } else if (hasSupabaseServiceRole()) {
+      const admin = getSupabaseAdmin()
+      if (!admin) dbOk = false
+      else {
+        const { error } = await admin.from('json_documents').select('name').limit(1)
+        dbOk = !error || error.code === 'PGRST116'
+        /* empty table is ok; missing table surfaces as error */
+        if (error && /relation|does not exist|schema cache/i.test(error.message)) dbOk = false
+        else if (error && error.code !== 'PGRST116') {
+          /* PGRST116 = no rows; other errors may still mean table exists */
+          dbOk = error.code === '42P01' ? false : !/Could not find the table/i.test(error.message)
+        }
+      }
+    } else {
+      dbOk = false
+    }
+  }
   res.json({
     ok: true,
     service: 'simvest-api',
@@ -396,6 +421,7 @@ app.get('/api/health', (_req, res) => {
     persistentData: Boolean(process.env.SIMVEST_DATA_DIR?.trim()),
     legal: { privacyPolicy: isPrivacyPolicyReady() },
     massive: { configured: Boolean(process.env.MASSIVE_API_KEY?.trim()) },
+    storage: { backend, ok: dbOk },
   })
 })
 

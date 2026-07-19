@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 import { getAllFollowTickersForUser } from './followsService'
 import { getMergedHoldings } from './userGameStateService'
 import { resolveMassiveTicker, fetchStockBars, type Snapshot } from './stockService'
@@ -25,24 +25,19 @@ function todayUtc(): string {
 }
 
 async function readDedup(): Promise<DedupFile> {
-  try {
-    const raw = JSON.parse(await fs.readFile(DEDUP_PATH, 'utf8')) as DedupFile
-    if (raw && typeof raw.sent === 'object') return raw
-  } catch {
-    /* */
-  }
+  const raw = await readDataJsonObject<DedupFile>(DEDUP_PATH)
+  if (raw && typeof raw.sent === 'object') return raw
   return { sent: {} }
 }
 
 async function writeDedup(data: DedupFile): Promise<void> {
-  await ensureParentDirForFile(DEDUP_PATH)
   const cutoff = Date.now() - 14 * MS_DAY
   const next: Record<string, string> = {}
   for (const [k, iso] of Object.entries(data.sent)) {
     const t = Date.parse(iso)
     if (Number.isFinite(t) && t >= cutoff) next[k] = iso
   }
-  await fs.writeFile(DEDUP_PATH, JSON.stringify({ sent: next }, null, 2), 'utf8')
+  await writeDataJsonObject(DEDUP_PATH, { sent: next })
 }
 
 async function markSentIfNew(key: string): Promise<boolean> {
@@ -137,12 +132,8 @@ export async function runStockMoveAlertScan(): Promise<void> {
   const watchByUser = new Map<string, string[]>()
 
   const membershipPath = dataFilePath('user-game-membership.json')
-  let membershipRaw: { joins?: Record<string, string> } = { joins: {} }
-  try {
-    membershipRaw = JSON.parse(await fs.readFile(membershipPath, 'utf8')) as { joins?: Record<string, string> }
-  } catch {
-    return
-  }
+  const membershipRaw = await readDataJsonObject<{ joins?: Record<string, string> }>(membershipPath)
+  if (!membershipRaw) return
   const joins = membershipRaw.joins ?? {}
   const userIds = new Set<string>()
   for (const k of Object.keys(joins)) {

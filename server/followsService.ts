@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
-import { dataFilePath, ensureParentDirForFile } from './dataDir.ts'
+import { dataFilePath } from './dataDir.ts'
+import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
 import { runSerializedByKey } from './fsMutationQueue'
 import { normalizeTicker, resolveMassiveTicker } from './stockService'
 
@@ -10,13 +10,8 @@ const FOLLOWS_LOCK_KEY = FOLLOWS_PATH
 type FollowsNested = Record<string, Record<string, string[]>>
 
 async function readRaw(): Promise<Record<string, unknown>> {
-  try {
-    const raw = await fs.readFile(FOLLOWS_PATH, 'utf8')
-    const j = JSON.parse(raw) as unknown
-    return j && typeof j === 'object' && !Array.isArray(j) ? (j as Record<string, unknown>) : {}
-  } catch {
-    return {}
-  }
+  const j = await readDataJsonObject<unknown>(FOLLOWS_PATH)
+  return j && typeof j === 'object' && !Array.isArray(j) ? (j as Record<string, unknown>) : {}
 }
 
 function normalizeSym(ticker: string): string | null {
@@ -64,8 +59,7 @@ async function readNested(): Promise<FollowsNested> {
 }
 
 async function writeNested(data: FollowsNested): Promise<void> {
-  await ensureParentDirForFile(FOLLOWS_PATH)
-  await fs.writeFile(FOLLOWS_PATH, JSON.stringify(data, null, 2), 'utf8')
+  await writeDataJsonObject(FOLLOWS_PATH, data)
 }
 
 /** Accept UUID or generated slug-style ids from localStorage. */
