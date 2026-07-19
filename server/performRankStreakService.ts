@@ -1,20 +1,13 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 
 const STREAK_PATH = dataFilePath('perform-rank-streaks.json')
 
 type Entry = { lastRank: number; streakDays: number; lastCheckedDay: string }
 type StreakFile = { version: 1; entries: Record<string, Entry> }
 
-let mutex = Promise.resolve()
-
 function runMutation<T>(fn: () => Promise<T>): Promise<T> {
-  const p = mutex.then(fn)
-  mutex = p.then(
-    () => undefined,
-    () => undefined,
-  )
-  return p
+  return withDataJsonDocumentLock(STREAK_PATH, fn)
 }
 
 async function readFile(): Promise<StreakFile> {

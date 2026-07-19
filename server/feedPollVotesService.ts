@@ -1,5 +1,5 @@
 import { dataFilePath } from './dataDir.ts'
-import { writeDataJsonObject } from './db/persistedJson.ts'
+import { writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
 
 const VOTES_PATH = dataFilePath('feed-poll-votes.json')
@@ -78,10 +78,12 @@ export async function castPollVote(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!postId || !userId || userId.length < 8) return { ok: false, error: 'Invalid request' }
   if (!validOptionIds.has(optionId)) return { ok: false, error: 'Invalid option' }
-  const cached = await readFile()
-  const k = key(postId, userId)
-  if (cached.votes[k]) return { ok: false, error: 'You already voted on this poll' }
-  const next: VotesFile = { votes: { ...cached.votes, [k]: optionId } }
-  await writeFile(next)
-  return { ok: true }
+  return withDataJsonDocumentLock(VOTES_PATH, async () => {
+    const cached = await readFile()
+    const k = key(postId, userId)
+    if (cached.votes[k]) return { ok: false, error: 'You already voted on this poll' }
+    const next: VotesFile = { votes: { ...cached.votes, [k]: optionId } }
+    await writeFile(next)
+    return { ok: true }
+  })
 }

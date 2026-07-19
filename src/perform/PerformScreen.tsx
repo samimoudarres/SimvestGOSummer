@@ -10,6 +10,7 @@ import { NetWorthInGameChart } from './NetWorthInGameChart'
 import { PerformCompareChart } from './PerformCompareChart'
 import { PerformComparePicker } from './PerformComparePicker'
 import type { PerformCompareSeries, PerformCompareSeriesId, PerformStockRow } from './performTypes'
+import { performCompareStorageKey } from './performChartPrefetch'
 import { usePerformCompare } from './usePerformCompare'
 import { usePerformDashboard } from './usePerformDashboard'
 import { MiniSparkLine } from '../components/MiniSparkLine'
@@ -23,13 +24,9 @@ import './performScreen.css'
 
 const CHART_RANGES: ChartRange[] = ['1D', '5D', '1M', '3M', '1Y', '5Y']
 
-function compareStorageKey(slug: string) {
-  return `simvest:perform-compare:v1:${slug}`
-}
-
 function loadCompareTokens(slug: string): string[] {
   try {
-    const raw = localStorage.getItem(compareStorageKey(slug))
+    const raw = localStorage.getItem(performCompareStorageKey(slug))
     if (!raw) return []
     const arr = JSON.parse(raw) as unknown
     if (!Array.isArray(arr)) return []
@@ -41,7 +38,7 @@ function loadCompareTokens(slug: string): string[] {
 
 function saveCompareTokens(slug: string, tokens: string[]) {
   try {
-    localStorage.setItem(compareStorageKey(slug), JSON.stringify(tokens))
+    localStorage.setItem(performCompareStorageKey(slug), JSON.stringify(tokens))
   } catch {
     /* quota / private mode */
   }
@@ -114,7 +111,7 @@ export function PerformScreen() {
 
   const chromeStyle = useGameChromeCssVars(slug)
 
-  const { data } = usePerformDashboard(slug)
+  const { data, status: dashStatus, fromApi, error: dashError, retry: retryDash } = usePerformDashboard(slug)
   const viewerUserId = getSimvestUserId().trim()
   const [toast, setToast] = useState<string | null>(null)
   const [comparePickerOpen, setComparePickerOpen] = useState(false)
@@ -255,7 +252,23 @@ export function PerformScreen() {
     return <Navigate to="/" replace />
   }
 
-  if (!data) {
+  if (dashStatus === 'error' && !fromApi) {
+    return (
+      <div className="pf-root" style={chromeStyle}>
+        <div className="pf-phone">
+          <div className="pf-scroll">
+            <p className="pf-loading">Couldn’t load performance{dashError ? ` (${dashError})` : ''}.</p>
+            <button type="button" className="pf-retry" onClick={retryDash}>
+              Retry
+            </button>
+          </div>
+          <ChallengeBottomNav gameSlug={slug} active="perform" tradeLocked={headerCtl.gameHasEnded} />
+        </div>
+      </div>
+    )
+  }
+
+  if (!data || dashStatus === 'loading') {
     return (
       <div className="pf-root" style={chromeStyle}>
         <div className="pf-phone">
@@ -464,12 +477,12 @@ export function PerformScreen() {
               visible={visibleSeries}
               selected={selectedSeries}
               onSelectLine={setSelectedSeries}
-              interactive={compareStatus !== 'loading' && chartSeries.length > 0}
+              interactive={(compareStatus !== 'loading' || chartSeries.length > 0) && chartSeries.length > 0}
               sampledAtMs={compareData?.sampledAtMs}
               chartRange={compareData?.range ?? chartRange}
             />
 
-            {compareStatus === 'loading' && !compareData ? (
+            {compareStatus === 'loading' && !compareData?.series?.length ? (
               <p className="pf-compareLoading">Updating chart…</p>
             ) : null}
           </section>

@@ -1,5 +1,5 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { getAllFollowTickersForUser } from './followsService'
 import { getMergedHoldings } from './userGameStateService'
 import { resolveMassiveTicker, fetchStockBars, type Snapshot } from './stockService'
@@ -13,7 +13,6 @@ const SCAN_INTERVAL_MS = 20 * 60 * 1000
 
 type DedupFile = { sent: Record<string, string> }
 
-let dedupMutex = Promise.resolve()
 let scanTimer: ReturnType<typeof setInterval> | null = null
 
 function dedupKey(userId: string, ticker: string, kind: string, day: string): string {
@@ -41,17 +40,12 @@ async function writeDedup(data: DedupFile): Promise<void> {
 }
 
 async function markSentIfNew(key: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    dedupMutex = dedupMutex.then(async () => {
-      const file = await readDedup()
-      if (file.sent[key]) {
-        resolve(false)
-        return
-      }
-      file.sent[key] = new Date().toISOString()
-      await writeDedup(file)
-      resolve(true)
-    })
+  return withDataJsonDocumentLock(DEDUP_PATH, async () => {
+    const file = await readDedup()
+    if (file.sent[key]) return false
+    file.sent[key] = new Date().toISOString()
+    await writeDedup(file)
+    return true
   })
 }
 

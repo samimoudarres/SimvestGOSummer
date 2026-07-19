@@ -1,18 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import {
+  dedupeSimvestJsonFetch,
+  readSimvestJsonCacheStale,
+  writeSimvestJsonCache,
+} from '../api/simvestJsonCache'
+import { LIVE_MARKETS_POLL_HIDDEN_MS } from '../config/liveMarketsPoll'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import type { ChartRange, PlayerNetWorthChartPayload } from '../stocks/stockDetailTypes'
+import {
+  PERFORM_NW_CACHE_MS,
+  normalizeNetWorthChartPayload,
+  performNetWorthChartCacheKey,
+  performNetWorthChartUrl,
+  prefetchNetWorthChartRanges,
+} from './performChartPrefetch'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
-
-function normalizePayload(body: unknown): PlayerNetWorthChartPayload | null {
-  if (!body || typeof body !== 'object') return null
-  const b = body as Record<string, unknown>
-  const bars = b.bars
-  if (!Array.isArray(bars) || bars.length === 0) return null
-  const first = bars[0] as Record<string, unknown> | undefined
-  if (!first || typeof first.t !== 'number' || typeof first.c !== 'number') return null
-  return body as PlayerNetWorthChartPayload
-}
 
 export function usePlayerNetWorthChart(
   gameSlug: string | undefined,
@@ -20,65 +24,100 @@ export function usePlayerNetWorthChart(
   range: ChartRange,
   enabled: boolean,
 ) {
-  const [data, setData] = useState<PlayerNetWorthChartPayload | null>(null)
-  const [status, setStatus] = useState<Status>('idle')
+  const initialKey =
+    enabled && gameSlug && userId && userId.length >= 8
+      ? performNetWorthChartCacheKey(gameSlug, userId, range)
+      : ''
+  const cachedInitial = initialKey
+    ? readSimvestJsonCacheStale<PlayerNetWorthChartPayload>(initialKey)
+    : undefined
+
+  const [data, setData] = useState<PlayerNetWorthChartPayload | null>(() => cachedInitial ?? null)
+  const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
   const [refreshBump, setRefreshBump] = useState(0)
-  const lastFetchKeyRef = useRef<string>('')
+  const identityRef = useRef(`${gameSlug}|${userId}`)
+  const hasDataRef = useRef(!!cachedInitial)
+
+  useEffect(() => {
+    hasDataRef.current = !!data?.bars?.length
+  }, [data])
 
   useEffect(() => {
     if (!enabled || !gameSlug || !userId || userId.length < 8) {
       setData(null)
       setStatus('idle')
       setError(null)
+      hasDataRef.current = false
       return
     }
+
+    const identity = `${gameSlug}|${userId}`
+    const identityChanged = identityRef.current !== identity
+    identityRef.current = identity
+
     let cancelled = false
-    const fetchKey = `${gameSlug}|${userId}|${range}`
-    const isBackgroundPoll = fetchKey === lastFetchKeyRef.current && refreshBump > 0
-    lastFetchKeyRef.current = fetchKey
-    if (!isBackgroundPoll) {
+    const key = performNetWorthChartCacheKey(gameSlug, userId, range)
+    const cached = readSimvestJsonCacheStale<PlayerNetWorthChartPayload>(key)
+    const isBackgroundPoll = !identityChanged && refreshBump > 0 && hasDataRef.current
+
+    if (cached?.bars?.length) {
+      setData(cached)
+      hasDataRef.current = true
+      setStatus('ready')
+      setError(null)
+    } else if (identityChanged) {
+      setData(null)
+      hasDataRef.current = false
       setStatus('loading')
+      setError(null)
+    } else if (!isBackgroundPoll) {
+      /* Range change: keep prior chart painted until the new range arrives. */
+      setStatus(hasDataRef.current ? 'ready' : 'loading')
       setError(null)
     }
 
-    const q = new URLSearchParams()
-    q.set('range', range)
-    if (refreshBump > 0) q.set('cb', String(refreshBump))
-    const url = `/api/games/${encodeURIComponent(gameSlug)}/users/${encodeURIComponent(userId)}/net-worth-chart?${q}`
+    prefetchNetWorthChartRanges(gameSlug, userId)
 
-    simvestFetch(url)
-      .then((r) =>
-        r
-          .json()
-          .then((body) => ({ ok: r.ok, body }))
-          .catch(() => ({ ok: false, body: { error: 'Bad response' } })),
-      )
+    const url = performNetWorthChartUrl(gameSlug, userId, range, refreshBump > 0 ? refreshBump : undefined)
+
+    void dedupeSimvestJsonFetch(`${key}|${refreshBump}`, async () => {
+      const r = await simvestFetch(url)
+      const body = await r.json().catch(() => ({ error: 'Bad response' }))
+      return { ok: r.ok, body }
+    })
       .then(({ ok, body }) => {
         if (cancelled) return
         if (ok) {
-          const p = normalizePayload(body)
+          const p = normalizeNetWorthChartPayload(body)
           if (p) {
+            writeSimvestJsonCache(key, p, PERFORM_NW_CACHE_MS)
             setData(p)
+            hasDataRef.current = true
             setStatus('ready')
-          } else if (isBackgroundPoll) {
+            setError(null)
+          } else if (isBackgroundPoll || hasDataRef.current) {
             setStatus('ready')
           } else {
             setError('Invalid chart data')
             setData(null)
             setStatus('error')
           }
-        } else if (isBackgroundPoll) {
+        } else if (isBackgroundPoll || hasDataRef.current) {
           setStatus('ready')
         } else {
-          setError(typeof (body as { error?: string })?.error === 'string' ? (body as { error: string }).error : 'Chart failed')
+          setError(
+            typeof (body as { error?: string })?.error === 'string'
+              ? (body as { error: string }).error
+              : 'Chart failed',
+          )
           setData(null)
           setStatus('error')
         }
       })
       .catch(() => {
         if (!cancelled) {
-          if (isBackgroundPoll) {
+          if (isBackgroundPoll || hasDataRef.current) {
             setStatus('ready')
           } else {
             setError('Network error')
@@ -103,12 +142,16 @@ export function usePlayerNetWorthChart(
       if (document.visibilityState === 'visible') setRefreshBump((x) => x + 1)
     }
     window.addEventListener('simvest:holdings-refresh', onHoldingsRefresh)
+    const stopPoll = visibilityAwareInterval(() => setRefreshBump((x) => x + 1), {
+      visibleMs: 12_000,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+      runOnVisible: false,
+    })
     document.addEventListener('visibilitychange', onVisible)
-    const t = window.setInterval(() => setRefreshBump((x) => x + 1), 10_000)
     return () => {
       window.removeEventListener('simvest:holdings-refresh', onHoldingsRefresh)
       document.removeEventListener('visibilitychange', onVisible)
-      window.clearInterval(t)
+      stopPoll()
     }
   }, [gameSlug, enabled])
 

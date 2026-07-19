@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
-import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
+import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import type { PerformDashboardPayload } from './performTypes'
 import { emptyPerformDashboard } from './performDummy'
 import { readCachedPerform, writeCachedPerform } from './performSessionCache'
@@ -10,29 +11,34 @@ type Status = 'idle' | 'loading' | 'ready' | 'error'
 
 export function usePerformDashboard(gameSlug: string | undefined) {
   const cachedInitial = gameSlug ? readCachedPerform(gameSlug) : null
-  const [data, setData] = useState<PerformDashboardPayload | null>(() => cachedInitial)
-  const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
+  const [data, setData] = useState<PerformDashboardPayload | null>(() =>
+    cachedInitial ?? (gameSlug ? emptyPerformDashboard(gameSlug) : null),
+  )
+  const [status, setStatus] = useState<Status>(() => (cachedInitial || gameSlug ? 'ready' : 'idle'))
   const [fromApi, setFromApi] = useState(!!cachedInitial)
+  const [error, setError] = useState<string | null>(null)
   const hasDataRef = useRef(!!cachedInitial)
   const skipInitialLoadingUiRef = useRef(!!cachedInitial)
+  const pullRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     if (!gameSlug) return
     const cached = readCachedPerform(gameSlug)
+    const fallback = emptyPerformDashboard(gameSlug)
     hasDataRef.current = !!cached
     skipInitialLoadingUiRef.current = !!cached
+    setError(null)
     if (cached) {
       setData(cached)
       setFromApi(true)
       setStatus('ready')
     } else {
-      setData(null)
-      setStatus('idle')
+      setData(fallback)
       setFromApi(false)
+      setStatus('loading')
       hasDataRef.current = false
     }
     let cancelled = false
-    const fallback = emptyPerformDashboard(gameSlug)
 
     const pull = (silent = false) => {
       if (!silent && !hasDataRef.current) setStatus('loading')
@@ -46,21 +52,28 @@ export function usePerformDashboard(gameSlug: string | undefined) {
           writeCachedPerform(gameSlug, next)
           hasDataRef.current = true
           setFromApi(true)
+          setError(null)
           setStatus('ready')
         })
-        .catch(() => {
+        .catch((err) => {
           if (cancelled) return
           if (!hasDataRef.current) {
             setData(fallback)
             setFromApi(false)
-            setStatus('ready')
+            setError(err instanceof Error ? err.message : 'Could not load performance')
+            setStatus('error')
           }
         })
     }
 
+    pullRef.current = () => pull(false)
     pull(skipInitialLoadingUiRef.current)
     const refresh = () => pull(true)
-    const refreshId = window.setInterval(refresh, LIVE_MARKETS_POLL_MS)
+    const stopPoll = visibilityAwareInterval(refresh, {
+      visibleMs: LIVE_MARKETS_POLL_MS,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+      runOnVisible: false,
+    })
 
     const offVisible = onDocumentVisible(refresh)
     const onHoldingsRefresh = (ev: Event) => {
@@ -71,11 +84,13 @@ export function usePerformDashboard(gameSlug: string | undefined) {
 
     return () => {
       cancelled = true
-      window.clearInterval(refreshId)
+      stopPoll()
       offVisible()
       window.removeEventListener('simvest:holdings-refresh', onHoldingsRefresh)
     }
   }, [gameSlug])
 
-  return { data, status, fromApi }
+  const retry = () => pullRef.current()
+
+  return { data, status, fromApi, error, retry }
 }

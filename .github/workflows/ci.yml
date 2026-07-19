@@ -19,3 +19,41 @@ jobs:
       - run: npm run build
       - run: npm run test:join-invite
       - run: npm run test:ledger
+
+  # Capacitor Android smoke: always runs (placeholder HTTPS origin if secret unset).
+  # No signing secrets required — assembleDebug is unsigned.
+  capacitor-android-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - name: Write Capacitor API origin
+        env:
+          SECRET_ORIGIN: ${{ secrets.VITE_API_ORIGIN }}
+        run: |
+          ORIGIN="$SECRET_ORIGIN"
+          if [ -z "$ORIGIN" ]; then
+            ORIGIN="https://simvest-api.onrender.com"
+            echo "VITE_API_ORIGIN secret unset — using CI placeholder $ORIGIN"
+          else
+            echo "Using VITE_API_ORIGIN from repository secret"
+          fi
+          printf 'VITE_API_ORIGIN=%s\n' "$ORIGIN" > .env.capacitor
+      - name: Capacitor build + Android sync
+        run: |
+          npm run build:capacitor
+          npx cap sync android
+      - name: Assemble unsigned debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon

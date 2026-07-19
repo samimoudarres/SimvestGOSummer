@@ -16,6 +16,7 @@ import {
   sortPortfolioRows,
   type PortfolioApiRow,
   type PortfolioSortMode,
+  type PortfolioTotals,
 } from './portfolioTypes'
 import { DetailedPortfolioTable } from './DetailedPortfolioTable'
 import { usePortfolio } from './usePortfolio'
@@ -32,7 +33,7 @@ export function PortfolioScreen() {
   }, [slug])
   const chromeStyle = useGameChromeCssVars(slug)
 
-  const { rows, totals, status, error } = usePortfolio(slug)
+  const { rows, totals, status, error, reload } = usePortfolio(slug)
   const [sortMode, setSortMode] = useState<PortfolioSortMode>('total_pct')
   const [sortOpen, setSortOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'overview' | 'detailed'>('overview')
@@ -83,25 +84,27 @@ export function PortfolioScreen() {
     return <Navigate to="/" replace />
   }
 
-  if ((status === 'loading' || status === 'idle') && rows.length === 0 && totals === null) {
-    return (
-      <div className="pf-root" style={chromeStyle}>
-        <div className="pf-phone pf-phone--portfolio">
-          <div className="pf-port-body">
-            <p className="pf-loading">Loading portfolio…</p>
-          </div>
-          <ChallengeBottomNav gameSlug={slug} active="portfolio" tradeLocked={headerCtl.gameHasEnded} />
-        </div>
-      </div>
-    )
+  const displayTotals: PortfolioTotals = totals ?? {
+    marketValue: 0,
+    cash: 0,
+    totalAccountValue: 0,
+    totalReturnDollars: 0,
+    totalReturnPct: 0,
+    todayDollars: 0,
+    todayPct: 0,
+    pendingActivityDollars: 0,
+    asOfIso: new Date(0).toISOString(),
   }
 
-  if (status === 'error') {
+  if (status === 'error' && rows.length === 0 && totals === null) {
     return (
       <div className="pf-root" style={chromeStyle}>
         <div className="pf-phone pf-phone--portfolio">
           <div className="pf-port-body">
             <p className="pf-port-err">{error ?? 'Could not load portfolio.'}</p>
+            <button type="button" className="pf-port-retry" onClick={() => reload()}>
+              Retry
+            </button>
           </div>
           <ChallengeBottomNav gameSlug={slug} active="portfolio" tradeLocked={headerCtl.gameHasEnded} />
         </div>
@@ -213,7 +216,7 @@ export function PortfolioScreen() {
                 <PortfolioRow key={row.ticker} row={row} onPick={() => onStock(row.ticker)} />
               ))
             ) : (
-              <DetailedPortfolioTable rows={sortedRows} totals={totals} onPick={onStock} />
+              <DetailedPortfolioTable rows={sortedRows} totals={displayTotals} onPick={onStock} />
             )}
           </section>
         </div>

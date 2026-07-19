@@ -6,11 +6,20 @@ export type TradeCompleteResult =
   | {
       ok: true
       postId: string
+      fillPrice?: number
+      orderTotal?: number
       costBasis?: number
       realizedPnlDollars?: number
       realizedPnlPct?: number
     }
   | { ok: false; error: string }
+
+function newClientTradeId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+}
 
 /** Persists ledger + activity when user confirms an order (Place Order). */
 export async function postTradeComplete(
@@ -18,13 +27,18 @@ export async function postTradeComplete(
   rationale: string,
 ): Promise<TradeCompleteResult> {
   const slug = trade.draft.gameSlug
+  const clientTradeId = newClientTradeId()
   let res: Response
   try {
     res = await simvestFetch(`/api/games/${encodeURIComponent(slug)}/trades/complete`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': clientTradeId,
+      },
       body: JSON.stringify({
         clientUserId: getSimvestUserId(),
+        clientTradeId,
         ticker: trade.apiTicker,
         displayTicker: trade.displayTicker,
         action: trade.draft.action,
@@ -45,6 +59,8 @@ export async function postTradeComplete(
   const body = (await res.json().catch(() => ({}))) as {
     postId?: string
     error?: string
+    fillPrice?: number
+    orderTotal?: number
     costBasis?: number
     realizedPnlDollars?: number
     realizedPnlPct?: number
@@ -58,6 +74,12 @@ export async function postTradeComplete(
   return {
     ok: true,
     postId: body.postId,
+    ...(typeof body.fillPrice === 'number' && Number.isFinite(body.fillPrice)
+      ? { fillPrice: body.fillPrice }
+      : {}),
+    ...(typeof body.orderTotal === 'number' && Number.isFinite(body.orderTotal)
+      ? { orderTotal: body.orderTotal }
+      : {}),
     ...(typeof body.costBasis === 'number' && Number.isFinite(body.costBasis)
       ? { costBasis: body.costBasis }
       : {}),

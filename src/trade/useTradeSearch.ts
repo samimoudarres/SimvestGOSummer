@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
-import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
+import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import { isMassiveCryptoSymbol } from '../stocks/displayTicker'
 import type { TradeBrowseRow } from './tradeTypes'
 
@@ -83,11 +84,15 @@ export function useTradeSearchResults(
     }
 
     void run(false)
-    const id = window.setInterval(() => void run(true), LIVE_MARKETS_POLL_MS)
+    const stopPoll = visibilityAwareInterval(() => void run(true), {
+      visibleMs: LIVE_MARKETS_POLL_MS,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+      runOnVisible: false,
+    })
     const offVisible = onDocumentVisible(() => void run(true))
     return () => {
       cancelled = true
-      window.clearInterval(id)
+      stopPoll()
       offVisible()
     }
   }, [enabled, gameSlug, debouncedQuery, recentTickers])

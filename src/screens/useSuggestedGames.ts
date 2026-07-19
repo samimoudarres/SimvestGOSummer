@@ -10,6 +10,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { LIVE_MARKETS_POLL_HIDDEN_MS } from '../config/liveMarketsPoll'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import type { PublicGameItem } from '../join/publicGamesTypes'
 
 /** Must stay in sync with `SUGGESTED_PAGE_SIZE` in `server/suggestedGamesService.ts`. */
@@ -110,19 +112,17 @@ export function useSuggestedGames(enabled: boolean): UseSuggestedGamesResult {
       return
     }
     void load('mount')
-    const onVis = () => {
-      if (document.visibilityState === 'visible') void load('visibility')
-    }
     const onActivity = () => void load('activity')
-    document.addEventListener('visibilitychange', onVis)
     window.addEventListener('simvest:activity-refresh', onActivity)
     window.addEventListener('simvest:holdings-refresh', onActivity)
-    const pollId = window.setInterval(() => void load('visibility'), 25_000)
+    const stopPoll = visibilityAwareInterval(() => void load('visibility'), {
+      visibleMs: 25_000,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+    })
     return () => {
-      document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('simvest:activity-refresh', onActivity)
       window.removeEventListener('simvest:holdings-refresh', onActivity)
-      window.clearInterval(pollId)
+      stopPoll()
     }
   }, [enabled, load])
 

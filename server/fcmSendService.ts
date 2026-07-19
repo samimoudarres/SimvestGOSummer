@@ -1,6 +1,6 @@
 import type { StoredNativePushToken } from './nativePushTokenService'
 
-type FirebaseAdminApp = import('firebase-admin').app.App
+type FirebaseAdminApp = import('firebase-admin/app').App
 
 let adminApp: FirebaseAdminApp | null | undefined
 
@@ -34,11 +34,13 @@ async function loadFirebaseAdmin(): Promise<FirebaseAdminApp | null> {
     return null
   }
   try {
-    const admin = await import('firebase-admin')
-    if (!admin.apps.length) {
-      adminApp = admin.initializeApp({ credential: admin.credential.cert(credJson as import('firebase-admin').ServiceAccount) })
+    const { initializeApp, getApps, getApp, cert } = await import('firebase-admin/app')
+    if (!getApps().length) {
+      adminApp = initializeApp({
+        credential: cert(credJson as import('firebase-admin/app').ServiceAccount),
+      })
     } else {
-      adminApp = admin.app()
+      adminApp = getApp()
     }
     return adminApp
   } catch (err) {
@@ -68,8 +70,8 @@ export async function sendFcmToTokens(
   if (!tokens.length) return
   const app = await loadFirebaseAdmin()
   if (!app) return
-  const admin = await import('firebase-admin')
-  const messaging = admin.messaging(app)
+  const { getMessaging } = await import('firebase-admin/messaging')
+  const messaging = getMessaging(app)
   const data: Record<string, string> = {
     url: payload.url,
     ...(payload.tag ? { tag: payload.tag } : {}),

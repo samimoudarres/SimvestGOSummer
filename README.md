@@ -7,11 +7,12 @@ Stock simulation and investing games — React + Vite client, Express API.
 ### Production API (required before App Store / Play Store)
 
 1. [Render](https://render.com) → **New** → **Blueprint** → connect **SimvestGOSummer** (uses `render.yaml` in this repo).
-2. In Render, set **`MASSIVE_API_KEY`** (from [massive.com](https://massive.com)) and **`DATABASE_URL`** (Supabase — see [SUPABASE_SETUP_START_HERE.md](SUPABASE_SETUP_START_HERE.md)); redeploy if needed.
+2. In Render, set **`MASSIVE_API_KEY`** (from [massive.com](https://massive.com)) and **`DATABASE_URL`** (Supabase **Postgres** URI — see [SUPABASE_SETUP_START_HERE.md](SUPABASE_SETUP_START_HERE.md)); redeploy if needed. Keep **one** API instance (`numInstances: 1`) — details in [docs/LAUNCH_TOPOLOGY.md](docs/LAUNCH_TOPOLOGY.md).
 3. Copy your Render URL into **`.env.capacitor`** as `VITE_API_ORIGIN` (production: `https://simvest-api.onrender.com`), then run **`npm run cap:sync:release`**.
 4. **Google Play upload file** (after signing): `android/app/build/outputs/bundle/release/app-release.aab` — build with `cd android && .\gradlew.bat :app:bundleRelease` (requires `android/keystore.properties` on the build machine).
 5. Store listings: privacy policy URL → `https://simvest-api.onrender.com/legal/privacy-policy` (terms: `.../legal/terms-of-service`; account deletion: `.../legal/delete-account`). Use these exact URLs in Play Console (HTML, no `.txt`, no redirect).
 6. **Store icon (512×512):** upload `design/play-store-icon-512.png` in Play Console → **Main store listing** → App icon. iOS uses `ios/App/App/Assets.xcassets/AppIcon.appiconset/` (regenerate from source: `npm run icons:generate`).
+7. **Join App Links / Universal Links:** invite URLs are `https://simvest-api.onrender.com/join?code=……`. Well-known routes + native wiring: [docs/APP_LINKS.md](docs/APP_LINKS.md) (set `ANDROID_APP_LINK_SHA256` + `APPLE_TEAM_ID` on Render after Play App Signing / Apple Team ID are known).
 
 ### Apple App Store (iOS)
 

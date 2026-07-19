@@ -1,5 +1,5 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 
 const KEYS_PATH = dataFilePath('vapid-keys.json')
 
@@ -40,13 +40,24 @@ export async function initVapidKeys(): Promise<void> {
     }
   }
 
-  const webpush = await webPushModule()
-  const keys = webpush.generateVAPIDKeys()
-  await writeDataJsonObject(KEYS_PATH, { publicKey: keys.publicKey, privateKey: keys.privateKey })
-  cached = { publicKey: keys.publicKey, privateKey: keys.privateKey, subject }
-  console.log(
-    '[simvest] Web Push: generated VAPID keys (saved to server/data/vapid-keys.json). Restart not required.',
-  )
+  await withDataJsonDocumentLock(KEYS_PATH, async () => {
+    const again = await readDataJsonObject<{ publicKey?: string; privateKey?: string }>(KEYS_PATH)
+    if (again) {
+      const publicKey = typeof again.publicKey === 'string' ? again.publicKey.trim() : ''
+      const privateKey = typeof again.privateKey === 'string' ? again.privateKey.trim() : ''
+      if (publicKey && privateKey) {
+        cached = { publicKey, privateKey, subject }
+        return
+      }
+    }
+    const webpush = await webPushModule()
+    const keys = webpush.generateVAPIDKeys()
+    await writeDataJsonObject(KEYS_PATH, { publicKey: keys.publicKey, privateKey: keys.privateKey })
+    cached = { publicKey: keys.publicKey, privateKey: keys.privateKey, subject }
+    console.log(
+      '[simvest] Web Push: generated VAPID keys (saved to server/data/vapid-keys.json). Restart not required.',
+    )
+  })
 }
 
 export function getVapidPublicKey(): string | null {

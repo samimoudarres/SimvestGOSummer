@@ -11,16 +11,16 @@
  * credential store for users who joined a game before signup existed —
  * `authService.ts` checks both stores in that order.
  *
- * Concurrency: file writes are serialized through `writeQueue` so two parallel
- * signup requests can't read-modify-write past each other and lose an account.
- * In a multi-process deployment we'd lift this to a real DB, but for a single
- * Node server this is enough.
+ * Concurrency: file writes are serialized through `withDataJsonDocumentLock`
+ * (Postgres advisory lock when `DATABASE_URL` is set) so parallel signups
+ * cannot lose updates under multi-instance deploys.
  */
 
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { dataFilePath } from './dataDir.ts'
-import { writeDataJsonObject } from './db/persistedJson.ts'
+import { writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
+import { hashPassword, verifyPassword as verifyPasswordHash } from './passwordHash.ts'
 
 const ACCOUNTS_PATH = dataFilePath('user-accounts.json')
 
@@ -153,10 +153,6 @@ export function validateSignupCompleteInput(input: SignupCompleteInput): SignupV
 /* I/O                                                                       */
 /* ------------------------------------------------------------------------- */
 
-function sha256Hex(raw: string): string {
-  return createHash('sha256').update(raw, 'utf8').digest('hex')
-}
-
 async function readFile(): Promise<AccountsFile> {
   return readJsonWithMtimeCache<AccountsFile>(ACCOUNTS_PATH, (raw) => {
     if (!raw) return { accounts: {} }
@@ -175,15 +171,9 @@ async function writeFile(data: AccountsFile): Promise<void> {
   invalidateJsonFileCache(ACCOUNTS_PATH)
 }
 
-/** Single-process write lock so parallel signups don't race on the same file. */
-let writeQueue: Promise<void> = Promise.resolve()
+/** Cross-instance write lock so parallel signups don't race on the same document. */
 function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
-  const run = writeQueue.then(fn, fn)
-  writeQueue = run.then(
-    () => undefined,
-    () => undefined,
-  )
-  return run
+  return withDataJsonDocumentLock(ACCOUNTS_PATH, fn)
 }
 
 /* ------------------------------------------------------------------------- */
@@ -283,7 +273,7 @@ export async function createUserAccount(input: SignupCompleteInput): Promise<Cre
       contactKind: input.contactKind,
       contact,
       contactLower,
-      passwordHash: sha256Hex(input.password),
+      passwordHash: await hashPassword(input.password),
       displayName,
       avatarUrl: DEFAULT_AVATAR,
       createdAtIso: nowIso,
@@ -324,22 +314,27 @@ function isValidAvatar(raw: string): boolean {
   )
 }
 
-export function verifyAccountPassword(rawAttempt: string, expectedHash: string): boolean {
-  return verifyPassword(rawAttempt, expectedHash)
+export async function verifyAccountPassword(rawAttempt: string, expectedHash: string): Promise<boolean> {
+  return verifyPasswordHash(rawAttempt, expectedHash)
 }
 
-function verifyPassword(rawAttempt: string, expectedHash: string): boolean {
-  if (typeof rawAttempt !== 'string' || rawAttempt.length === 0) return false
-  if (typeof expectedHash !== 'string' || expectedHash.length === 0) return false
-  const attemptHash = sha256Hex(rawAttempt)
-  const a = Buffer.from(attemptHash, 'hex')
-  const b = Buffer.from(expectedHash, 'hex')
-  if (a.length !== b.length) return false
-  try {
-    return timingSafeEqual(a, b)
-  } catch {
-    return false
-  }
+/** After legacy SHA-256 verify, upgrade stored hash to bcrypt (login migration). */
+export async function rehashAccountPasswordIfNeeded(userId: string, plainPassword: string): Promise<void> {
+  if (!userId || !plainPassword) return
+  const { passwordNeedsRehash } = await import('./passwordHash.ts')
+  await withWriteLock(async () => {
+    const file = await readFile()
+    const cur = file.accounts[userId]
+    if (!cur || !passwordNeedsRehash(cur.passwordHash)) return
+    const nextHash = await hashPassword(plainPassword)
+    const next: AccountsFile = {
+      accounts: {
+        ...file.accounts,
+        [userId]: { ...cur, passwordHash: nextHash, updatedAtIso: new Date().toISOString() },
+      },
+    }
+    await writeFile(next)
+  })
 }
 
 /**
@@ -460,7 +455,7 @@ export async function updateAccountContact(
     if (!cur) {
       return { ok: false as const, errors: [{ field: 'contact' as const, message: 'Account not found' }], status: 404 }
     }
-    if (!verifyPassword(input.currentPassword, cur.passwordHash)) {
+    if (!(await verifyPasswordHash(input.currentPassword, cur.passwordHash))) {
       return {
         ok: false as const,
         errors: [{ field: 'currentPassword' as const, message: 'Current password is incorrect' }],
@@ -535,14 +530,14 @@ export async function updateAccountPassword(
     if (!cur) {
       return { ok: false as const, errors: [{ field: 'newPassword' as const, message: 'Account not found' }], status: 404 }
     }
-    if (!verifyPassword(input.currentPassword, cur.passwordHash)) {
+    if (!(await verifyPasswordHash(input.currentPassword, cur.passwordHash))) {
       return {
         ok: false as const,
         errors: [{ field: 'currentPassword' as const, message: 'Current password is incorrect' }],
         status: 401,
       }
     }
-    if (verifyPassword(input.newPassword, cur.passwordHash)) {
+    if (await verifyPasswordHash(input.newPassword, cur.passwordHash)) {
       return {
         ok: false as const,
         errors: [{ field: 'newPassword' as const, message: 'New password must be different from your current password' }],
@@ -552,7 +547,7 @@ export async function updateAccountPassword(
 
     const next: UserAccountRecord = {
       ...cur,
-      passwordHash: sha256Hex(input.newPassword),
+      passwordHash: await hashPassword(input.newPassword),
       updatedAtIso: new Date().toISOString(),
     }
     const nextFile: AccountsFile = { accounts: { ...file.accounts, [userId]: next } }

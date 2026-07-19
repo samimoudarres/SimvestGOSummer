@@ -22,6 +22,13 @@ export function readSimvestJsonCache<T>(key: string): T | undefined {
   return hit.data as T
 }
 
+/** Return cached JSON even if TTL expired — for instant paint while a refresh runs. */
+export function readSimvestJsonCacheStale<T>(key: string): T | undefined {
+  const hit = store.get(key)
+  if (!hit) return undefined
+  return hit.data as T
+}
+
 export function writeSimvestJsonCache(key: string, data: unknown, ttlMs: number): void {
   if (ttlMs <= 0) return
   store.set(key, { exp: Date.now() + ttlMs, data })
@@ -31,6 +38,12 @@ export function clearSimvestJsonCachePrefix(prefix: string): void {
   for (const k of store.keys()) {
     if (k.startsWith(prefix)) store.delete(k)
   }
+}
+
+/** Drop the entire in-memory JSON cache (logout / account switch). */
+export function clearAllSimvestJsonCache(): void {
+  store.clear()
+  inflight.clear()
 }
 
 /** One in-flight request per cache key; late subscribers await the same promise. */

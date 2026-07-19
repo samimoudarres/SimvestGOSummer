@@ -72,11 +72,19 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
         window.dispatchEvent(new CustomEvent('simvest:holdings-refresh', { detail: { gameSlug: slug } }))
         window.dispatchEvent(new CustomEvent('simvest:activity-refresh', { detail: { gameSlug: slug } }))
       } else {
+        const clientTradeId =
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
         const res = await simvestFetch(`/api/games/${encodeURIComponent(slug)}/trades/complete`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': clientTradeId,
+          },
           body: JSON.stringify({
             clientUserId: getSimvestUserId(),
+            clientTradeId,
             ticker: trade.apiTicker,
             displayTicker: trade.displayTicker,
             action: trade.draft.action,

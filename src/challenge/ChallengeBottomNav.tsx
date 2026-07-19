@@ -1,5 +1,8 @@
 import { useNavigate } from 'react-router-dom'
-import { prefetchGameShell } from '../game/gameShellCache'
+import { warmGameTabChunk, type GameTabId } from '../game/warmGameTabChunks'
+import { prefetchLeaderboardAllSorts } from '../leaderboard/leaderboardPrefetch'
+import { prefetchPerformCharts } from '../perform/performChartPrefetch'
+import { prefetchTradeBrowsePopular } from '../trade/tradePrefetch'
 import { challengeAssets as a } from './challengeAssets'
 
 export type ChallengeNavTab =
@@ -22,17 +25,24 @@ export function ChallengeBottomNav({ gameSlug, active, tradeLocked }: Props) {
   const navigate = useNavigate()
   const base = `/g/${gameSlug}`
 
-  const go = (path: string) => {
-    prefetchGameShell(gameSlug)
+  const warm = (tab: GameTabId) => {
+    warmGameTabChunk(tab)
+    if (tab === 'trade') prefetchTradeBrowsePopular(gameSlug)
+    if (tab === 'perform') prefetchPerformCharts(gameSlug)
+    if (tab === 'leaderboard') prefetchLeaderboardAllSorts(gameSlug)
+  }
+
+  const go = (path: string, tab: GameTabId) => {
+    warm(tab)
     navigate(path)
   }
 
   const onTrade = () => {
     if (tradeLocked) {
-      go(`${base}/perform`)
+      go(`${base}/perform`, 'perform')
       return
     }
-    go(`${base}/trade`)
+    go(`${base}/trade`, 'trade')
   }
 
   return (
@@ -40,7 +50,8 @@ export function ChallengeBottomNav({ gameSlug, active, tradeLocked }: Props) {
       <button
         type="button"
         className={`gc-navItem${active === 'activity' ? ' gc-navItem--active' : ''}`}
-        onClick={() => go(base)}
+        onPointerDown={() => warm('activity')}
+        onClick={() => go(base, 'activity')}
       >
         <img src={a.searchActivity} alt="" width={26} height={26} />
         ACTIVITY
@@ -48,7 +59,8 @@ export function ChallengeBottomNav({ gameSlug, active, tradeLocked }: Props) {
       <button
         type="button"
         className={`gc-navItem${active === 'perform' ? ' gc-navItem--active' : ''}`}
-        onClick={() => go(`${base}/perform`)}
+        onPointerDown={() => warm('perform')}
+        onClick={() => go(`${base}/perform`, 'perform')}
       >
         <img src={a.performance} alt="" width={26} height={26} />
         PERFORM.
@@ -61,6 +73,7 @@ export function ChallengeBottomNav({ gameSlug, active, tradeLocked }: Props) {
             type="button"
             className="gc-tradeFab"
             aria-label={tradeLocked ? 'Trade closed — view results' : 'Trade'}
+            onPointerDown={() => warm(tradeLocked ? 'perform' : 'trade')}
             onClick={onTrade}
           >
             <img className="gc-tradeFab__ring" src={a.navRing} alt="" />
@@ -73,7 +86,8 @@ export function ChallengeBottomNav({ gameSlug, active, tradeLocked }: Props) {
       <button
         type="button"
         className={`gc-navItem${active === 'portfolio' ? ' gc-navItem--active' : ''}`}
-        onClick={() => go(`${base}/portfolio`)}
+        onPointerDown={() => warm('portfolio')}
+        onClick={() => go(`${base}/portfolio`, 'portfolio')}
       >
         <img src={a.portfolio} alt="" width={26} height={26} />
         PORTFOLIO
@@ -81,7 +95,8 @@ export function ChallengeBottomNav({ gameSlug, active, tradeLocked }: Props) {
       <button
         type="button"
         className={`gc-navItem${active === 'leaderboard' ? ' gc-navItem--active' : ''}`}
-        onClick={() => go(`${base}/leaderboard`)}
+        onPointerDown={() => warm('leaderboard')}
+        onClick={() => go(`${base}/leaderboard`, 'leaderboard')}
       >
         <img src={a.leaderboard} alt="" width={26} height={26} />
         LEADERBOARD

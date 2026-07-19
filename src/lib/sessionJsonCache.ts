@@ -28,3 +28,17 @@ export function clearSessionJson(key: string): void {
     /* ignore */
   }
 }
+
+/** Drop every sessionStorage entry whose key starts with `prefix` (logout cache hygiene). */
+export function clearSessionJsonPrefix(prefix: string): void {
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i)
+      if (k && k.startsWith(prefix)) keys.push(k)
+    }
+    for (const k of keys) sessionStorage.removeItem(k)
+  } catch {
+    /* ignore */
+  }
+}

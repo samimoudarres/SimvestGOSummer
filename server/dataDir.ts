@@ -38,6 +38,7 @@ const SEED_IF_MISSING = ['game-definitions.json'] as const
 export async function ensureDataDirReady(): Promise<void> {
   const dir = getDataDir()
   await fs.mkdir(dir, { recursive: true })
+  await fs.mkdir(path.join(dir, 'media'), { recursive: true })
 
   for (const name of SEED_IF_MISSING) {
     const dest = path.join(dir, name)
@@ -59,6 +60,11 @@ export async function ensureDataDirReady(): Promise<void> {
       process.env.SUPABASE_DB_URL?.trim() ||
       (process.env.SUPABASE_URL?.trim() && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
   )
+  try {
+    await fs.mkdir(path.join(dir, 'media'), { recursive: true })
+  } catch {
+    /* best-effort */
+  }
   console.log(
     usingDb
       ? `[simvest] Primary storage: Supabase (service role / DATABASE_URL). Local data dir: ${dir}`

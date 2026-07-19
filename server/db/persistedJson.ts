@@ -9,8 +9,13 @@ import path from 'node:path'
 import { ensureParentDirForFile } from '../dataDir.ts'
 import { runSerializedByKey } from '../fsMutationQueue.ts'
 import { getDatabaseUrl, hasSupabaseServiceRole, isSupabaseBackend } from './backend.ts'
-import { getPgPool } from './client.ts'
+import { getPgPool, withPgClient } from './client.ts'
 import { getSupabaseAdmin } from './supabaseAdmin.ts'
+
+/** Stable 64-bit advisory lock id from document name (multi-instance RMW). */
+function advisoryLockKeySql(): string {
+  return `('x' || substr(md5($1), 1, 16))::bit(64)::bigint`
+}
 
 export function storeNameFromPath(filePath: string): string {
   return path.basename(filePath)
@@ -137,14 +142,102 @@ export async function readDataJsonObject<T>(filePath: string): Promise<T | null>
   }
 }
 
-/** Serialized read-modify-write for a JSON store (DB or file). */
+/**
+ * Cross-instance critical section for a JSON document.
+ * When Postgres (`DATABASE_URL`) is configured: transaction + advisory lock.
+ * Otherwise: in-process `fsMutationQueue` (safe for single-dev filesystem).
+ *
+ * Callers that read/write via `readDataJsonObject` / `writeDataJsonObject` inside
+ * `fn` are serialized across app instances by the advisory lock (separate pool
+ * connections still see committed data only — which is what we want for RMW).
+ */
+export function withDataJsonDocumentLock<T>(filePath: string, fn: () => Promise<T>): Promise<T> {
+  const name = storeNameFromPath(filePath)
+  const key = `json-store:${name}`
+  return runSerializedByKey(key, async () => {
+    if (getDatabaseUrl() && getPgPool()) {
+      try {
+        return await withPgClient(async (client) => {
+          await client.query('BEGIN')
+          try {
+            await client.query(`SELECT pg_advisory_xact_lock(${advisoryLockKeySql()})`, [name])
+            const result = await fn()
+            await client.query('COMMIT')
+            return result
+          } catch (err) {
+            try {
+              await client.query('ROLLBACK')
+            } catch {
+              /* ignore */
+            }
+            throw err
+          }
+        })
+      } catch (err) {
+        if (!hasSupabaseServiceRole()) throw err
+        console.warn(
+          '[simvest] Postgres document lock failed, falling back to process mutex:',
+          (err as Error).message,
+        )
+      }
+    }
+    return fn()
+  })
+}
+
+/**
+ * Serialized read-modify-write for a JSON store (DB or file).
+ * Uses Postgres `SELECT … FOR UPDATE` + advisory lock when DATABASE_URL is set
+ * so multi-instance deploys cannot lose updates on the same document.
+ */
 export function mutateDataJsonStore<T>(
   filePath: string,
   fallback: T,
   mutator: (current: T) => T | Promise<T>,
 ): Promise<T> {
-  const key = `json-store:${storeNameFromPath(filePath)}`
+  const name = storeNameFromPath(filePath)
+  const key = `json-store:${name}`
   return runSerializedByKey(key, async () => {
+    if (getDatabaseUrl() && getPgPool()) {
+      try {
+        return await withPgClient(async (client) => {
+          await client.query('BEGIN')
+          try {
+            await client.query(`SELECT pg_advisory_xact_lock(${advisoryLockKeySql()})`, [name])
+            const res = await client.query<{ payload: unknown }>(
+              'select payload from json_documents where name = $1 for update',
+              [name],
+            )
+            const current = (res.rows[0]?.payload as T | undefined) ?? fallback
+            const next = await mutator(current)
+            await client.query(
+              `insert into json_documents (name, payload, updated_at)
+               values ($1, $2::jsonb, now())
+               on conflict (name) do update
+                 set payload = excluded.payload, updated_at = now()`,
+              [name, JSON.stringify(next)],
+            )
+            await client.query('COMMIT')
+            await invalidateCache(filePath)
+            return next
+          } catch (err) {
+            try {
+              await client.query('ROLLBACK')
+            } catch {
+              /* ignore */
+            }
+            throw err
+          }
+        })
+      } catch (err) {
+        if (!hasSupabaseServiceRole()) throw err
+        console.warn(
+          '[simvest] Postgres mutate failed, falling back to REST/file:',
+          (err as Error).message,
+        )
+      }
+    }
+
     const existing = await readDataJsonObject<T>(filePath)
     const current = existing ?? fallback
     const next = await mutator(current)

@@ -1,4 +1,4 @@
-import { isSimvestLoggedIn } from '../login/loginState'
+﻿import { isSimvestLoggedIn } from '../login/loginState'
 
 /** localStorage key for the viewer id — exported so hooks can listen for cross-tab updates. */
 export const SIMVEST_USER_ID_STORAGE_KEY = 'simvest-user-id-v1'
@@ -80,6 +80,35 @@ export function setSimvestUserId(nextId: string): boolean {
   if (!VALID_USER_ID_RE.test(id)) return false
   const prev = readStoredUserId()
   if (prev === id) return true
+  /* Account switch / login swap: drop prior viewer caches before the new id sticks.
+   * SessionStorage clear is sync so login can write the new account cache immediately.
+   * In-memory maps clear via dynamic import (avoids circular module graphs). */
+  if (prev) {
+    try {
+      const prefixes = [
+        'simvest-portfolio-v1:',
+        'simvest-game-feed-v1:',
+        'simvest-perform-v1:',
+        'simvest-lb-v1:',
+        'simvest-members-preview-v1:',
+        'simvest-my-games-cache-v1',
+        'simvest-home-feed-cache-v1',
+        'simvest-account-cache-v1',
+      ]
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const k = sessionStorage.key(i)
+        if (k && prefixes.some((p) => k.startsWith(p))) sessionStorage.removeItem(k)
+      }
+    } catch {
+      /* ignore */
+    }
+    void import('../game/gameShellCache')
+      .then((m) => m.clearGameShellCaches())
+      .catch(() => {})
+    void import('../api/simvestJsonCache')
+      .then((m) => m.clearAllSimvestJsonCache())
+      .catch(() => {})
+  }
   persistUserId(id)
   try {
     if (typeof window !== 'undefined') {

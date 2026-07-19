@@ -1,5 +1,5 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 
 const SNAP_PATH = dataFilePath('game-networth-snapshots.json')
 
@@ -61,28 +61,32 @@ export async function recordGameNetWorthSnapshot(
 ): Promise<void> {
   const slug = String(gameSlug ?? '').trim()
   if (!userId || userId.length < 8 || !Number.isFinite(netWorth)) return
-  const file = await readSnapFile()
-  if (!file.games[slug]) file.games[slug] = {}
+  await withDataJsonDocumentLock(SNAP_PATH, async () => {
+    const file = await readSnapFile()
+    if (!file.games[slug]) file.games[slug] = {}
 
-  const prev = migrateRow(file.games[slug]![userId])
-  const nowIso = new Date().toISOString()
-  const next: NwPoint[] = [...prev, { recordedAt: nowIso, netWorth }]
-  next.sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
+    const prev = migrateRow(file.games[slug]![userId])
+    const nowIso = new Date().toISOString()
+    const next: NwPoint[] = [...prev, { recordedAt: nowIso, netWorth }]
+    next.sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
 
-  const trimmed = trimPoints(next)
-  file.games[slug]![userId] = { points: trimmed }
-  await writeSnapFile(file)
+    const trimmed = trimPoints(next)
+    file.games[slug]![userId] = { points: trimmed }
+    await writeSnapFile(file)
+  })
 }
 
 export async function clearUserSnapshotsForGame(gameSlug: string, userId: string): Promise<boolean> {
   const slug = String(gameSlug ?? '').trim()
   if (!slug || !userId) return false
-  const file = await readSnapFile()
-  if (!file.games[slug]?.[userId]) return false
-  delete file.games[slug]![userId]
-  if (Object.keys(file.games[slug]!).length === 0) delete file.games[slug]
-  await writeSnapFile(file)
-  return true
+  return withDataJsonDocumentLock(SNAP_PATH, async () => {
+    const file = await readSnapFile()
+    if (!file.games[slug]?.[userId]) return false
+    delete file.games[slug]![userId]
+    if (Object.keys(file.games[slug]!).length === 0) delete file.games[slug]
+    await writeSnapFile(file)
+    return true
+  })
 }
 
 /** Move snapshot history from one game slug to another. */
@@ -90,24 +94,28 @@ export async function renameGameSlugInNetWorthSnapshots(fromSlug: string, toSlug
   const from = String(fromSlug ?? '').trim()
   const to = String(toSlug ?? '').trim()
   if (!from || !to || from === to) return false
-  const file = await readSnapFile()
-  const block = file.games[from]
-  if (!block) return false
-  if (!file.games[to]) file.games[to] = block
-  delete file.games[from]
-  await writeSnapFile(file)
-  return true
+  return withDataJsonDocumentLock(SNAP_PATH, async () => {
+    const file = await readSnapFile()
+    const block = file.games[from]
+    if (!block) return false
+    if (!file.games[to]) file.games[to] = block
+    delete file.games[from]
+    await writeSnapFile(file)
+    return true
+  })
 }
 
 /** Drop net-worth history for every user under one game slug. */
 export async function clearAllSnapshotsForGame(gameSlug: string): Promise<boolean> {
   const slug = String(gameSlug ?? '').trim()
   if (!slug) return false
-  const file = await readSnapFile()
-  if (!file.games[slug]) return false
-  delete file.games[slug]
-  await writeSnapFile(file)
-  return true
+  return withDataJsonDocumentLock(SNAP_PATH, async () => {
+    const file = await readSnapFile()
+    if (!file.games[slug]) return false
+    delete file.games[slug]
+    await writeSnapFile(file)
+    return true
+  })
 }
 
 export async function getRecordedNetWorth(

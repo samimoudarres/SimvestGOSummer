@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { GuestOnly } from './auth/GuestOnly'
 import { RequireAuth } from './auth/RequireAuth'
+import { AppErrorBoundary } from './components/AppErrorBoundary'
 import { reactRouterBasename } from './util/reactRouterBasename'
 import { HomeRoute } from './pages/HomeRoute'
 import { LoginScreen } from './login/LoginScreen'
@@ -101,6 +102,7 @@ function PushNavigationBridge() {
 
 export default function App() {
   return (
+    <AppErrorBoundary>
     <BrowserRouter basename={reactRouterBasename()}>
       <PushNavigationBridge />
       <Suspense fallback={<RouteFallback />}>
@@ -146,5 +148,6 @@ export default function App() {
         </Routes>
       </Suspense>
     </BrowserRouter>
+    </AppErrorBoundary>
   )
 }

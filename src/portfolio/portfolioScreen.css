@@ -302,9 +302,28 @@
 }
 
 .pf-port-err {
-  margin: 24px 12px;
+  margin: 24px 12px 8px;
   text-align: center;
   font-family: 'Inter', sans-serif;
   font-size: 14px;
   color: #b00020;
+}
+
+.pf-port-retry {
+  display: block;
+  margin: 0 auto 24px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: #05557d;
+  color: #fff;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pf-port-retry:focus-visible {
+  outline: 2px solid #0a9be3;
+  outline-offset: 2px;
 }

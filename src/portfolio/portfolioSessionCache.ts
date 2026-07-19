@@ -1,12 +1,13 @@
 import type { PortfolioApiRow, PortfolioTotals } from './portfolioTypes'
 import { readSessionJson, writeSessionJson } from '../lib/sessionJsonCache'
+import { viewerScopedCacheKey } from '../lib/viewerScopedCacheKey'
 
 const MAX_AGE_MS = 2 * 60_000
 
 type CachedPortfolio = { rows: PortfolioApiRow[]; totals: PortfolioTotals }
 
 function key(slug: string): string {
-  return `simvest-portfolio-v1:${slug.trim().toLowerCase()}`
+  return viewerScopedCacheKey('simvest-portfolio-v1', slug.trim().toLowerCase())
 }
 
 export function readCachedPortfolio(slug: string): CachedPortfolio | null {

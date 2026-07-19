@@ -1,11 +1,9 @@
 import { dataFilePath } from './dataDir.ts'
-import { writeDataJsonObject } from './db/persistedJson.ts'
+import { writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { isPlaceholderProfileAvatarUrl } from '../src/user/resolveProfileAvatarUrl.ts'
 import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
-import { runSerializedByKey } from './fsMutationQueue'
 
 const PROFILE_PATH = dataFilePath('user-profiles.json')
-const PROFILE_LOCK_KEY = PROFILE_PATH
 
 /** Blank Instagram-style silhouette — used when a user hasn't picked a photo yet.
  * Existing saved avatars (legacy seed rows in user-profiles.json) are not
@@ -87,98 +85,104 @@ export async function upsertProfileFromTradeContext(
     joinedSeedDaysAgo?: number
   },
 ): Promise<UserPublicProfile> {
-  const cached = await readFile()
-  // Cached file is shared across callers — clone before mutating so concurrent reads stay clean.
-  const file: ProfileFile = { profiles: { ...cached.profiles } }
-  const prev = file.profiles[userId]
-  let joinedAtIso = prev?.joinedAtIso ?? null
-  if (!joinedAtIso) {
-    const seeded =
-      typeof opts.joinedSeedDaysAgo === 'number' &&
-      Number.isFinite(opts.joinedSeedDaysAgo) &&
-      opts.joinedSeedDaysAgo > 0
-    const daysBack = seeded ? Math.min(730, Math.max(1, Math.floor(opts.joinedSeedDaysAgo!))) : 0
-    joinedAtIso = new Date(Date.now() - MS_DAY * daysBack).toISOString()
-  }
-
-  const displayName =
-    typeof opts.displayName === 'string' &&
-    opts.displayName.trim().length >= 2 &&
-    opts.displayName.trim().toLowerCase() !== 'you'
-      ? opts.displayName.trim().slice(0, 80)
-      : prev?.displayName ?? syntheticDisplayName(userId)
-
-  let avatarUrl = prev?.avatarUrl ?? DEFAULT_AVATAR
-  if (typeof opts.avatarUrl === 'string' && opts.avatarUrl.trim().length >= 3) {
-    const u = opts.avatarUrl.trim()
-    if (
-      u.length <= MAX_AVATAR_URL_LEN &&
-      !isPlaceholderProfileAvatarUrl(u) &&
-      (u.startsWith('/') ||
-        u.startsWith('http://') ||
-        u.startsWith('https://') ||
-        u.startsWith('data:image/'))
-    ) {
-      avatarUrl = u
+  return withDataJsonDocumentLock(PROFILE_PATH, async () => {
+    const cached = await readFile()
+    // Cached file is shared across callers — clone before mutating so concurrent reads stay clean.
+    const file: ProfileFile = { profiles: { ...cached.profiles } }
+    const prev = file.profiles[userId]
+    let joinedAtIso = prev?.joinedAtIso ?? null
+    if (!joinedAtIso) {
+      const seeded =
+        typeof opts.joinedSeedDaysAgo === 'number' &&
+        Number.isFinite(opts.joinedSeedDaysAgo) &&
+        opts.joinedSeedDaysAgo > 0
+      const daysBack = seeded ? Math.min(730, Math.max(1, Math.floor(opts.joinedSeedDaysAgo!))) : 0
+      joinedAtIso = new Date(Date.now() - MS_DAY * daysBack).toISOString()
     }
-  }
 
-  const next: UserPublicProfile = { userId, displayName, avatarUrl, joinedAtIso }
-  file.profiles[userId] = next
-  await writeFile(file)
-  return next
+    const displayName =
+      typeof opts.displayName === 'string' &&
+      opts.displayName.trim().length >= 2 &&
+      opts.displayName.trim().toLowerCase() !== 'you'
+        ? opts.displayName.trim().slice(0, 80)
+        : prev?.displayName ?? syntheticDisplayName(userId)
+
+    let avatarUrl = prev?.avatarUrl ?? DEFAULT_AVATAR
+    if (typeof opts.avatarUrl === 'string' && opts.avatarUrl.trim().length >= 3) {
+      const u = opts.avatarUrl.trim()
+      if (
+        u.length <= MAX_AVATAR_URL_LEN &&
+        !isPlaceholderProfileAvatarUrl(u) &&
+        (u.startsWith('/') ||
+          u.startsWith('http://') ||
+          u.startsWith('https://') ||
+          u.startsWith('data:image/'))
+      ) {
+        avatarUrl = u
+      }
+    }
+
+    const next: UserPublicProfile = { userId, displayName, avatarUrl, joinedAtIso }
+    file.profiles[userId] = next
+    await writeFile(file)
+    return next
+  })
 }
 
 
 /** Ensure persisted row for deterministic “days member” UX. */
 export async function ensureUserProfileRecord(userId: string): Promise<UserPublicProfile> {
-  const cached = await readFile()
-  const existing = cached.profiles[userId]
-  if (existing) return existing
+  return withDataJsonDocumentLock(PROFILE_PATH, async () => {
+    const cached = await readFile()
+    const existing = cached.profiles[userId]
+    if (existing) return existing
 
-  const cur: UserPublicProfile = {
-    userId,
-    displayName: syntheticDisplayName(userId),
-    avatarUrl: DEFAULT_AVATAR,
-    joinedAtIso: new Date().toISOString(),
-  }
-  const file: ProfileFile = { profiles: { ...cached.profiles, [userId]: cur } }
-  await writeFile(file)
-  return cur
-}
-
-/** One read/write pass — used by leaderboard to hydrate many players. */
-export async function ensureUserProfilesBatch(userIds: string[]): Promise<Map<string, UserPublicProfile>> {
-  const cached = await readFile()
-  const out = new Map<string, UserPublicProfile>()
-  const additions: Record<string, UserPublicProfile> = {}
-  for (const userId of userIds) {
-    if (!userId || userId.length < 8) continue
-    const cur = cached.profiles[userId]
-    if (cur) {
-      out.set(userId, cur)
-      continue
-    }
-    const next: UserPublicProfile = {
+    const cur: UserPublicProfile = {
       userId,
       displayName: syntheticDisplayName(userId),
       avatarUrl: DEFAULT_AVATAR,
       joinedAtIso: new Date().toISOString(),
     }
-    additions[userId] = next
-    out.set(userId, next)
-  }
-  if (Object.keys(additions).length > 0) {
-    const file: ProfileFile = { profiles: { ...cached.profiles, ...additions } }
+    const file: ProfileFile = { profiles: { ...cached.profiles, [userId]: cur } }
     await writeFile(file)
-  }
-  return out
+    return cur
+  })
+}
+
+/** One read/write pass — used by leaderboard to hydrate many players. */
+export async function ensureUserProfilesBatch(userIds: string[]): Promise<Map<string, UserPublicProfile>> {
+  return withDataJsonDocumentLock(PROFILE_PATH, async () => {
+    const cached = await readFile()
+    const out = new Map<string, UserPublicProfile>()
+    const additions: Record<string, UserPublicProfile> = {}
+    for (const userId of userIds) {
+      if (!userId || userId.length < 8) continue
+      const cur = cached.profiles[userId]
+      if (cur) {
+        out.set(userId, cur)
+        continue
+      }
+      const next: UserPublicProfile = {
+        userId,
+        displayName: syntheticDisplayName(userId),
+        avatarUrl: DEFAULT_AVATAR,
+        joinedAtIso: new Date().toISOString(),
+      }
+      additions[userId] = next
+      out.set(userId, next)
+    }
+    if (Object.keys(additions).length > 0) {
+      const file: ProfileFile = { profiles: { ...cached.profiles, ...additions } }
+      await writeFile(file)
+    }
+    return out
+  })
 }
 
 /** Move `user-profiles.json` row from anonymous viewer id to account id (account row wins on conflict). */
 export async function deleteUserPublicProfile(userId: string): Promise<void> {
   if (!userId || userId.length < 8) return
-  return runSerializedByKey(PROFILE_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(PROFILE_PATH, async () => {
     const file = await readFile()
     if (!file.profiles[userId]) return
     const next: ProfileFile = { profiles: { ...file.profiles } }
@@ -189,7 +193,7 @@ export async function deleteUserPublicProfile(userId: string): Promise<void> {
 
 export async function mergePublicProfileViewerIds(fromUserId: string, toUserId: string): Promise<void> {
   if (!fromUserId || !toUserId || fromUserId.length < 8 || toUserId.length < 8 || fromUserId === toUserId) return
-  return runSerializedByKey(PROFILE_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(PROFILE_PATH, async () => {
     const cached = await readFile()
     const fromRow = cached.profiles[fromUserId]
     if (!fromRow) return

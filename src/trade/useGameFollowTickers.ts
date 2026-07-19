@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
-import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
+import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 
 /** Up to three tickers for the Trade “Following” category card preview (same game as trade screen). */
 export function useGameFollowTickers(gameSlug: string | undefined): string[] {
@@ -27,11 +28,15 @@ export function useGameFollowTickers(gameSlug: string | undefined): string[] {
         })
     }
     load()
-    const id = window.setInterval(load, LIVE_MARKETS_POLL_MS)
+    const stopPoll = visibilityAwareInterval(load, {
+      visibleMs: LIVE_MARKETS_POLL_MS,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+      runOnVisible: false,
+    })
     const off = onDocumentVisible(load)
     return () => {
       cancelled = true
-      window.clearInterval(id)
+      stopPoll()
       off()
     }
   }, [gameSlug])

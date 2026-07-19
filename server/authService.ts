@@ -8,28 +8,22 @@
  *      (username / email + password). Kept as a fallback so users who joined
  *      a game before signup existed can still log in with their game username.
  *
- * Identifier shape decides which lookup paths run:
- *   - Contains `@`        → email lookup only (accounts → setup rows)
- *   - Mostly digits (≥7)  → phone lookup (accounts) AND username lookup
- *                            (setup rows, in case a numeric username collides)
- *   - Otherwise           → username lookup (setup rows) AND email lookup
- *                            (accounts, in case the email also happens to be
- *                            in this shape — defensive)
- *
- * Password is SHA-256(hex) on both paths, and comparison runs constant-time.
- * On unknown identifier OR wrong password the API returns one generic 401,
- * so the same code path is reached in either failure mode.
+ * Passwords: bcrypt preferred; legacy unsalted SHA-256 hex still verifies, then
+ * is rehashed to bcrypt on successful login (transparent migration).
  */
 
-import { createHash, timingSafeEqual } from 'node:crypto'
 import { loadAllSetupProfilesByKey, type UserSetupProfileRecord } from './userSetupProfileService'
 import { getUserPublicProfile, ensureUserProfileRecord, upsertProfileFromTradeContext } from './userProfileService'
 import {
   findAccountByEmail,
   findAccountByPhone,
   normalizePhone,
+  rehashAccountPasswordIfNeeded,
   type UserAccountRecord,
 } from './userAccountService'
+import { passwordNeedsRehash, verifyPassword } from './passwordHash.ts'
+import { withDataJsonDocumentLock, readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
+import { dataFilePath } from './dataDir.ts'
 
 export type LoginIdentifierKind = 'username' | 'email' | 'phone'
 
@@ -51,20 +45,6 @@ export type LoginResult =
   | { ok: true; user: LoginSuccess }
   | { ok: false; reason: LoginFailureReason }
 
-function sha256Hex(raw: string): string {
-  return createHash('sha256').update(raw, 'utf8').digest('hex')
-}
-
-function hexEqualsConstantTime(a: string, b: string): boolean {
-  if (typeof a !== 'string' || typeof b !== 'string') return false
-  if (a.length !== b.length) return false
-  try {
-    return timingSafeEqual(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'))
-  } catch {
-    return false
-  }
-}
-
 function looksLikeEmail(raw: string): boolean {
   return raw.includes('@')
 }
@@ -73,8 +53,6 @@ function looksLikeEmail(raw: string): boolean {
 function looksLikePhone(raw: string): boolean {
   const digits = normalizePhone(raw)
   if (digits.length < 7) return false
-  /* Allowed non-digit chars in user-typed phone numbers; anything else
-   * (letters, `@`, etc.) means it's not a phone. */
   return /^[0-9+()\-.\s]+$/.test(raw.trim())
 }
 
@@ -112,8 +90,6 @@ function toSuccessFromAccount(
 ): LoginSuccess {
   return {
     userId: account.userId,
-    /* Accounts don't carry a username — surface the contact value so the
-     * client has something to display while the profile hydrates. */
     username: account.contact,
     displayName: account.displayName,
     avatarUrl: account.avatarUrl,
@@ -121,16 +97,7 @@ function toSuccessFromAccount(
   }
 }
 
-async function tryAccountStore(
-  identifier: string,
-  incomingHash: string,
-): Promise<LoginResult | null> {
-  /* Returns `null` to mean "no candidate found here, fall through to next
-   * store"; `{ ok: false, reason: 'wrong-password' }` means we matched the
-   * identifier but the password was wrong, in which case the caller should
-   * still attempt the legacy setup store before giving up (e.g. the user
-   * signed up with the same email as their legacy join row, with different
-   * passwords). */
+async function tryAccountStore(identifier: string, password: string): Promise<LoginResult | null> {
   const candidates: Array<{ acct: UserAccountRecord; matchedBy: LoginIdentifierKind }> = []
   if (looksLikeEmail(identifier)) {
     const a = await findAccountByEmail(identifier)
@@ -139,7 +106,6 @@ async function tryAccountStore(
     const a = await findAccountByPhone(identifier)
     if (a) candidates.push({ acct: a, matchedBy: 'phone' })
   } else {
-    /* No useful account lookup for a plain string (accounts have no usernames). */
     return null
   }
   if (candidates.length === 0) return null
@@ -147,7 +113,8 @@ async function tryAccountStore(
   let sawCandidate = false
   for (const { acct, matchedBy } of candidates) {
     sawCandidate = true
-    if (hexEqualsConstantTime(incomingHash, acct.passwordHash ?? '')) {
+    if (await verifyPassword(password, acct.passwordHash ?? '')) {
+      await rehashAccountPasswordIfNeeded(acct.userId, password)
       const existing = await getUserPublicProfile(acct.userId)
       if (!existing) await ensureUserProfileRecord(acct.userId)
       await upsertProfileFromTradeContext(acct.userId, {
@@ -160,13 +127,33 @@ async function tryAccountStore(
   return sawCandidate ? { ok: false, reason: 'wrong-password' } : null
 }
 
-async function trySetupStore(
-  identifier: string,
-  incomingHash: string,
-): Promise<LoginResult | null> {
-  const lookups: Array<'email' | 'username'> = looksLikeEmail(identifier)
-    ? ['email']
-    : ['username']
+const SETUP_PROFILE_PATH = dataFilePath('user-setup-profiles.json')
+
+async function rehashSetupPasswordIfNeeded(
+  row: UserSetupProfileRecord,
+  password: string,
+): Promise<void> {
+  if (!passwordNeedsRehash(row.passwordHash ?? '')) return
+  const { hashPassword } = await import('./passwordHash.ts')
+  const nextHash = await hashPassword(password)
+  await withDataJsonDocumentLock(SETUP_PROFILE_PATH, async () => {
+    const raw = await readDataJsonObject<{ profiles?: Record<string, UserSetupProfileRecord> }>(
+      SETUP_PROFILE_PATH,
+    )
+    const profiles = { ...(raw?.profiles ?? {}) }
+    let changed = false
+    for (const [k, p] of Object.entries(profiles)) {
+      if (p.userId === row.userId && passwordNeedsRehash(p.passwordHash ?? '')) {
+        profiles[k] = { ...p, passwordHash: nextHash, updatedAtIso: new Date().toISOString() }
+        changed = true
+      }
+    }
+    if (changed) await writeDataJsonObject(SETUP_PROFILE_PATH, { profiles })
+  })
+}
+
+async function trySetupStore(identifier: string, password: string): Promise<LoginResult | null> {
+  const lookups: Array<'email' | 'username'> = looksLikeEmail(identifier) ? ['email'] : ['username']
   let sawCandidate = false
 
   for (const kind of lookups) {
@@ -174,7 +161,8 @@ async function trySetupStore(
     if (rows.length === 0) continue
     sawCandidate = true
     for (const row of rows) {
-      if (hexEqualsConstantTime(incomingHash, row.passwordHash ?? '')) {
+      if (await verifyPassword(password, row.passwordHash ?? '')) {
+        await rehashSetupPasswordIfNeeded(row, password)
         const userId = row.userId
         const existing = await getUserPublicProfile(userId)
         const displayName =
@@ -215,19 +203,12 @@ export async function verifyLoginCredentials(
   if (!identifier) return { ok: false, reason: 'missing-identifier' }
   if (!password) return { ok: false, reason: 'missing-password' }
 
-  const incomingHash = sha256Hex(password.trim())
-
-  /* Accounts first (canonical), then legacy setup rows. If accounts surfaced
-   * a "wrong password" we still let the setup store try — they might use the
-   * same email across both with different passwords. */
-  const accountResult = await tryAccountStore(identifier, incomingHash)
+  const accountResult = await tryAccountStore(identifier, password.trim())
   if (accountResult?.ok) return accountResult
 
-  const setupResult = await trySetupStore(identifier, incomingHash)
+  const setupResult = await trySetupStore(identifier, password.trim())
   if (setupResult?.ok) return setupResult
 
-  /* If either store had a candidate but the password didn't match anywhere,
-   * prefer the more specific reason; otherwise it's an unknown account. */
   if (accountResult?.ok === false || setupResult?.ok === false) {
     return { ok: false, reason: 'wrong-password' }
   }

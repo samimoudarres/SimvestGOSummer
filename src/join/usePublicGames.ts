@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { LIVE_MARKETS_POLL_HIDDEN_MS } from '../config/liveMarketsPoll'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import type { PublicGameItem } from './publicGamesTypes'
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -41,15 +43,10 @@ export function usePublicGames(enabled: boolean) {
       return
     }
     void load()
-    const onVis = () => {
-      if (document.visibilityState === 'visible') void load()
-    }
-    document.addEventListener('visibilitychange', onVis)
-    const pollId = window.setInterval(() => void load(), 20_000)
-    return () => {
-      document.removeEventListener('visibilitychange', onVis)
-      window.clearInterval(pollId)
-    }
+    return visibilityAwareInterval(() => void load(), {
+      visibleMs: 20_000,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+    })
   }, [enabled, load])
 
   return { games, status, error, reload: load }

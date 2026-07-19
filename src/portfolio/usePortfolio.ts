@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
-import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
+import { networkErrorMessage } from '../api/networkErrorMessage'
+import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import type { PortfolioApiRow, PortfolioTotals } from './portfolioTypes'
 import { readCachedPortfolio, writeCachedPortfolio } from './portfolioSessionCache'
 
@@ -15,6 +17,7 @@ export function usePortfolio(gameSlug: string | undefined) {
   const [error, setError] = useState<string | null>(null)
   const hasDataRef = useRef(!!cachedInitial)
   const skipInitialLoadingUiRef = useRef(!!cachedInitial)
+  const pullRef = useRef<(silent?: boolean) => void>(() => {})
 
   useEffect(() => {
     if (!gameSlug) return
@@ -63,17 +66,22 @@ export function usePortfolio(gameSlug: string | undefined) {
             setStatus('error')
           }
         })
-        .catch(() => {
+        .catch((err) => {
           if (!cancelled && !hasDataRef.current) {
-            setError('Network error')
+            setError(networkErrorMessage(err))
             setStatus('error')
           }
         })
     }
+    pullRef.current = pull
 
     pull(skipInitialLoadingUiRef.current)
     const refresh = () => pull(true)
-    const refreshId = window.setInterval(refresh, LIVE_MARKETS_POLL_MS)
+    const stopPoll = visibilityAwareInterval(refresh, {
+      visibleMs: LIVE_MARKETS_POLL_MS,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+      runOnVisible: false,
+    })
 
     const offVisible = onDocumentVisible(refresh)
     const onHoldingsRefresh = (ev: Event) => {
@@ -84,11 +92,15 @@ export function usePortfolio(gameSlug: string | undefined) {
 
     return () => {
       cancelled = true
-      window.clearInterval(refreshId)
+      stopPoll()
       offVisible()
       window.removeEventListener('simvest:holdings-refresh', onHoldingsRefresh)
     }
   }, [gameSlug])
 
-  return { rows, totals, status, error }
+  const reload = useCallback(() => {
+    pullRef.current(false)
+  }, [])
+
+  return { rows, totals, status, error, reload }
 }

@@ -68,6 +68,11 @@ export function TradeScreen() {
     rememberActiveGameSlug(slug)
   }, [slug])
 
+  /* Warm stock-detail chunk so tapping a ticker does not hit Suspense. */
+  useEffect(() => {
+    void import('../stocks/StockDetailScreen')
+  }, [])
+
   const chromeStyle = useGameChromeCssVars(slug)
 
   const headerSubtitle = headerCtl.headerTitle.toUpperCase()

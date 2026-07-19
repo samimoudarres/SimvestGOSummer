@@ -11,8 +11,9 @@ import { simvestFetch } from '../api/simvestFetch'
 import { navigateToStock } from '../stocks/navigateToStock'
 import { StockBrandingImage } from '../components/StockBrandingImage'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
-import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
+import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import { displayTickerLabel } from '../stocks/displayTicker'
 import type { TradeBrowseRow } from '../trade/tradeTypes'
 import './followingScreen.css'
@@ -85,11 +86,15 @@ export function FollowingScreen() {
     }
 
     void load(false)
-    const id = window.setInterval(() => void load(true), LIVE_MARKETS_POLL_MS)
+    const stopPoll = visibilityAwareInterval(() => void load(true), {
+      visibleMs: LIVE_MARKETS_POLL_MS,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+      runOnVisible: false,
+    })
     const offVisible = onDocumentVisible(() => void load(true))
     return () => {
       cancelled = true
-      window.clearInterval(id)
+      stopPoll()
       offVisible()
     }
   }, [slug])

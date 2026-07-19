@@ -1,5 +1,5 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { fetchGameLeaderboardPayload } from './gameLeaderboardService.ts'
 import { listUserIdsJoinedGame } from './gameMembershipService.ts'
 import { notifyLeaderboardBigJump, notifyLeaderboardPodium } from './notificationEvents.ts'
@@ -11,15 +11,8 @@ type RankCacheFile = {
   byGame: Record<string, Record<string, number>>
 }
 
-let mutex = Promise.resolve()
-
 function runMutation<T>(fn: () => Promise<T>): Promise<T> {
-  const p = mutex.then(fn)
-  mutex = p.then(
-    () => undefined,
-    () => undefined,
-  )
-  return p
+  return withDataJsonDocumentLock(CACHE_PATH, fn)
 }
 
 async function readCache(): Promise<RankCacheFile> {

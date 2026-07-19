@@ -174,61 +174,6 @@
   outline-offset: 2px;
 }
 
-/* Remember me row -------------------------------------------------------- */
-
-.sli-row {
-  margin-top: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.sli-remember {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.sli-remember input {
-  /* Hide the native checkbox visually but keep it accessible — the styled box
-   * inherits checked state via the :checked sibling selector below. */
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.sli-rememberBox {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  border: 1.5px solid #b9deef;
-  background: #ffffff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: transparent;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
-}
-
-.sli-remember input:checked ~ .sli-rememberBox {
-  background: linear-gradient(135deg, #0a98de 0%, #06567e 100%);
-  border-color: #0a8fce;
-  color: #ffffff;
-}
-
-.sli-remember input:focus-visible ~ .sli-rememberBox {
-  box-shadow: 0 0 0 3px rgba(10, 143, 206, 0.32);
-}
-
-.sli-rememberText {
-  font-family: 'Nunito Sans', sans-serif;
-  font-weight: 700;
-  font-size: 15px;
-  color: #07406a;
-}
-
 /* Auxiliary links -------------------------------------------------------- */
 
 .sli-link {

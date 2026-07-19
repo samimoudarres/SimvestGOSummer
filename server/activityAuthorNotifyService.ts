@@ -1,5 +1,5 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { normalizeUserId } from './followsService'
 import { invalidateJsonFileCache } from './jsonFileCache'
 
@@ -8,15 +8,8 @@ const NOTIFY_PATH = dataFilePath('activity-author-notify-preferences.json')
 /** viewerUserId → author userIds (normalized) they want alerts for when those authors post. */
 type NotifyFile = { watchers: Record<string, string[]> }
 
-let mutex = Promise.resolve()
-
 function runMutation<T>(fn: () => Promise<T>): Promise<T> {
-  const p = mutex.then(fn)
-  mutex = p.then(
-    () => undefined,
-    () => undefined,
-  )
-  return p
+  return withDataJsonDocumentLock(NOTIFY_PATH, fn)
 }
 
 async function readFile(): Promise<NotifyFile> {

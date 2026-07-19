@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonText, writeDataJsonObject } from './db/persistedJson.ts'
+import { readDataJsonText, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { normalizeUserId } from './followsService'
 import { canonicalGameSlugKey } from './gameSlugNormalize'
 import { getFeedPostById } from './gameFeedService'
@@ -25,15 +25,8 @@ type SocialStoreFile = {
   commentLikes: Record<string, string[]>
 }
 
-let mutex = Promise.resolve()
-
 function runSocialMutation<T>(fn: () => Promise<T>): Promise<T> {
-  const p = mutex.then(fn)
-  mutex = p.then(
-    () => undefined,
-    () => undefined,
-  )
-  return p
+  return withDataJsonDocumentLock(STORE_PATH, fn)
 }
 
 async function readStoreUnlocked(): Promise<SocialStoreFile> {

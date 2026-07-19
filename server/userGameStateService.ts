@@ -1,11 +1,50 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
+import {
+  readDataJsonObject,
+  writeDataJsonObject,
+  withDataJsonDocumentLock,
+} from './db/persistedJson.ts'
+import {
+  deleteAllLedgersForGameSql,
+  deleteUserGameLedgerSql,
+  renameGameSlugInLedgerSql,
+  upsertUserGameLedgerSql,
+} from './db/normalizedHotPath.ts'
 import { normalizeCryptoCompositeTicker, normalizeTicker, resolveMassiveTicker } from './stockService'
-import { runSerializedByKey } from './fsMutationQueue'
+
+async function syncLedgerSql(
+  userId: string,
+  gameSlug: string,
+  ledger: UserGameLedger,
+): Promise<void> {
+  try {
+    await upsertUserGameLedgerSql(userId, gameSlug, ledger)
+  } catch (err) {
+    console.warn(
+      '[simvest] ledger SQL dual-write failed:',
+      err instanceof Error ? err.message : err,
+    )
+  }
+}
+
+async function removeLedgerSql(userId: string, gameSlug: string): Promise<void> {
+  try {
+    await deleteUserGameLedgerSql(userId, gameSlug)
+  } catch (err) {
+    console.warn(
+      '[simvest] ledger SQL delete failed:',
+      err instanceof Error ? err.message : err,
+    )
+  }
+}
 
 const STATE_PATH = dataFilePath('user-game-state.json')
-const PORTFOLIO_LOCK_KEY = STATE_PATH
 const LEGACY_HOLDINGS_PATH = dataFilePath('holdings.json')
+
+/** Process + cross-instance lock for portfolio RMW (trades, clears, etc.). */
+function withPortfolioLock<T>(fn: () => Promise<T>): Promise<T> {
+  return withDataJsonDocumentLock(STATE_PATH, fn)
+}
 
 export type HoldingRecord = { ticker: string; shares: number; avgCost: number }
 export type PositionLot = {
@@ -28,6 +67,11 @@ export type PortfolioStateV2 = {
   legacyHoldings: Record<string, HoldingRecord[]>
   /** userId → gameSlug → ledger */
   users: Record<string, Record<string, UserGameLedger>>
+  /**
+   * Optional trade dedupe keys (`userId:gameSlug:clientTradeId` → cached success payload).
+   * Survives retries of POST …/trades/complete with the same Idempotency-Key / clientTradeId.
+   */
+  tradeIdempotency?: Record<string, { atIso: string; response: unknown }>
 }
 
 /** Starting cash for a new ledger row — also used as portfolio chart baseline before first snapshot. */
@@ -101,7 +145,7 @@ async function writePortfolioStateToDisk(s: PortfolioStateV2): Promise<void> {
   await writeDataJsonObject(STATE_PATH, s)
 }
 
-/** Load + migrate portfolio JSON. Call only inside `runSerializedByKey(PORTFOLIO_LOCK_KEY, …)`. */
+/** Load + migrate portfolio JSON. Call only inside `withPortfolioLock(…)`. */
 async function loadPortfolioStateFromDisk(): Promise<PortfolioStateV2> {
   const raw = await readDataJsonObject<unknown>(STATE_PATH)
   if (raw && typeof raw === 'object') {
@@ -145,23 +189,24 @@ async function loadPortfolioStateFromDisk(): Promise<PortfolioStateV2> {
 }
 
 export async function readPortfolioState(): Promise<PortfolioStateV2> {
-  return runSerializedByKey(PORTFOLIO_LOCK_KEY, loadPortfolioStateFromDisk)
+  return withPortfolioLock(loadPortfolioStateFromDisk)
 }
 
 export async function writePortfolioState(s: PortfolioStateV2): Promise<void> {
-  return runSerializedByKey(PORTFOLIO_LOCK_KEY, () => writePortfolioStateToDisk(s))
+  return withPortfolioLock(() => writePortfolioStateToDisk(s))
 }
 
 /** Drop a single user's ledger (cash + holdings + lots) for one game. Returns true when removed. */
 export async function clearUserLedgerForGame(userId: string, gameSlug: string): Promise<boolean> {
   if (!userId || !gameSlug) return false
-  return runSerializedByKey(PORTFOLIO_LOCK_KEY, async () => {
+  return withPortfolioLock(async () => {
     const state = await loadPortfolioStateFromDisk()
     const games = state.users[userId]
     if (!games || !games[gameSlug]) return false
     delete games[gameSlug]
     if (Object.keys(games).length === 0) delete state.users[userId]
     await writePortfolioStateToDisk(state)
+    await removeLedgerSql(userId, gameSlug)
     return true
   })
 }
@@ -169,7 +214,7 @@ export async function clearUserLedgerForGame(userId: string, gameSlug: string): 
 /** Drop persisted ledger rows for **every** user for one game slug (shared-slot republish). */
 export async function clearAllUserLedgersForGame(gameSlug: string): Promise<number> {
   if (!gameSlug) return 0
-  return runSerializedByKey(PORTFOLIO_LOCK_KEY, async () => {
+  return withPortfolioLock(async () => {
     const state = await loadPortfolioStateFromDisk()
     let removed = 0
     for (const uid of Object.keys(state.users ?? {})) {
@@ -180,7 +225,17 @@ export async function clearAllUserLedgersForGame(gameSlug: string): Promise<numb
       removed++
       if (Object.keys(games).length === 0) delete state.users[uid]
     }
-    if (removed > 0) await writePortfolioStateToDisk(state)
+    if (removed > 0) {
+      await writePortfolioStateToDisk(state)
+      try {
+        await deleteAllLedgersForGameSql(gameSlug)
+      } catch (err) {
+        console.warn(
+          '[simvest] ledger SQL clear-game failed:',
+          err instanceof Error ? err.message : err,
+        )
+      }
+    }
     return removed
   })
 }
@@ -188,7 +243,7 @@ export async function clearAllUserLedgersForGame(gameSlug: string): Promise<numb
 /** Remove seeded legacy baseline holdings for a slug so portfolio is not pre-filled. */
 export async function clearLegacyHoldingsForGameSlot(gameSlug: string): Promise<void> {
   if (!gameSlug) return
-  return runSerializedByKey(PORTFOLIO_LOCK_KEY, async () => {
+  return withPortfolioLock(async () => {
     const state = await loadPortfolioStateFromDisk()
     if (!state.legacyHoldings?.[gameSlug]) return
     const next = { ...state.legacyHoldings }
@@ -201,25 +256,31 @@ export async function clearLegacyHoldingsForGameSlot(gameSlug: string): Promise<
 /** Copy per-game ledgers from anonymous viewer id into account id when the account has no row yet. */
 export async function mergePortfolioViewerIds(fromUserId: string, toUserId: string): Promise<void> {
   if (!fromUserId || !toUserId || fromUserId.length < 8 || toUserId.length < 8 || fromUserId === toUserId) return
-  return runSerializedByKey(PORTFOLIO_LOCK_KEY, async () => {
+  return withPortfolioLock(async () => {
     const state = await loadPortfolioStateFromDisk()
     const fromGames = state.users[fromUserId]
     if (!fromGames || typeof fromGames !== 'object') return
     if (!state.users[toUserId]) state.users[toUserId] = {}
     const toGames = state.users[toUserId]!
+    const moved: Array<{ slug: string; ledger: UserGameLedger }> = []
     for (const [slug, ledger] of Object.entries(fromGames)) {
       if (!slug || toGames[slug]) continue
       toGames[slug] = ledger
+      moved.push({ slug, ledger })
     }
     delete state.users[fromUserId]
     await writePortfolioStateToDisk(state)
+    for (const { slug, ledger } of moved) {
+      await syncLedgerSql(toUserId, slug, ledger)
+      await removeLedgerSql(fromUserId, slug)
+    }
   })
 }
 
 /** Move every user's ledger + legacy holdings from one game slug to another. */
 export async function renameGameSlugInPortfolioState(fromSlug: string, toSlug: string): Promise<number> {
   if (!fromSlug || !toSlug || fromSlug === toSlug) return 0
-  return runSerializedByKey(PORTFOLIO_LOCK_KEY, async () => {
+  return withPortfolioLock(async () => {
     const state = await loadPortfolioStateFromDisk()
     let moved = 0
     if (state.legacyHoldings[fromSlug]) {
@@ -237,7 +298,17 @@ export async function renameGameSlugInPortfolioState(fromSlug: string, toSlug: s
       moved += 1
       if (Object.keys(games).length === 0) delete state.users[uid]
     }
-    if (moved > 0) await writePortfolioStateToDisk(state)
+    if (moved > 0) {
+      await writePortfolioStateToDisk(state)
+      try {
+        await renameGameSlugInLedgerSql(fromSlug, toSlug)
+      } catch (err) {
+        console.warn(
+          '[simvest] ledger SQL rename failed:',
+          err instanceof Error ? err.message : err,
+        )
+      }
+    }
     return moved
   })
 }
@@ -319,7 +390,7 @@ export type ApplyTradeInput = {
 
 /** Mutates persisted ledger: cash, user-only holdings (legacy stays separate). */
 export async function saveLegacyHoldingsForGame(gameSlug: string, rows: HoldingRecord[]): Promise<void> {
-  return runSerializedByKey(PORTFOLIO_LOCK_KEY, async () => {
+  return withPortfolioLock(async () => {
     const state = await loadPortfolioStateFromDisk()
     state.legacyHoldings[gameSlug] = mergeTickerLots(rows)
     await writePortfolioStateToDisk(state)
@@ -342,7 +413,7 @@ export async function applyTradeToUserLedger(
   if (!Number.isFinite(input.fillPrice) || input.fillPrice <= 0) return { ok: false, error: 'Invalid price' }
   if (!Number.isFinite(input.orderTotal) || input.orderTotal <= 0) return { ok: false, error: 'Invalid order total' }
 
-  return runSerializedByKey(PORTFOLIO_LOCK_KEY, async () => {
+  return withPortfolioLock(async () => {
     const state = await loadPortfolioStateFromDisk()
     const ledger = ledgerFor(state, input.userId, input.gameSlug)
 
@@ -401,6 +472,72 @@ export async function applyTradeToUserLedger(
       return { ok: false, error: 'Could not attach ledger to portfolio state' }
     }
     await writePortfolioStateToDisk(state)
+    const persisted = state.users[input.userId]![input.gameSlug]!
+    await syncLedgerSql(input.userId, input.gameSlug, persisted)
     return unwoundCostBasis != null ? { ok: true, unwoundCostBasis } : { ok: true }
+  })
+}
+
+const TRADE_IDEM_TTL_MS = 48 * 60 * 60 * 1000
+const TRADE_IDEM_MAX_KEYS = 400
+
+/** Normalize optional Idempotency-Key / clientTradeId (8–128 safe chars). */
+export function normalizeClientTradeId(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const t = raw.trim()
+  if (t.length < 8 || t.length > 128) return null
+  if (!/^[A-Za-z0-9._:~-]+$/.test(t)) return null
+  return t
+}
+
+function tradeIdemKey(userId: string, gameSlug: string, clientTradeId: string): string {
+  return `${userId}:${gameSlug}:${clientTradeId}`
+}
+
+function pruneTradeIdempotency(
+  map: Record<string, { atIso: string; response: unknown }>,
+  now = Date.now(),
+): Record<string, { atIso: string; response: unknown }> {
+  const entries = Object.entries(map).filter(([, v]) => {
+    const ms = Date.parse(v.atIso)
+    return Number.isFinite(ms) && now - ms < TRADE_IDEM_TTL_MS
+  })
+  entries.sort((a, b) => (a[1].atIso < b[1].atIso ? 1 : -1))
+  const next: Record<string, { atIso: string; response: unknown }> = {}
+  for (const [k, v] of entries.slice(0, TRADE_IDEM_MAX_KEYS)) next[k] = v
+  return next
+}
+
+/** Return a prior successful trade response for this idempotency key, if any. */
+export async function getTradeIdempotencyResponse(
+  userId: string,
+  gameSlug: string,
+  clientTradeId: string,
+): Promise<unknown | null> {
+  const key = tradeIdemKey(userId, gameSlug, clientTradeId)
+  return withPortfolioLock(async () => {
+    const state = await loadPortfolioStateFromDisk()
+    const row = state.tradeIdempotency?.[key]
+    if (!row) return null
+    const ms = Date.parse(row.atIso)
+    if (!Number.isFinite(ms) || Date.now() - ms >= TRADE_IDEM_TTL_MS) return null
+    return row.response
+  })
+}
+
+/** Persist a successful trade response under the client trade id (for retries). */
+export async function rememberTradeIdempotencyResponse(
+  userId: string,
+  gameSlug: string,
+  clientTradeId: string,
+  response: unknown,
+): Promise<void> {
+  const key = tradeIdemKey(userId, gameSlug, clientTradeId)
+  return withPortfolioLock(async () => {
+    const state = await loadPortfolioStateFromDisk()
+    const cur = pruneTradeIdempotency(state.tradeIdempotency ?? {})
+    cur[key] = { atIso: new Date().toISOString(), response }
+    state.tradeIdempotency = cur
+    await writePortfolioStateToDisk(state)
   })
 }

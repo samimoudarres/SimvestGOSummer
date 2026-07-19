@@ -33,7 +33,7 @@ export async function deleteSimvestAccount(
     }
   }
 
-  if (!verifyAccountPassword(currentPassword, account.passwordHash)) {
+  if (!(await verifyAccountPassword(currentPassword, account.passwordHash))) {
     return {
       ok: false,
       status: 401,

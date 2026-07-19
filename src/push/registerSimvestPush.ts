@@ -33,6 +33,20 @@ async function requestNativePushPermission(): Promise<boolean> {
     perm = await PushNotifications.requestPermissions()
   }
   if (perm.receive !== 'granted') return false
+  if (Capacitor.getPlatform() === 'android') {
+    try {
+      await PushNotifications.createChannel({
+        id: 'simvest_alerts',
+        name: 'Simvest alerts',
+        description: 'Trade, leaderboard, and activity notifications',
+        importance: 4,
+        visibility: 1,
+        sound: 'default',
+      })
+    } catch {
+      /* channel may already exist */
+    }
+  }
   await PushNotifications.register()
   return true
 }

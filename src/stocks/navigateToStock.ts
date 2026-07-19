@@ -1,5 +1,6 @@
 import type { NavigateFunction } from 'react-router-dom'
 import type { ChallengeNavTab } from '../challenge/ChallengeBottomNav'
+import { prefetchStockDetail } from './stockDetailPrefetch'
 import { stockPath } from './stockPaths'
 
 export type StockLocationState = {
@@ -14,5 +15,6 @@ export function navigateToStock(
   ticker: string,
   state?: StockLocationState,
 ) {
+  prefetchStockDetail(ticker)
   navigate(stockPath(ticker), { state })
 }

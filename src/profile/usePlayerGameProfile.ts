@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { LIVE_MARKETS_POLL_HIDDEN_MS } from '../config/liveMarketsPoll'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import type { PlayerGameProfilePayload } from './playerProfileTypes'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -58,7 +60,11 @@ export function usePlayerGameProfile(gameSlug: string | undefined, profileUserId
 
     pull()
 
-    const refresh = window.setInterval(() => pull(true), 15_000)
+    const stopPoll = visibilityAwareInterval(() => pull(true), {
+      visibleMs: 15_000,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+      runOnVisible: false,
+    })
     const onVisible = () => {
       if (document.visibilityState === 'visible') pull(true)
     }
@@ -71,7 +77,7 @@ export function usePlayerGameProfile(gameSlug: string | undefined, profileUserId
 
     return () => {
       cancelled = true
-      window.clearInterval(refresh)
+      stopPoll()
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('simvest:holdings-refresh', onHoldingsRefresh)
     }

@@ -140,10 +140,10 @@ export function StockPriceChart({
           setTipPos(null)
         }}
       >
-        {loading ? <p className="sd-chartMsg">Loading chart…</p> : null}
-        {!loading && error ? <p className="sd-chartMsg sd-chartMsg--err">{error}</p> : null}
-        {!loading && !error && !bars.length ? <p className="sd-chartMsg">{emptyBarsMessage}</p> : null}
-        {!loading && bars.length > 0 ? (
+        {loading && !bars.length ? <p className="sd-chartMsg">Loading chart…</p> : null}
+        {!bars.length && !loading && error ? <p className="sd-chartMsg sd-chartMsg--err">{error}</p> : null}
+        {!bars.length && !loading && !error ? <p className="sd-chartMsg">{emptyBarsMessage}</p> : null}
+        {bars.length > 0 ? (
           <svg
             ref={svgRef}
             className="sd-priceSvg"

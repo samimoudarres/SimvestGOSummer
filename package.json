@@ -21,7 +21,11 @@
     "preview": "vite preview",
     "test:trade": "tsx server/scripts/verifyTradeFlow.ts",
     "test:ledger": "tsx server/scripts/verifyLedgerInProcess.ts",
+    "test:session": "tsx server/scripts/verifySessionAuth.ts",
+    "test:session-unit": "tsx server/scripts/verifySessionInProcess.ts",
+    "test:trade-mark": "tsx server/scripts/verifyTradeMarkPrice.ts",
     "test:join-invite": "tsx server/scripts/verifyJoinInvite.ts",
+    "test:normalized-hotpath": "tsx server/scripts/verifyNormalizedHotPath.ts",
     "verify:massive-live": "tsx server/scripts/verifyMassiveLiveLag.ts",
     "icons:generate": "node scripts/generateAppIcons.mjs",
     "admin:render:env": "node scripts/setRenderAdminSecret.mjs",
@@ -32,6 +36,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.3.4",
+    "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/pg": "^8.20.0",
@@ -55,16 +60,23 @@
     "@capacitor/push-notifications": "^8.1.1",
     "@capacitor/status-bar": "^8.0.2",
     "@supabase/supabase-js": "^2.110.7",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "firebase-admin": "^13.10.0",
+    "firebase-admin": "^14.2.0",
     "html5-qrcode": "^2.3.8",
+    "node-domexception": "file:./vendor/node-domexception-1.0.0-native.tgz",
     "pg": "^8.22.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.15.0",
     "web-push": "^3.6.7"
+  },
+  "overrides": {
+    "uuid": "^11.1.0",
+    "glob": "^13.0.0",
+    "node-domexception": "$node-domexception"
   }
 }

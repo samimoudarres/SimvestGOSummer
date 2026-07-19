@@ -1,5 +1,5 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { normalizeUserId } from './followsService'
 
 const TOKENS_PATH = dataFilePath('user-native-push-tokens.json')
@@ -14,15 +14,8 @@ export type StoredNativePushToken = {
 
 type TokensFile = { byUserId: Record<string, StoredNativePushToken[]> }
 
-let mutex = Promise.resolve()
-
 function runMutation<T>(fn: () => Promise<T>): Promise<T> {
-  const p = mutex.then(fn)
-  mutex = p.then(
-    () => undefined,
-    () => undefined,
-  )
-  return p
+  return withDataJsonDocumentLock(TOKENS_PATH, fn)
 }
 
 function canonViewer(raw: string): string | null {

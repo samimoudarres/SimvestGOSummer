@@ -163,7 +163,7 @@ export type CompleteSignupInput = {
 export async function completeSignup(
   input: CompleteSignupInput,
 ): Promise<
-  | { ok: true; user: SignupCompleteUser }
+  | { ok: true; user: SignupCompleteUser; token: string }
   | { ok: false; status: number; error: string; errors?: SignupValidationError[] }
 > {
   const resp = await simvestFetch('/api/auth/signup/complete', {
@@ -180,8 +180,20 @@ export async function completeSignup(
       errors: body.errors,
     }
   }
-  const body = (await resp.json()) as { user: SignupCompleteUser }
-  return { ok: true, user: body.user }
+  const body = (await resp.json()) as {
+    user: SignupCompleteUser
+    token?: string
+    sessionToken?: string
+  }
+  const token = (body.token ?? body.sessionToken)?.trim() ?? ''
+  if (!token) {
+    return {
+      ok: false,
+      status: 500,
+      error: 'Account created but no session token was returned. Please try logging in.',
+    }
+  }
+  return { ok: true, user: body.user, token }
 }
 
 /* --------------------------------------------------------------------- */

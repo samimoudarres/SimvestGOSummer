@@ -13,6 +13,7 @@ import {
   updatePassword,
   type AccountFieldError,
 } from './settingsClient'
+import { setSessionToken } from '../auth/sessionToken'
 import './settingsScreens.css'
 
 export function SettingsPasswordScreen() {
@@ -91,6 +92,7 @@ export function SettingsPasswordScreen() {
 
       const result = await updatePassword({ currentPassword, newPassword })
       if (result.ok) {
+        if (result.token) setSessionToken(result.token)
         setSuccess(true)
         setCurrentPassword('')
         setNewPassword('')

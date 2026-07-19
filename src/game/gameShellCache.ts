@@ -1,7 +1,12 @@
 import { slugToVariant } from '../challenge/gameMeta'
 import { fetchCreateGameSettings, type CreateSettingsGetResponse } from '../createGame/createGameSettingsApi'
 import { simvestFetch } from '../api/simvestFetch'
+import { writeCachedGameFeed } from '../challenge/gameFeedSessionCache'
+import type { GameFeedPostRow } from '../challenge/useGameFeed'
+import { prefetchLeaderboardAllSorts } from '../leaderboard/leaderboardPrefetch'
+import { prefetchPerformCharts } from '../perform/performChartPrefetch'
 import { fetchGameChrome } from './gameChromeApi'
+import { warmAllGameTabChunksIdle, warmGameTabChunk } from './warmGameTabChunks'
 
 export type CachedGameHeaderState = {
   templateTitle: string | null
@@ -21,6 +26,15 @@ function cacheKey(slug: string): string {
 const chromeBySlug = new Map<string, Record<string, string>>()
 const headerBySlug = new Map<string, CachedGameHeaderState>()
 const prefetchInflight = new Map<string, Promise<void>>()
+const tabDataWarmStarted = new Set<string>()
+
+/** Drop in-memory shell caches on logout / account switch. */
+export function clearGameShellCaches(): void {
+  chromeBySlug.clear()
+  headerBySlug.clear()
+  prefetchInflight.clear()
+  tabDataWarmStarted.clear()
+}
 
 export function getCachedGameChromeVars(slug: string): Record<string, string> | null {
   const hit = chromeBySlug.get(cacheKey(slug))
@@ -93,18 +107,34 @@ export function cacheGameHeaderFromCreateSettings(
   return state
 }
 
-function prefetchGameFeed(slug: string): void {
-  const k = cacheKey(slug)
-  if (!k) return
-  void simvestFetch(`/api/games/${encodeURIComponent(slug)}/feed`, { method: 'GET' }).catch(() => {})
+/** One light feed warm that actually seeds the session cache (no portfolio/perform storm). */
+function prefetchGameFeedIntoCache(slug: string): void {
+  void simvestFetch(`/api/games/${encodeURIComponent(slug)}/feed?limit=50`, { method: 'GET' })
+    .then(async (r) => {
+      const body = await r.json().catch(() => null)
+      if (r.ok && body && Array.isArray(body.posts)) {
+        writeCachedGameFeed(slug, body.posts as GameFeedPostRow[])
+      }
+    })
+    .catch(() => {})
 }
 
-/** Warm chrome + header + feed before route mount (e.g. tab bar tap). */
+/** Warm chrome + header + feed cache + JS chunks (no Massive-heavy fan-out). */
 export function prefetchGameShell(slug: string): void {
   const k = cacheKey(slug)
   if (!k) return
+  warmGameTabChunk('activity')
+  warmAllGameTabChunksIdle()
+  if (!tabDataWarmStarted.has(k)) {
+    tabDataWarmStarted.add(k)
+    /* Delayed: perform charts + leaderboard sorts only (staggered inside those helpers). */
+    window.setTimeout(() => {
+      prefetchPerformCharts(slug)
+      window.setTimeout(() => prefetchLeaderboardAllSorts(slug), 400)
+    }, 900)
+  }
   if (prefetchInflight.has(k)) return
-  prefetchGameFeed(slug)
+  prefetchGameFeedIntoCache(slug)
   const job = Promise.all([
     fetchGameChrome(slug)
       .then((r) => setCachedGameChromeVars(slug, r.cssVars))

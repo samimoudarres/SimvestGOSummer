@@ -1,7 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
-import { runSerializedByKey } from './fsMutationQueue'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import type { TradeCategoryId } from './tradeService'
 import { isTradeCategory } from './tradeService'
 import { listGameDefinitions } from './gameDefinitionsStore'
@@ -260,7 +259,7 @@ async function writeFileRaw(data: RulesFile): Promise<void> {
 }
 
 export async function getRuntimeRules(gameSlug: string): Promise<GameRuntimeRules | null> {
-  return runSerializedByKey(RULES_PATH, async () => {
+  return withDataJsonDocumentLock(RULES_PATH, async () => {
     const f = await readFileRaw()
     const raw = f.bySlug?.[gameSlug]
     const parsed = parseRules(raw, gameSlug)
@@ -281,7 +280,7 @@ export async function getRuntimeRules(gameSlug: string): Promise<GameRuntimeRule
  * left to callers so each surface can apply its own selection criteria.
  */
 export async function listAllRuntimeRules(): Promise<Array<{ slug: string; rules: GameRuntimeRules }>> {
-  return runSerializedByKey(RULES_PATH, async () => {
+  return withDataJsonDocumentLock(RULES_PATH, async () => {
     const f = await readFileRaw()
     const out: Array<{ slug: string; rules: GameRuntimeRules }> = []
     for (const [slug, raw] of Object.entries(f.bySlug ?? {})) {
@@ -311,7 +310,7 @@ async function loadTakenJoinCodes(rulesFile: RulesFile): Promise<Set<string>> {
 }
 
 export async function allocateUniqueJoinCodeForGame(): Promise<string> {
-  return runSerializedByKey(RULES_PATH, async () => {
+  return withDataJsonDocumentLock(RULES_PATH, async () => {
     const f = await readFileRaw()
     const taken = await loadTakenJoinCodes(f)
     return allocateJoinCodeFromTaken(taken)
@@ -364,7 +363,7 @@ export async function findRuntimeRulesByJoinCode(
 ): Promise<{ slug: string; rules: GameRuntimeRules } | null> {
   const code = joinCodeFromHttpQuery(codeRaw) ?? normalizeSixDigitJoinCode(codeRaw)
   if (!code) return null
-  return runSerializedByKey(RULES_PATH, async () => {
+  return withDataJsonDocumentLock(RULES_PATH, async () => {
     const f = await readFileRaw()
     const by = f.bySlug ?? {}
     for (const [slug, raw] of Object.entries(by)) {
@@ -392,7 +391,7 @@ export async function findRuntimeRulesByJoinCode(
 
 /** Backfill join code for games published before `joinCode` was added (idempotent). */
 export async function ensureJoinCodeOnRuntimeIfMissing(gameSlug: string): Promise<GameRuntimeRules | null> {
-  return runSerializedByKey(RULES_PATH, async () => {
+  return withDataJsonDocumentLock(RULES_PATH, async () => {
     const f = await readFileRaw()
     const raw = f.bySlug?.[gameSlug]
     const cur = parseRules(raw, gameSlug)
@@ -525,7 +524,7 @@ export function validateCreateSettingsInput(
 
 /** Unique slug for a published challenge leaving the shared `new` slot (join code is unique). */
 export async function pickPermanentSlugForArchive(rules: GameRuntimeRules): Promise<string> {
-  return runSerializedByKey(RULES_PATH, async () => {
+  return withDataJsonDocumentLock(RULES_PATH, async () => {
     const f = await readFileRaw()
     const bySlug = f.bySlug ?? {}
     const code = normalizeSixDigitJoinCode(rules.joinCode)
@@ -543,7 +542,7 @@ export async function pickPermanentSlugForArchive(rules: GameRuntimeRules): Prom
 /** Copy runtime rules from the shared `new` slot to a permanent slug before wiping `new` stores. */
 /** Replace the shared `new` row with an unpublished draft (after archiving a live publish). */
 export async function seedNewSlotDraftRow(hostUserId: string, hostDisplayName: string): Promise<GameRuntimeRules> {
-  return runSerializedByKey(RULES_PATH, async () => {
+  return withDataJsonDocumentLock(RULES_PATH, async () => {
     const f = await readFileRaw()
     const draft = buildFreshNewTemplateDraftForViewer(hostUserId, hostDisplayName)
     const bySlug = { ...(f.bySlug ?? {}), new: draft }
@@ -554,7 +553,7 @@ export async function seedNewSlotDraftRow(hostUserId: string, hostDisplayName: s
 
 export async function archiveRuntimeRulesRow(fromSlug: string, toSlug: string): Promise<void> {
   if (!fromSlug || !toSlug || fromSlug === toSlug) return
-  return runSerializedByKey(RULES_PATH, async () => {
+  return withDataJsonDocumentLock(RULES_PATH, async () => {
     const f = await readFileRaw()
     const bySlug = { ...(f.bySlug ?? {}) }
     const raw = bySlug[fromSlug]
@@ -594,7 +593,7 @@ export async function upsertRuntimeRules(
   input: CreateSettingsInput,
   editorUserId: string,
 ): Promise<GameRuntimeRules> {
-  return runSerializedByKey(RULES_PATH, async () => {
+  return withDataJsonDocumentLock(RULES_PATH, async () => {
     const f = await readFileRaw()
     const bySlug = { ...(f.bySlug ?? {}) }
     const prev = parseRules(bySlug[gameSlug], gameSlug)
@@ -663,7 +662,7 @@ export async function upsertRuntimeRules(
  * Patch `endsAtIso` for one slug (e.g. “end game now”). Serialized with every other rules-store write.
  */
 export async function forceGameEndIsoInStore(gameSlug: string, endsAtIso: string): Promise<void> {
-  await runSerializedByKey(RULES_PATH, async () => {
+  await withDataJsonDocumentLock(RULES_PATH, async () => {
     try {
       const f = await readFileRaw()
       const row = f.bySlug?.[gameSlug]

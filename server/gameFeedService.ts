@@ -1,21 +1,61 @@
 import { randomUUID } from 'node:crypto'
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonText, writeDataJsonObject } from './db/persistedJson.ts'
+import {
+  readDataJsonText,
+  writeDataJsonObject,
+  withDataJsonDocumentLock,
+} from './db/persistedJson.ts'
+import {
+  deleteFeedPostSql,
+  deleteFeedPostsForGameSql,
+  listFeedPostsForGameSql,
+  upsertFeedPostSql,
+} from './db/normalizedHotPath.ts'
 import { normalizeUserId } from './followsService'
 import { canonicalGameSlugKey, normalizeGameSlugParam } from './gameSlugNormalize'
 
 const FEED_PATH = dataFilePath('game-feed.json')
 
-/** Serialize read–modify–write on `game-feed.json` so concurrent posts/trades cannot drop rows. */
-let feedFileMutex = Promise.resolve()
+async function syncFeedPostSql(post: GameFeedPost): Promise<void> {
+  try {
+    const slug = canonicalGameSlugKey(post.gameSlug) || post.gameSlug || null
+    await upsertFeedPostSql({
+      id: post.id,
+      userId: post.userId ?? null,
+      gameSlug: slug,
+      postKind: post.postKind ?? 'trade',
+      postedAtIso: post.timestampIso ?? null,
+      payload: post as unknown as Record<string, unknown>,
+    })
+  } catch (err) {
+    console.warn(
+      '[simvest] feed SQL dual-write failed:',
+      err instanceof Error ? err.message : err,
+    )
+  }
+}
 
+async function removeFeedPostSql(postId: string): Promise<void> {
+  try {
+    await deleteFeedPostSql(postId)
+  } catch (err) {
+    console.warn(
+      '[simvest] feed SQL delete failed:',
+      err instanceof Error ? err.message : err,
+    )
+  }
+}
+
+function postFromSqlPayload(payload: Record<string, unknown>, fallbackId: string): GameFeedPost | null {
+  if (!payload || typeof payload !== 'object') return null
+  const id = String(payload.id ?? fallbackId)
+  if (!id) return null
+  return { ...(payload as unknown as GameFeedPost), id }
+}
+
+/** Process + cross-instance lock so concurrent posts/trades cannot drop rows. */
 function runFeedMutation<T>(fn: () => Promise<T>): Promise<T> {
-  const p = feedFileMutex.then(fn)
-  feedFileMutex = p.then(
-    () => undefined,
-    () => undefined,
-  )
-  return p
+  return withDataJsonDocumentLock(FEED_PATH, fn)
 }
 
 /**
@@ -124,13 +164,43 @@ const SEED_POSTS: GameFeedPost[] = [
   },
 ]
 
-export async function listPostsForGame(gameSlug: string): Promise<GameFeedPost[]> {
+export async function listPostsForGame(
+  gameSlug: string,
+  opts?: { limit?: number; beforeIso?: string },
+): Promise<{ posts: GameFeedPost[]; nextBeforeIso: string | null }> {
   const want = canonicalGameSlugKey(gameSlug)
-  if (!want) return []
+  if (!want) return { posts: [], nextBeforeIso: null }
+
+  const limitRaw = opts?.limit
+  const limit =
+    typeof limitRaw === 'number' && Number.isFinite(limitRaw)
+      ? Math.min(500, Math.max(1, Math.floor(limitRaw)))
+      : 500
+  const before = typeof opts?.beforeIso === 'string' ? opts.beforeIso.trim() : ''
+
+  /* Prefer normalized SQL when it already has rows for this game (JSON fallback otherwise). */
+  const sqlRows = await listFeedPostsForGameSql(want, { limit, beforeIso: before || undefined })
+  if (sqlRows && sqlRows.length > 0) {
+    const page = sqlRows
+      .map((r) => postFromSqlPayload(r.payload, r.id))
+      .filter((p): p is GameFeedPost => Boolean(p))
+      .filter((p) => canonicalGameSlugKey(p.gameSlug) === want)
+    const nextBeforeIso =
+      page.length === limit && page.length > 0 ? page[page.length - 1]!.timestampIso : null
+    return { posts: page, nextBeforeIso }
+  }
+
   const { posts } = await readFeedStore()
-  return posts
+  let rows = posts
     .filter((p) => canonicalGameSlugKey(p.gameSlug) === want)
     .sort((a, b) => (a.timestampIso < b.timestampIso ? 1 : -1))
+  if (before) {
+    rows = rows.filter((p) => p.timestampIso < before)
+  }
+  const page = rows.slice(0, limit)
+  const nextBeforeIso =
+    page.length === limit && page.length > 0 ? page[page.length - 1]!.timestampIso : null
+  return { posts: page, nextBeforeIso }
 }
 
 /** Remove every persisted feed row for a game (e.g. clearing the shared `new` slot on publish). */
@@ -140,10 +210,22 @@ export async function deleteAllFeedPostsForGame(gameSlug: string): Promise<numbe
   return runFeedMutation(async () => {
     const file = await readFeedFileUnlocked()
     const before = file.posts.length
+    const removedIds = file.posts
+      .filter((p) => canonicalGameSlugKey(p.gameSlug) === want)
+      .map((p) => p.id)
     file.posts = file.posts.filter((p) => canonicalGameSlugKey(p.gameSlug) !== want)
     const removed = before - file.posts.length
     if (removed > 0) {
       await writeDataJsonObject(FEED_PATH, file)
+      for (const id of removedIds) await removeFeedPostSql(id)
+      try {
+        await deleteFeedPostsForGameSql(want)
+      } catch (err) {
+        console.warn(
+          '[simvest] feed SQL clear-game failed:',
+          err instanceof Error ? err.message : err,
+        )
+      }
     }
     return removed
   })
@@ -174,6 +256,7 @@ export async function appendGameFeedPost(post: Omit<GameFeedPost, 'id'> & { id?:
     }
     file.posts.unshift(full)
     await writeDataJsonObject(FEED_PATH, file)
+    await syncFeedPostSql(full)
     queueMicrotask(() => {
       void import('./activityPostFanout')
         .then((m) => m.onNewFeedPost(full))
@@ -216,6 +299,9 @@ export async function renameGameSlugInFeedPosts(fromSlug: string, toSlug: string
     }
     if (n > 0) {
       await writeDataJsonObject(FEED_PATH, file)
+      for (const row of file.posts) {
+        if (canonicalGameSlugKey(row.gameSlug) === wantTo) await syncFeedPostSql(row)
+      }
     }
     return n
   })
@@ -227,14 +313,17 @@ export async function mergeFeedPostsViewerId(fromUserId: string, toUserId: strin
   return runFeedMutation(async () => {
     const file = await readFeedFileUnlocked()
     let n = 0
+    const touched: GameFeedPost[] = []
     for (let i = 0; i < file.posts.length; i++) {
       const row = file.posts[i]!
       if (!feedAuthorMatches(row.userId, fromUserId)) continue
       file.posts[i] = { ...row, userId: toUserId }
+      touched.push(file.posts[i]!)
       n++
     }
     if (n > 0) {
       await writeDataJsonObject(FEED_PATH, file)
+      for (const row of touched) await syncFeedPostSql(row)
     }
     return n
   })
@@ -285,16 +374,20 @@ export async function deleteFeedPostsByUserInGame(userId: string, gameSlug: stri
   return runFeedMutation(async () => {
     const file = await readFeedFileUnlocked()
     const before = file.posts.length
+    const removedIds: string[] = []
     file.posts = file.posts.filter((p) => {
       const slugMatch = canonicalGameSlugKey(p.gameSlug) === want
       const uid = typeof p.userId === 'string' ? p.userId.trim() : ''
       const uidNorm = normalizeUserId(uid)
       const userMatch = (wantUidNorm && uidNorm === wantUidNorm) || uid === userId.trim()
-      return !(slugMatch && userMatch)
+      const drop = slugMatch && userMatch
+      if (drop) removedIds.push(p.id)
+      return !drop
     })
     const removed = before - file.posts.length
     if (removed > 0) {
       await writeDataJsonObject(FEED_PATH, file)
+      for (const id of removedIds) await removeFeedPostSql(id)
     }
     return removed
   })
@@ -314,6 +407,7 @@ export async function updateFeedPostRationale(
     if (!feedAuthorMatches(file.posts[i]!.userId, userId)) return { ok: false, error: 'Not your post' }
     file.posts[i] = { ...file.posts[i]!, rationale: rationale.slice(0, 2000) }
     await writeDataJsonObject(FEED_PATH, file)
+    await syncFeedPostSql(file.posts[i]!)
     return { ok: true }
   })
 }
@@ -341,6 +435,7 @@ export async function updateFeedPostRichBody(
       rationale: rationaleTrim.length > 0 ? rationaleTrim : ' ',
     }
     await writeDataJsonObject(FEED_PATH, file)
+    await syncFeedPostSql(file.posts[i]!)
     return { ok: true }
   })
 }

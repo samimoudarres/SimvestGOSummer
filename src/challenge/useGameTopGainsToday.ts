@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { LIVE_MARKETS_POLL_HIDDEN_MS } from '../config/liveMarketsPoll'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
+import { readCachedLeaderboard, writeCachedLeaderboard } from '../leaderboard/leaderboardSessionCache'
 import type { LeaderboardPayload, LeaderboardRow } from '../leaderboard/leaderboardTypes'
 
 const TOP_N = 5
@@ -37,15 +40,24 @@ function mapRows(rows: LeaderboardRow[]): TopGainStripRow[] {
  * Top players by today's portfolio return (same calculation as leaderboard "Today's Return").
  */
 export function useGameTopGainsToday(gameSlug: string | undefined, enabled: boolean) {
-  const [rows, setRows] = useState<TopGainStripRow[]>([])
-  const [status, setStatus] = useState<Status>('idle')
+  const cachedInitial =
+    enabled && gameSlug ? readCachedLeaderboard(gameSlug, 'today') : null
+  const [rows, setRows] = useState<TopGainStripRow[]>(() =>
+    cachedInitial ? mapRows(cachedInitial.rows) : [],
+  )
+  const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
-  const hasLoadedRef = useRef(false)
+  const hasLoadedRef = useRef(!!cachedInitial)
+  const skipLoadingUiRef = useRef(!!cachedInitial)
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh' = 'initial') => {
       if (!gameSlug || !enabled) return
-      const silent = mode === 'refresh' && hasLoadedRef.current
+      const silent =
+        mode === 'refresh'
+          ? hasLoadedRef.current
+          : skipLoadingUiRef.current || hasLoadedRef.current
+      if (mode === 'initial') skipLoadingUiRef.current = false
       if (!silent) {
         setStatus('loading')
         setError(null)
@@ -58,6 +70,7 @@ export function useGameTopGainsToday(gameSlug: string | undefined, enabled: bool
         if (!res.ok) {
           throw new Error(typeof json.error === 'string' ? json.error : `Request failed (${res.status})`)
         }
+        writeCachedLeaderboard(gameSlug, 'today', json)
         setRows(mapRows(json.rows ?? []))
         hasLoadedRef.current = true
         setStatus('ready')
@@ -73,12 +86,24 @@ export function useGameTopGainsToday(gameSlug: string | undefined, enabled: bool
   )
 
   useEffect(() => {
-    hasLoadedRef.current = false
     if (!enabled || !gameSlug) {
+      hasLoadedRef.current = false
+      skipLoadingUiRef.current = false
       setRows([])
       setStatus('idle')
       setError(null)
       return
+    }
+    const cached = readCachedLeaderboard(gameSlug, 'today')
+    hasLoadedRef.current = !!cached
+    skipLoadingUiRef.current = !!cached
+    if (cached) {
+      setRows(mapRows(cached.rows))
+      setStatus('ready')
+      setError(null)
+    } else {
+      setRows([])
+      setStatus('idle')
     }
     void load('initial')
   }, [enabled, gameSlug, load])
@@ -94,18 +119,16 @@ export function useGameTopGainsToday(gameSlug: string | undefined, enabled: bool
       const d = (ev as CustomEvent<{ gameSlug?: string }>).detail
       if (!d?.gameSlug || d.gameSlug === gameSlug) tick()
     }
-    const onVis = () => {
-      if (document.visibilityState === 'visible') tick()
-    }
     window.addEventListener('simvest:activity-refresh', onActivity)
     window.addEventListener('simvest:holdings-refresh', onHoldings)
-    document.addEventListener('visibilitychange', onVis)
-    const id = window.setInterval(tick, REFRESH_MS)
+    const stopPoll = visibilityAwareInterval(tick, {
+      visibleMs: REFRESH_MS,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+    })
     return () => {
       window.removeEventListener('simvest:activity-refresh', onActivity)
       window.removeEventListener('simvest:holdings-refresh', onHoldings)
-      document.removeEventListener('visibilitychange', onVis)
-      window.clearInterval(id)
+      stopPoll()
     }
   }, [enabled, gameSlug, load])
 

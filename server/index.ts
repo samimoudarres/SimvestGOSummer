@@ -6,7 +6,24 @@ import express from 'express'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.join(__dirname, '..', '.env'), override: true })
-if (!process.env.MASSIVE_API_KEY?.trim()) {
+
+function requireMassiveAtBoot(): boolean {
+  return (
+    process.env.NODE_ENV === 'production' || process.env.SIMVEST_REQUIRE_MASSIVE === '1'
+  )
+}
+
+function isMassiveConfigured(): boolean {
+  return Boolean(process.env.MASSIVE_API_KEY?.trim())
+}
+
+if (!isMassiveConfigured()) {
+  if (requireMassiveAtBoot()) {
+    console.error(
+      '[simvest] Refusing to boot: production / SIMVEST_REQUIRE_MASSIVE=1 requires MASSIVE_API_KEY. Live stock prices, sparklines, and logos will not work. See .env.example.',
+    )
+    process.exit(1)
+  }
   console.warn(
     '[simvest] MASSIVE_API_KEY is missing in .env — live stock prices, sparklines, and logos will not load. See .env.example.',
   )
@@ -15,13 +32,29 @@ import cors from 'cors'
 import { gameHostLine, gameTitle, slugToVariant } from '../src/challenge/gameMeta'
 import { sanitizeLoadScreenEmoji } from '../src/game/loadScreenEmoji.ts'
 import { emptyPerformDashboard } from '../src/perform/performDummy'
-import { ensureDataDirReady, getDataDir } from './dataDir.ts'
+import { ensureDataDirReady, getDataDir, dataFilePath } from './dataDir.ts'
 import { isAdminConfigured, requireAdminAuth } from './adminAuth.ts'
 import { buildAdminDashboard } from './adminDashboardService.ts'
 import { sendBrandingIcon } from './branding'
 import { isPrivacyPolicyReady, registerLegalPages } from './legalPages.ts'
-import { storageBackendLabel, hasSupabaseServiceRole, getDatabaseUrl } from './db/backend.ts'
+import { registerAppLinksWellKnown } from './appLinksWellKnown.ts'
+import { readMediaFile, compactImageUrlForApi } from './mediaDataUrlStore.ts'
+import { readTtlCache, writeTtlCache, clearTtlCachePrefix } from './ttlCache.ts'
+import {
+  storageBackendLabel,
+  hasSupabaseServiceRole,
+  getDatabaseUrl,
+} from './db/backend.ts'
 import { pingDatabase } from './db/client.ts'
+import { backfillNormalizedHotPathFromJsonDocs } from './db/normalizedHotPath.ts'
+import { mutateDataJsonStore } from './db/persistedJson.ts'
+import {
+  createSession,
+  invalidateAllSessionsForUser,
+  invalidateSession,
+  resolveSessionUserId,
+} from './sessionService.ts'
+import { fetchServerMarkPrice, resolveTradeFillPrice } from './tradeMarkPrice.ts'
 import { getSupabaseAdmin } from './db/supabaseAdmin.ts'
 import { massiveGet, MassiveApiError } from './massiveClient'
 import {
@@ -145,7 +178,7 @@ import {
   fetchPerformCompareCandidates,
   parsePerformChartRange,
 } from './performCompareService'
-import { applyTradeToUserLedger } from './userGameStateService'
+import { applyTradeToUserLedger, getTradeIdempotencyResponse, normalizeClientTradeId, rememberTradeIdempotencyResponse } from './userGameStateService'
 import { listParticipationSlugsForUser } from './userParticipationSlugs'
 import {
   GAME_SETUP_DEFAULT_AVATAR_URL,
@@ -182,8 +215,105 @@ import {
 } from './stockService'
 
 const app = express()
-app.use(cors())
+
+/** Comma-separated allowlist; Capacitor / same-origin / no-Origin requests still pass. */
+function buildCorsOriginAllowlist(): Set<string> {
+  const defaults = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:4173',
+    'http://127.0.0.1:4173',
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
+    'capacitor://localhost',
+    'ionic://localhost',
+    'https://localhost',
+    'http://localhost',
+  ]
+  const fromEnv = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return new Set([...defaults, ...fromEnv])
+}
+
+const corsAllowlist = buildCorsOriginAllowlist()
+
+app.use(
+  cors({
+    origin(origin, cb) {
+      /* Native WebViews and same-origin fetches often omit Origin. */
+      if (!origin) {
+        cb(null, true)
+        return
+      }
+      if (corsAllowlist.has(origin)) {
+        cb(null, true)
+        return
+      }
+      /* Capacitor Android may send https://localhost or file:// variants. */
+      if (
+        origin.startsWith('capacitor://') ||
+        origin.startsWith('ionic://') ||
+        origin === 'null'
+      ) {
+        cb(null, true)
+        return
+      }
+      cb(null, false)
+    },
+    credentials: true,
+  }),
+)
 app.use(express.json({ limit: '22mb' }))
+
+declare global {
+  namespace Express {
+    interface Request {
+      /** Set by session middleware when Authorization Bearer was present. */
+      simvestBearerPresent?: boolean
+      /** Resolved user id from a valid Bearer session (null if bearer invalid). */
+      simvestSessionUserId?: string | null
+    }
+  }
+}
+
+/**
+ * Legacy `X-Simvest-User-Id` / `?uid=` is allowed only in non-production, or when
+ * `ALLOW_LEGACY_USER_HEADER=1` (local scripts / emergency). Production requires Bearer.
+ */
+function allowLegacyUserHeader(): boolean {
+  if (process.env.ALLOW_LEGACY_USER_HEADER === '1') return true
+  return process.env.NODE_ENV !== 'production'
+}
+
+function extractBearerToken(req: express.Request): string | null {
+  const raw = req.headers.authorization
+  const v = Array.isArray(raw) ? raw[0] : raw
+  if (typeof v !== 'string') return null
+  const m = /^Bearer\s+(\S+)/i.exec(v.trim())
+  return m?.[1]?.trim() || null
+}
+
+/** Resolve Bearer → userId before route handlers (so `userIdFromReq` stays sync). */
+app.use((req, _res, next) => {
+  const token = extractBearerToken(req)
+  if (!token) {
+    next()
+    return
+  }
+  req.simvestBearerPresent = true
+  void resolveSessionUserId(token)
+    .then((uid) => {
+      req.simvestSessionUserId = uid
+      next()
+    })
+    .catch((err) => {
+      console.warn('[simvest] session resolve failed:', err instanceof Error ? err.message : err)
+      req.simvestSessionUserId = null
+      next()
+    })
+})
 
 function userIdFromHeader(req: express.Request): string | null {
   const raw = req.headers['x-simvest-user-id']
@@ -218,8 +348,15 @@ function userIdFromRawUrl(req: express.Request): string | null {
   }
 }
 
-/** Prefer header over `?uid=` so a stale bookmarked query cannot override the active session after login. */
+/**
+ * Resolve viewer id: valid Bearer session wins (never trust a forged header when
+ * a Bearer was sent). Without Bearer, legacy header/query only if allowed.
+ */
 function userIdFromReq(req: express.Request): string | null {
+  if (req.simvestBearerPresent) {
+    return normalizeUserId(req.simvestSessionUserId ?? undefined)
+  }
+  if (!allowLegacyUserHeader()) return null
   const h = userIdFromHeader(req)
   const q = userIdFromQuery(req)
   const fromRaw = userIdFromRawUrl(req)
@@ -364,6 +501,7 @@ async function postMeActivityHandler(req: express.Request, res: express.Response
       res.status(result.status ?? 400).json({ error: result.error })
       return
     }
+    clearTtlCachePrefix(`feed:${slug}`)
     res.json({ ok: true, postId: result.post.id })
   } catch (err) {
     res.status(500).json({
@@ -390,9 +528,26 @@ function formatEtTimestamp(iso: string): string {
 }
 
 registerLegalPages(app)
+registerAppLinksWellKnown(app)
+
+app.get('/api/media/:fileName', async (req, res) => {
+  const fileName = typeof req.params.fileName === 'string' ? req.params.fileName : ''
+  const hit = await readMediaFile(fileName)
+  if (!hit) {
+    res.status(404).json({ error: 'Not found' })
+    return
+  }
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+  res.type(hit.contentType)
+  res.send(hit.buf)
+})
 
 app.get('/api/health', async (_req, res) => {
   const backend = storageBackendLabel()
+  const requireDb =
+    process.env.NODE_ENV === 'production' || process.env.SIMVEST_REQUIRE_DB === '1'
+  const requireMassive = requireMassiveAtBoot()
+  const massiveConfigured = isMassiveConfigured()
   let dbOk = true
   if (backend === 'supabase') {
     if (getDatabaseUrl()) {
@@ -413,15 +568,23 @@ app.get('/api/health', async (_req, res) => {
     } else {
       dbOk = false
     }
+  } else if (requireDb) {
+    dbOk = false
   }
-  res.json({
-    ok: true,
+  const storageOk = !requireDb || (backend === 'supabase' && dbOk)
+  const massiveOk = !requireMassive || massiveConfigured
+  const ok = storageOk && massiveOk
+  res.status(ok ? 200 : 503).json({
+    ok,
     service: 'simvest-api',
     dataDir: getDataDir(),
     persistentData: Boolean(process.env.SIMVEST_DATA_DIR?.trim()),
     legal: { privacyPolicy: isPrivacyPolicyReady() },
-    massive: { configured: Boolean(process.env.MASSIVE_API_KEY?.trim()) },
-    storage: { backend, ok: dbOk },
+    massive: { configured: massiveConfigured, requireMassive, ok: massiveOk },
+    storage: { backend, ok: dbOk, requireDb },
+    auth: {
+      legacyUserHeader: allowLegacyUserHeader(),
+    },
   })
 })
 
@@ -460,29 +623,39 @@ app.get('/api/join/welcome', async (req, res) => {
   }
 })
 
-/* Per-IP rate limiting for auth endpoints — keeps password probing cheap to
- * block but lets honest users retry without friction.
+/* Per-IP / per-user rate limiting — keeps password probing and Massive proxy
+ * abuse cheap to block but lets honest users retry without friction.
  *
- * Two independent buckets:
+ * Buckets persist in `auth-rate-limits.json` so multi-instance deploys share
+ * limits (best-effort; still works in-process when DB is off).
+ *
  *   - `login`: tighter (10/min). Brute-force resistance is the only goal.
  *   - `signup`: looser (40/min). Legit signup is a one-shot per user, so
  *     this is really just a guardrail against abusive scripts seeding huge
- *     volumes of fake accounts. */
-type RateBucketName = 'login' | 'signup' | 'accountWrite'
+ *     volumes of fake accounts.
+ *   - `accountWrite`: 20/min for password / profile mutations.
+ *   - `trade`: 30/min per user (or IP) for trade completes.
+ *   - `marketRead`: 120/min for stock quote / bars / browse / search GETs. */
+type RateBucketName = 'login' | 'signup' | 'accountWrite' | 'trade' | 'marketRead'
 type RateAttemptWindow = { windowStart: number; count: number }
-const RATE_BUCKETS: Record<RateBucketName, Map<string, RateAttemptWindow>> = {
-  login: new Map(),
-  signup: new Map(),
-  /* `accountWrite` covers settings-screen mutations that verify the user's
-   * current password (contact/password changes). Brute-forcing the password
-   * via this endpoint should be just as slow as via /api/auth/login. */
-  accountWrite: new Map(),
+type RateLimitsFile = {
+  buckets: Record<RateBucketName, Record<string, RateAttemptWindow>>
 }
+
+const RATE_LIMITS_PATH = dataFilePath('auth-rate-limits.json')
 const RATE_WINDOW_MS = 60_000
 const RATE_MAX_PER_WINDOW: Record<RateBucketName, number> = {
   login: 10,
   signup: 40,
   accountWrite: 20,
+  trade: 30,
+  marketRead: 120,
+}
+
+function emptyRateLimits(): RateLimitsFile {
+  return {
+    buckets: { login: {}, signup: {}, accountWrite: {}, trade: {}, marketRead: {} },
+  }
 }
 
 function requestIpKey(req: express.Request): string {
@@ -492,32 +665,55 @@ function requestIpKey(req: express.Request): string {
   return req.ip || req.socket.remoteAddress || 'unknown'
 }
 
-function rateLimitHit(bucket: RateBucketName, ipKey: string): boolean {
+/** Prefer authenticated user id; fall back to IP for anonymous / pre-auth clients. */
+function rateLimitSubjectKey(req: express.Request): string {
+  const uid = userIdFromReq(req)
+  if (uid) return `u:${uid}`
+  return `ip:${requestIpKey(req)}`
+}
+
+async function rateLimitHit(bucket: RateBucketName, ipKey: string): Promise<boolean> {
   const now = Date.now()
-  const map = RATE_BUCKETS[bucket]
-  const cur = map.get(ipKey)
-  if (!cur || now - cur.windowStart > RATE_WINDOW_MS) {
-    map.set(ipKey, { windowStart: now, count: 1 })
-    return false
-  }
-  cur.count += 1
-  return cur.count > RATE_MAX_PER_WINDOW[bucket]
+  let hit = false
+  await mutateDataJsonStore(RATE_LIMITS_PATH, emptyRateLimits(), (cur) => {
+    const buckets = cur.buckets ?? emptyRateLimits().buckets
+    const map = { ...(buckets[bucket] ?? {}) }
+    /* Prune stale IPs for this bucket. */
+    for (const [ip, win] of Object.entries(map)) {
+      if (now - win.windowStart > RATE_WINDOW_MS * 5) delete map[ip]
+    }
+    const existing = map[ipKey]
+    if (!existing || now - existing.windowStart > RATE_WINDOW_MS) {
+      map[ipKey] = { windowStart: now, count: 1 }
+      hit = false
+    } else {
+      const nextCount = existing.count + 1
+      map[ipKey] = { windowStart: existing.windowStart, count: nextCount }
+      hit = nextCount > RATE_MAX_PER_WINDOW[bucket]
+    }
+    return { buckets: { ...buckets, [bucket]: map } }
+  })
+  return hit
 }
 
 /** Backwards-compatible alias — `/api/auth/login` still calls this. */
-function loginRateLimitHit(ipKey: string): boolean {
+async function loginRateLimitHit(ipKey: string): Promise<boolean> {
   return rateLimitHit('login', ipKey)
 }
 
-/* Best-effort sweep so the maps don't grow forever under churn. */
-setInterval(() => {
-  const cutoff = Date.now() - RATE_WINDOW_MS * 5
-  for (const map of Object.values(RATE_BUCKETS)) {
-    for (const [ip, win] of map) {
-      if (win.windowStart < cutoff) map.delete(ip)
-    }
-  }
-}, RATE_WINDOW_MS).unref?.()
+async function respondIfRateLimited(
+  req: express.Request,
+  res: express.Response,
+  bucket: 'trade' | 'marketRead',
+): Promise<boolean> {
+  if (!(await rateLimitHit(bucket, rateLimitSubjectKey(req)))) return false
+  const msg =
+    bucket === 'trade'
+      ? 'Too many trade requests. Please wait a minute and try again.'
+      : 'Too many market data requests. Please wait a minute and try again.'
+  res.status(429).json({ error: msg })
+  return true
+}
 
 /**
  * Sign in to an existing Simvest account.
@@ -536,7 +732,7 @@ setInterval(() => {
 app.post('/api/auth/login', async (req, res) => {
   res.setHeader('Cache-Control', 'private, no-store')
   const ipKey = requestIpKey(req)
-  if (loginRateLimitHit(ipKey)) {
+  if (await loginRateLimitHit(ipKey)) {
     res.status(429).json({ error: 'Too many login attempts. Please wait a minute and try again.' })
     return
   }
@@ -557,7 +753,11 @@ app.post('/api/auth/login', async (req, res) => {
       } catch (err) {
         console.error('[viewerIdMerge] login merge failed:', err)
       }
+      const session = await createSession(result.user.userId)
       res.json({
+        token: session.token,
+        sessionToken: session.token,
+        expiresAt: session.expiresAtIso,
         user: {
           userId: result.user.userId,
           username: result.user.username,
@@ -586,7 +786,7 @@ app.post('/api/auth/login', async (req, res) => {
 app.post('/api/auth/signup/start', async (req, res) => {
   res.setHeader('Cache-Control', 'private, no-store')
   const ipKey = requestIpKey(req)
-  if (rateLimitHit('signup', ipKey)) {
+  if (await rateLimitHit('signup', ipKey)) {
     res.status(429).json({ error: 'Too many requests. Please wait a moment and try again.' })
     return
   }
@@ -602,7 +802,7 @@ app.post('/api/auth/signup/start', async (req, res) => {
   }
 
   try {
-    const draft = createNameDraft(firstName, lastName)
+    const draft = await createNameDraft(firstName, lastName)
     res.json({
       draftId: draft.draftId,
       expiresAt: new Date(draft.expiresAt).toISOString(),
@@ -625,7 +825,7 @@ app.post('/api/auth/signup/start', async (req, res) => {
 app.post('/api/auth/signup/complete', async (req, res) => {
   res.setHeader('Cache-Control', 'private, no-store')
   const ipKey = requestIpKey(req)
-  if (rateLimitHit('signup', ipKey)) {
+  if (await rateLimitHit('signup', ipKey)) {
     res.status(429).json({ error: 'Too many requests. Please wait a moment and try again.' })
     return
   }
@@ -653,7 +853,7 @@ app.post('/api/auth/signup/complete', async (req, res) => {
     return
   }
 
-  const draft = consumeNameDraft(draftId)
+  const draft = await consumeNameDraft(draftId)
   if (!draft) {
     res.status(410).json({
       error:
@@ -684,7 +884,11 @@ app.post('/api/auth/signup/complete', async (req, res) => {
     } catch (err) {
       console.error('[viewerIdMerge] signup merge failed:', err)
     }
+    const session = await createSession(account.userId)
     res.json({
+      token: session.token,
+      sessionToken: session.token,
+      expiresAt: session.expiresAtIso,
       user: {
         userId: account.userId,
         username: account.contact,
@@ -696,6 +900,23 @@ app.post('/api/auth/signup/complete', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Signup failed' })
   }
+})
+
+/**
+ * Invalidate the current Bearer session (logout). Always 200 when body/token
+ * is processed — client clears local state regardless.
+ */
+app.post('/api/auth/logout', async (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store')
+  const token = extractBearerToken(req)
+  if (token) {
+    try {
+      await invalidateSession(token)
+    } catch (err) {
+      console.warn('[simvest] logout invalidate failed:', err instanceof Error ? err.message : err)
+    }
+  }
+  res.json({ ok: true })
 })
 
 app.get('/api/games/:slug/profile/setup', async (req, res) => {
@@ -1299,7 +1520,7 @@ app.patch('/api/me/account/contact', async (req, res) => {
   res.setHeader('Cache-Control', 'private, no-store')
 
   const ipKey = requestIpKey(req)
-  if (rateLimitHit('accountWrite', ipKey)) {
+  if (await rateLimitHit('accountWrite', ipKey)) {
     res.status(429).json({ error: 'Too many account updates. Please wait a minute and try again.' })
     return
   }
@@ -1346,7 +1567,7 @@ app.patch('/api/me/account/password', async (req, res) => {
   res.setHeader('Cache-Control', 'private, no-store')
 
   const ipKey = requestIpKey(req)
-  if (rateLimitHit('accountWrite', ipKey)) {
+  if (await rateLimitHit('accountWrite', ipKey)) {
     res.status(429).json({ error: 'Too many account updates. Please wait a minute and try again.' })
     return
   }
@@ -1361,7 +1582,14 @@ app.patch('/api/me/account/password', async (req, res) => {
       res.status(result.status ?? 400).json({ error: 'Validation failed', errors: result.errors })
       return
     }
-    res.json({ ok: true })
+    try {
+      await invalidateAllSessionsForUser(uid)
+    } catch (err) {
+      console.warn('[simvest] session invalidate after password change failed:', err)
+    }
+    /* Mint a fresh session so this device stays signed in. */
+    const session = await createSession(uid)
+    res.json({ ok: true, token: session.token, sessionToken: session.token, expiresAt: session.expiresAtIso })
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Password update failed' })
   }
@@ -1377,7 +1605,7 @@ app.delete('/api/me/account', async (req, res) => {
   res.setHeader('Cache-Control', 'private, no-store')
 
   const ipKey = requestIpKey(req)
-  if (rateLimitHit('accountWrite', ipKey)) {
+  if (await rateLimitHit('accountWrite', ipKey)) {
     res.status(429).json({ error: 'Too many account updates. Please wait a minute and try again.' })
     return
   }
@@ -1393,6 +1621,11 @@ app.delete('/api/me/account', async (req, res) => {
         errors: result.errors,
       })
       return
+    }
+    try {
+      await invalidateAllSessionsForUser(uid)
+    } catch (err) {
+      console.warn('[simvest] session invalidate after account delete failed:', err)
     }
     res.json({ ok: true })
   } catch (err) {
@@ -1632,8 +1865,13 @@ app.get('/api/me/activity/feed', async (req, res) => {
   }
   res.setHeader('Cache-Control', 'private, no-store')
   try {
-    const posts = await fetchHydratedHomeActivityForUser(uid)
-    res.json({ posts })
+    const limitQ = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined
+    const beforeIso = typeof req.query.before === 'string' ? req.query.before : undefined
+    const { posts, nextBeforeIso } = await fetchHydratedHomeActivityForUser(uid, {
+      limit: limitQ,
+      beforeIso,
+    })
+    res.json({ posts, nextBeforeIso })
   } catch (err) {
     res.status(500).json({
       error: err instanceof Error ? err.message : 'Home activity failed',
@@ -1854,16 +2092,21 @@ app.get('/api/games/:slug/members-preview', async (req, res) => {
     const slice = ids.slice(0, 8)
     const profileMap = await ensureUserProfilesBatch(slice)
     const setups = await loadAllSetupProfilesByKey()
-    const members = slice.map((userId) => {
-      const setup = setups.get(`${userId}:::${slug}`)
-      const prof = profileMap.get(userId)
-      const gameLabel = gameProfileDisplayLabel(setup)
-      const displayName = gameLabel ?? prof?.displayName?.trim() ?? 'Player'
-      const avatarUrl = resolveProfileAvatarUrl(
-        gameProfileAvatarUrl(setup, prof?.avatarUrl) || prof?.avatarUrl || '',
-      )
-      return { userId, displayName, avatarUrl }
-    })
+    const members = await Promise.all(
+      slice.map(async (userId) => {
+        const setup = setups.get(`${userId}:::${slug}`)
+        const prof = profileMap.get(userId)
+        const gameLabel = gameProfileDisplayLabel(setup)
+        const displayName = gameLabel ?? prof?.displayName?.trim() ?? 'Player'
+        const avatarUrl = await compactImageUrlForApi(
+          resolveProfileAvatarUrl(
+            gameProfileAvatarUrl(setup, prof?.avatarUrl) || prof?.avatarUrl || '',
+          ),
+          '/figma-assets/blank-avatar.svg',
+        )
+        return { userId, displayName, avatarUrl }
+      }),
+    )
     res.json({ totalPlayers: total, members })
   } catch (err) {
     res.status(500).json({
@@ -1879,9 +2122,26 @@ app.get('/api/games/:slug/feed', async (req, res) => {
   if (!(await requireGameAccessForResponse(res, slug, feedViewer))) return
   res.setHeader('Cache-Control', 'private, no-store')
   try {
-    const feedPosts = await listPostsForGame(slug)
-    const rows = await hydrateGameFeedPosts(feedPosts, { viewerUserId: feedViewer })
-    res.json({ posts: rows })
+    const limitQ = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined
+    const beforeIso = typeof req.query.before === 'string' ? req.query.before : undefined
+    const cacheKey = `feed:${slug}:${feedViewer ?? ''}:${limitQ ?? ''}:${beforeIso ?? ''}`
+    const cached = readTtlCache<{ posts: unknown; nextBeforeIso?: string | null }>(cacheKey)
+    if (cached) {
+      res.json(cached)
+      return
+    }
+    const { posts: feedPosts, nextBeforeIso } = await listPostsForGame(slug, {
+      limit: limitQ,
+      beforeIso,
+    })
+    const rows = await hydrateGameFeedPosts(feedPosts, {
+      viewerUserId: feedViewer,
+      /* Feed must stay light — Massive live quotes belong on Trade/Portfolio, not every Activity open. */
+      skipLiveQuotes: true,
+    })
+    const body = { posts: rows, nextBeforeIso }
+    writeTtlCache(cacheKey, body, 8_000)
+    res.json(body)
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Feed failed' })
   }
@@ -2112,10 +2372,12 @@ app.post('/api/games/:slug/feed/posts/:postId/social/comments/:commentId/like', 
 })
 
 app.post('/api/games/:slug/trades/complete', async (req, res) => {
+  if (await respondIfRateLimited(req, res, 'trade')) return
   const slug = gameSlugParam(req, res)
   if (!slug) return
   const b = req.body as {
     clientUserId?: string
+    clientTradeId?: string
     ticker?: string
     displayTicker?: string
     action?: string
@@ -2132,25 +2394,45 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
   }
 
   const headerUid = userIdFromHeader(req)
-  const queryUid = userIdFromQuery(req)
   const bodyUid = normalizeUserId(
     typeof b.clientUserId === 'string' && b.clientUserId.trim().length > 0
       ? b.clientUserId.trim()
       : undefined,
   )
 
-  if (headerUid && bodyUid && headerUid !== bodyUid) {
-    res.status(401).json({ error: 'Viewer id mismatch' })
-    return
-  }
-  const uid = headerUid ?? queryUid ?? bodyUid
+  /* Session-resolved id is authoritative. Reject forged header/body mismatches
+   * only when legacy header auth is in play (dev). */
+  const uid = userIdFromReq(req)
   if (!uid) {
     res.status(401).json({
-      error: 'Missing viewer id (header X-Simvest-User-Id or body clientUserId)',
+      error: req.simvestBearerPresent
+        ? 'Invalid or expired session'
+        : 'Missing authentication (Authorization Bearer token required)',
     })
     return
   }
+  if (req.simvestBearerPresent) {
+    if (bodyUid && bodyUid !== uid) {
+      res.status(401).json({ error: 'Viewer id mismatch' })
+      return
+    }
+  } else if (headerUid && bodyUid && headerUid !== bodyUid) {
+    res.status(401).json({ error: 'Viewer id mismatch' })
+    return
+  }
   if (!(await requireGameAccessForResponse(res, slug, uid))) return
+
+  const idemHeader =
+    typeof req.headers['idempotency-key'] === 'string' ? req.headers['idempotency-key'] : undefined
+  const clientTradeId =
+    normalizeClientTradeId(b.clientTradeId) ?? normalizeClientTradeId(idemHeader)
+  if (clientTradeId) {
+    const prior = await getTradeIdempotencyResponse(uid, slug, clientTradeId)
+    if (prior && typeof prior === 'object') {
+      res.json({ ...(prior as Record<string, unknown>), duplicate: true })
+      return
+    }
+  }
 
   const rawT = String(b.ticker ?? '')
   const t = normalizeCryptoCompositeTicker(rawT) ?? normalizeTicker(rawT)
@@ -2160,20 +2442,29 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
   }
   const action = b.action === 'sell' ? 'sell' : 'buy'
   const shares = Number(b.shares)
-  const fillPrice = Number(b.fillPrice)
-  const orderTotal = Number(b.orderTotal)
   if (!Number.isFinite(shares) || shares <= 0) {
     res.status(400).json({ error: 'Invalid shares' })
     return
   }
-  if (!Number.isFinite(fillPrice) || fillPrice <= 0) {
-    res.status(400).json({ error: 'Invalid fill price' })
+
+  const clientFill =
+    typeof b.fillPrice === 'number' && Number.isFinite(b.fillPrice) && b.fillPrice > 0
+      ? Number(b.fillPrice)
+      : null
+
+  const serverMark = await fetchServerMarkPrice(t)
+  if (serverMark == null || !(serverMark > 0)) {
+    res.status(503).json({ error: 'Could not fetch a live mark price for this symbol. Try again.' })
     return
   }
-  if (!Number.isFinite(orderTotal) || orderTotal <= 0) {
-    res.status(400).json({ error: 'Invalid order total' })
-    return
-  }
+
+  const resolved = resolveTradeFillPrice({
+    shares,
+    serverMark,
+    clientFillPrice: clientFill,
+  })
+  const fillPrice = resolved.fillPrice
+  const orderTotal = resolved.orderTotal
 
   if (action === 'buy') {
     const timingErr = await validateTradeTimingAgainstGameRules(slug)
@@ -2260,7 +2551,23 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
         }
       : {}
 
-  res.json({ ok: true, postId: post.id, ...sellExtras })
+  const successBody = {
+    ok: true as const,
+    postId: post.id,
+    fillPrice,
+    orderTotal,
+    serverMark,
+    usedClientPrice: resolved.usedClientPrice,
+    ...sellExtras,
+  }
+  if (clientTradeId) {
+    try {
+      await rememberTradeIdempotencyResponse(uid, slug, clientTradeId, successBody)
+    } catch {
+      /* non-fatal — trade already applied */
+    }
+  }
+  res.json(successBody)
 })
 
 /**
@@ -2434,7 +2741,14 @@ app.get('/api/games/:slug/leaderboard', async (req, res) => {
   const sort = parseLeaderboardSort(sortParam)
   res.setHeader('Cache-Control', 'private, no-store')
   try {
+    const cacheKey = `lb:${slugResolved}:${sort}`
+    const cached = readTtlCache<unknown>(cacheKey)
+    if (cached) {
+      res.json(cached)
+      return
+    }
     const payload = await fetchGameLeaderboardPayload(slugResolved, sort)
+    writeTtlCache(cacheKey, payload, 10_000)
     res.json(payload)
   } catch (err) {
     res.status(500).json({
@@ -2504,6 +2818,7 @@ app.get('/api/games/:slug/portfolio', async (req, res) => {
 })
 
 app.get('/api/games/:slug/trade/browse', async (req, res) => {
+  if (await respondIfRateLimited(req, res, 'marketRead')) return
   const slug = gameSlugParam(req, res)
   if (!slug) return
   if (!(await requireGameAccessForResponse(res, slug, userIdFromReq(req)))) return
@@ -2531,6 +2846,7 @@ app.get('/api/games/:slug/trade/browse', async (req, res) => {
 
 /** Query `recents` = comma-separated tickers (each URI-encoded if needed). Query `q` = search text. */
 app.get('/api/games/:slug/trade/search', async (req, res) => {
+  if (await respondIfRateLimited(req, res, 'marketRead')) return
   const slug = gameSlugParam(req, res)
   if (!slug) return
   if (!(await requireGameAccessForResponse(res, slug, userIdFromReq(req)))) return
@@ -2584,7 +2900,7 @@ app.get('/api/games/:slug/trade/search', async (req, res) => {
   }
 })
 
-app.put('/api/games/:slug/portfolio/holdings', async (req, res) => {
+app.put('/api/games/:slug/portfolio/holdings', requireAdminAuth, async (req, res) => {
   const slug = gameSlugParam(req, res)
   if (!slug) return
   const body = req.body as { holdings?: { ticker: string; shares: number; avgCost: number }[] }
@@ -2614,6 +2930,7 @@ app.get('/api/stocks/:ticker/branding-icon', (req, res) => {
 })
 
 app.get('/api/stocks/:ticker', async (req, res) => {
+  if (await respondIfRateLimited(req, res, 'marketRead')) return
   res.setHeader('Cache-Control', 'private, no-store, must-revalidate')
   res.setHeader('Pragma', 'no-cache')
   const t = resolveMassiveTicker(String(req.params.ticker ?? ''))
@@ -2637,6 +2954,7 @@ app.get('/api/stocks/:ticker', async (req, res) => {
 })
 
 app.get('/api/stocks/:ticker/bars', async (req, res) => {
+  if (await respondIfRateLimited(req, res, 'marketRead')) return
   res.setHeader('Cache-Control', 'private, no-store, must-revalidate')
   res.setHeader('Pragma', 'no-cache')
   const t = resolveMassiveTicker(String(req.params.ticker ?? ''))
@@ -2678,7 +2996,12 @@ if (simvestServeDist) {
         next()
         return
       }
-      if (req.path.startsWith('/api') || req.path.startsWith('/legal')) {
+      if (
+        req.path.startsWith('/api') ||
+        req.path.startsWith('/legal') ||
+        req.path.startsWith('/.well-known') ||
+        req.path === '/apple-app-site-association'
+      ) {
         next()
         return
       }
@@ -2714,14 +3037,68 @@ async function runStartupReconciles(): Promise<void> {
       err instanceof Error ? err.message : err,
     )
   }
+
+  if (getDatabaseUrl()) {
+    try {
+      const bf = await backfillNormalizedHotPathFromJsonDocs()
+      if (bf && (bf.ledgers > 0 || (bf.feedWasEmpty && bf.posts > 0))) {
+        console.log(
+          `[startup] normalized hot-path backfill: ${bf.ledgers} ledger(s), ${bf.posts} feed post(s).`,
+        )
+      }
+    } catch (err) {
+      console.warn(
+        '[startup] normalized hot-path backfill skipped:',
+        err instanceof Error ? err.message : err,
+      )
+    }
+  }
 }
 
 const port = Number(process.env.PORT ?? 3001)
 const host = process.env.SIMVEST_LISTEN_HOST?.trim() || '0.0.0.0'
+
+function requireDbAtBoot(): boolean {
+  return process.env.NODE_ENV === 'production' || process.env.SIMVEST_REQUIRE_DB === '1'
+}
+
+function warnIfMultiInstanceForbidden(): void {
+  const webConc = Number(process.env.WEB_CONCURRENCY ?? '1')
+  if (Number.isFinite(webConc) && webConc > 1) {
+    console.warn(
+      `[simvest] WEB_CONCURRENCY=${webConc} — multi-worker mode is forbidden until Redis quote cache exists. Keep a single Node process (see docs/LAUNCH_TOPOLOGY.md).`,
+    )
+  }
+  if (process.env.SIMVEST_ALLOW_MULTI_INSTANCE === '1') {
+    console.warn(
+      '[simvest] SIMVEST_ALLOW_MULTI_INSTANCE=1 is set — still keep Render numInstances=1 until shared quotes are ready.',
+    )
+  }
+}
+
 void ensureDataDirReady()
-  .then(() => {
+  .then(async () => {
+    if (requireDbAtBoot() && !getDatabaseUrl()) {
+      console.error(
+        '[simvest] Refusing to boot: production / SIMVEST_REQUIRE_DB=1 requires DATABASE_URL (Postgres). REST-only Supabase (SUPABASE_URL + SERVICE_ROLE_KEY without DATABASE_URL) does not provide advisory locks. See docs/LAUNCH_TOPOLOGY.md.',
+      )
+      process.exit(1)
+    }
+    if (requireDbAtBoot() && getDatabaseUrl()) {
+      const ok = await pingDatabase()
+      if (!ok) {
+        console.error('[simvest] Refusing to boot: DATABASE_URL is set but Postgres ping failed.')
+        process.exit(1)
+      }
+    }
+    warnIfMultiInstanceForbidden()
     app.listen(port, host, () => {
       console.log(`Simvest API listening on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (bound ${host})`)
+      if (allowLegacyUserHeader()) {
+        console.warn(
+          '[simvest] Legacy X-Simvest-User-Id auth is enabled (dev or ALLOW_LEGACY_USER_HEADER=1). Production should rely on Bearer sessions.',
+        )
+      }
       void runStartupReconciles()
       void initVapidKeys().catch((err) => {
         console.warn(

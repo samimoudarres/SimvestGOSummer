@@ -14,8 +14,8 @@ const config: CapacitorConfig = {
     scrollEnabled: true,
   },
   android: {
-    /* Needed when WebView loads via HTTPS (`androidScheme`) but the dev API is HTTP on the host. */
-    allowMixedContent: true,
+    /* Mixed content only for local HTTP WebView + HTTP API; release uses HTTPS scheme. */
+    allowMixedContent: useHttpWebViewScheme,
   },
   server: {
     /* Local dev: HTTP WebView + HTTP API avoids mixed-content blocking `<img src>` to 10.0.2.2 */

@@ -1,11 +1,9 @@
-import { createHash } from 'node:crypto'
 import { dataFilePath } from './dataDir.ts'
-import { writeDataJsonObject } from './db/persistedJson.ts'
+import { writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { invalidateJsonFileCache, readJsonWithMtimeCache } from './jsonFileCache'
-import { runSerializedByKey } from './fsMutationQueue'
+import { hashPassword } from './passwordHash.ts'
 
 const SETUP_PROFILE_PATH = dataFilePath('user-setup-profiles.json')
-const SETUP_PROFILE_LOCK_KEY = SETUP_PROFILE_PATH
 
 /** Character length of full data URLs stored in JSON (~33% overhead vs binary JPEG). */
 export const MAX_AVATAR_DATA_URL_CHARS = 9_000_000
@@ -111,10 +109,6 @@ function normalizeUsername(v: string): string {
   return v.trim().slice(0, 32)
 }
 
-function passwordSha256Hex(raw: string): string {
-  return createHash('sha256').update(raw, 'utf8').digest('hex')
-}
-
 /**
  * Validation rules for a join-setup write.
  *
@@ -196,7 +190,7 @@ export function validateSetupProfileInput(
 }
 
 export async function saveSetupProfile(input: SaveSetupProfileInput): Promise<UserSetupProfileRecord> {
-  return runSerializedByKey(SETUP_PROFILE_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(SETUP_PROFILE_PATH, async () => {
     const cached = await loadSetupProfileFile()
     // Cached map is shared; clone before mutation so concurrent reads do not see partial writes.
     const file: SetupProfileFile = { profiles: { ...cached.profiles } }
@@ -221,7 +215,7 @@ export async function saveSetupProfile(input: SaveSetupProfileInput): Promise<Us
     const trimmedPassword = (input.password ?? '').trim()
     let passwordHash = ''
     if (trimmedPassword.length > 0) {
-      passwordHash = passwordSha256Hex(trimmedPassword)
+      passwordHash = await hashPassword(trimmedPassword)
     } else if (typeof input.passwordHash === 'string' && input.passwordHash.length > 0) {
       passwordHash = input.passwordHash
     } else {
@@ -270,7 +264,7 @@ export async function getSetupProfileForUserGame(
   gameSlug: string,
 ): Promise<UserSetupProfileRecord | null> {
   if (!userId || !gameSlug) return null
-  return runSerializedByKey(SETUP_PROFILE_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(SETUP_PROFILE_PATH, async () => {
     const file = await loadSetupProfileFile()
     return file.profiles[key(userId, gameSlug)] ?? null
   })
@@ -284,7 +278,7 @@ export async function getSetupProfileForUserGame(
  * lookup table per request. The Map is read-only from callers.
  */
 export async function loadAllSetupProfilesByKey(): Promise<Map<string, UserSetupProfileRecord>> {
-  return runSerializedByKey(SETUP_PROFILE_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(SETUP_PROFILE_PATH, async () => {
     const file = await loadSetupProfileFile()
     if (cachedSetupMap && cachedSetupMap.source === file) return cachedSetupMap.map
     const map = new Map(Object.entries(file.profiles))
@@ -296,7 +290,7 @@ export async function loadAllSetupProfilesByKey(): Promise<Map<string, UserSetup
 /** Re-key join-setup rows from a browser id to the canonical account id after auth. */
 export async function mergeSetupViewerIds(fromUserId: string, toUserId: string): Promise<void> {
   if (!fromUserId || !toUserId || fromUserId.length < 8 || toUserId.length < 8 || fromUserId === toUserId) return
-  return runSerializedByKey(SETUP_PROFILE_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(SETUP_PROFILE_PATH, async () => {
     const cached = await loadSetupProfileFile()
     const prefix = `${fromUserId}:::`
     let changed = false
@@ -320,7 +314,7 @@ export async function mergeSetupViewerIds(fromUserId: string, toUserId: string):
 
 export async function clearSetupProfileForUserGame(userId: string, gameSlug: string): Promise<boolean> {
   if (!userId || !gameSlug) return false
-  return runSerializedByKey(SETUP_PROFILE_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(SETUP_PROFILE_PATH, async () => {
     const cached = await loadSetupProfileFile()
     const k = key(userId, gameSlug)
     if (!cached.profiles[k]) return false
@@ -334,7 +328,7 @@ export async function clearSetupProfileForUserGame(userId: string, gameSlug: str
 /** Re-key `userId:::fromSlug` setup rows to `userId:::toSlug` (per-game identity preserved). */
 export async function renameGameSlugInSetupProfiles(fromSlug: string, toSlug: string): Promise<number> {
   if (!fromSlug || !toSlug || fromSlug === toSlug) return 0
-  return runSerializedByKey(SETUP_PROFILE_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(SETUP_PROFILE_PATH, async () => {
     const file = await loadSetupProfileFile()
     const fromSuffix = `:::${fromSlug}`
     const next: SetupProfileFile = { profiles: { ...file.profiles } }
@@ -355,7 +349,7 @@ export async function renameGameSlugInSetupProfiles(fromSlug: string, toSlug: st
 /** Remove every join-setup row for a game slug (used when republishing the shared `new` slot). */
 export async function clearAllSetupProfilesForGame(gameSlug: string): Promise<number> {
   if (!gameSlug) return 0
-  return runSerializedByKey(SETUP_PROFILE_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(SETUP_PROFILE_PATH, async () => {
     const suffix = `:::${gameSlug}`
     const file = await loadSetupProfileFile()
     const next: SetupProfileFile = { profiles: { ...file.profiles } }

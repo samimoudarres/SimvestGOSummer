@@ -561,6 +561,18 @@
   color: #555;
 }
 
+.pf-retry {
+  display: block;
+  margin: 0 auto 24px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  background: var(--gc-accent, #0a95db);
+  color: #fff;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+}
+
 .pf-compareSubLab {
   margin: 2px 0 0;
   font-family: 'Inter', sans-serif;

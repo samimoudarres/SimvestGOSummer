@@ -1,5 +1,6 @@
 import { resolveApiUrl } from '../config/apiPublicOrigin'
 import { getSimvestUserId } from '../user/simvestUserId'
+import { getSessionToken } from '../auth/sessionToken'
 
 const FETCH_TIMEOUT_MS = 30_000
 
@@ -44,8 +45,8 @@ function withViewerQueryForSession(urlString: string): string {
       ? new URL(urlString)
       : new URL(urlString, typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
     /* Always overwrite `uid` — a bookmarked or stale query must not override
-     * the current viewer after login/logout (the API prefers
-     * `X-Simvest-User-Id` when both are present). */
+     * the current viewer after login/logout (the API prefers Bearer session
+     * when present; otherwise `X-Simvest-User-Id`). */
     u.searchParams.set('uid', id)
     return absolute ? u.toString() : `${u.pathname}${u.search}${u.hash}`
   } catch {
@@ -87,12 +88,16 @@ function finalizeApiUrl(resolved: string): string {
   return withViewerQueryForSession(resolved)
 }
 
-/** Sets X-Simvest-User-Id and appends `uid` on `/api/games/*` so GETs still scope to the viewer if headers are dropped. */
+/** Sets Authorization Bearer + X-Simvest-User-Id; appends `uid` on session routes. */
 export function simvestFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const id = viewerIdForGames()
   const headers = new Headers(init?.headers ?? undefined)
   if (id) {
     headers.set('X-Simvest-User-Id', id)
+  }
+  const token = getSessionToken()
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
   }
 
   if (typeof input === 'string') {

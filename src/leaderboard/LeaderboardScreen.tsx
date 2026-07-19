@@ -147,7 +147,7 @@ export function LeaderboardScreen() {
               </div>
             </div>
 
-            {status === 'loading' && !data ? (
+            {!data && (status === 'loading' || status === 'idle') ? (
               <p className="lb-loading">Loading leaderboard…</p>
             ) : null}
             {error ? <p className="lb-error">{error}</p> : null}

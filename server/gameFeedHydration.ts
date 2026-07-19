@@ -16,6 +16,7 @@ import { ensureUserProfilesBatch } from './userProfileService'
 import { getPollVoteFromMap, loadAllPollVotes, tallyPollFromMap } from './feedPollVotesService'
 import { loadAllSetupProfilesByKey } from './userSetupProfileService'
 import { resolveProfileAvatarUrl } from '../src/user/resolveProfileAvatarUrl.ts'
+import { compactImageUrlForApi } from './mediaDataUrlStore'
 import { batchSocialSummaries, socialPostKey } from './feedPostSocialService'
 
 type SnapshotTicker = {
@@ -240,7 +241,7 @@ async function fetchLivePriceMap(uniqueTickers: string[]): Promise<
 
 export async function hydrateGameFeedPosts(
   feedPosts: GameFeedPost[],
-  opts?: { viewerUserId?: string | null; /** Home feed: skip Massive live quotes (uses stored %). */ skipLiveQuotes?: boolean },
+  opts?: { viewerUserId?: string | null; /** Skip Massive live quotes (uses stored %). */ skipLiveQuotes?: boolean },
 ): Promise<HydratedFeedApiPost[]> {
   const uniqueTickers = [...new Set(feedPosts.map((p) => normalizeTicker(p.tickerSymbol)).filter(Boolean))] as string[]
   const liveMap = opts?.skipLiveQuotes ? new Map<string, { price: number | null; todaysChangePerc: number | null }>() : await fetchLivePriceMap(uniqueTickers)
@@ -276,7 +277,8 @@ export async function hydrateGameFeedPosts(
     viewer,
   )
 
-  return feedPosts.map((p) => {
+  return Promise.all(
+    feedPosts.map(async (p) => {
     const kind: 'trade' | 'text' | 'poll' =
       p.postKind === 'poll' ? 'poll' : p.postKind === 'text' ? 'text' : 'trade'
     const sym = normalizeTicker(p.tickerSymbol) ?? p.tickerSymbol
@@ -322,7 +324,8 @@ export async function hydrateGameFeedPosts(
     const profile = profileMap.get(userId)
     const setup = setupByKey.get(`${userId}:::${slug}`)
     const author = setup ? `${setup.firstName} ${setup.lastName}`.trim() : (profile?.displayName ?? p.author)
-    const avatar = resolveProfileAvatarUrl(setup?.avatarUrl || profile?.avatarUrl || p.avatar)
+    const avatarRaw = resolveProfileAvatarUrl(setup?.avatarUrl || profile?.avatarUrl || p.avatar)
+    const avatar = await compactImageUrlForApi(avatarRaw, '/figma-assets/blank-avatar.svg')
 
     let pollPayload: HydratedFeedApiPost['poll'] = null
     if (kind === 'poll' && p.pollQuestion && Array.isArray(p.pollOptions) && p.pollOptions.length >= 2) {
@@ -344,10 +347,14 @@ export async function hydrateGameFeedPosts(
       kind === 'text' && Array.isArray(p.richSegments) && p.richSegments.length > 0
         ? p.richSegments
         : undefined
-    const attachmentImageUrl =
+    let attachmentImageUrl: string | null =
       kind === 'text' && typeof p.attachmentImageUrl === 'string' && p.attachmentImageUrl.trim().length > 0
         ? p.attachmentImageUrl.trim()
         : null
+    if (attachmentImageUrl) {
+      const compacted = await compactImageUrlForApi(attachmentImageUrl, '')
+      attachmentImageUrl = compacted || null
+    }
 
     const gameName =
       (slug && runtimeTitles.get(slug)) ||
@@ -389,5 +396,6 @@ export async function hydrateGameFeedPosts(
       social,
       feedInteractionsLocked: slug ? feedLockedSlugs.has(slug) : false,
     }
-  })
+  }),
+  )
 }

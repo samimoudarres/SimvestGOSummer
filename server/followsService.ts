@@ -1,10 +1,8 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
-import { runSerializedByKey } from './fsMutationQueue'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { normalizeTicker, resolveMassiveTicker } from './stockService'
 
 const FOLLOWS_PATH = dataFilePath('follows.json')
-const FOLLOWS_LOCK_KEY = FOLLOWS_PATH
 
 /** userId → gameSlug → ticker list (canonical symbols). */
 type FollowsNested = Record<string, Record<string, string[]>>
@@ -113,25 +111,27 @@ export async function setFollowingForGame(
   const sym = normalizeSym(ticker)
   if (!sym || !userId || userId.length < 8 || !gameSlug) return { ok: false, following: false }
 
-  const s = await readNested()
-  if (!s[userId]) s[userId] = {}
-  const cur = new Set(s[userId][gameSlug] ?? [])
-  for (const x of [...cur]) {
-    if (normalizeSym(x) === sym) cur.delete(x)
-  }
-  if (following) cur.add(sym)
+  return withDataJsonDocumentLock(FOLLOWS_PATH, async () => {
+    const s = await readNested()
+    if (!s[userId]) s[userId] = {}
+    const cur = new Set(s[userId][gameSlug] ?? [])
+    for (const x of [...cur]) {
+      if (normalizeSym(x) === sym) cur.delete(x)
+    }
+    if (following) cur.add(sym)
 
-  const next = normalizeTickerList([...cur])
-  s[userId][gameSlug] = next
-  await writeNested(s)
+    const next = normalizeTickerList([...cur])
+    s[userId][gameSlug] = next
+    await writeNested(s)
 
-  return { ok: true, following: next.includes(sym) }
+    return { ok: true, following: next.includes(sym) }
+  })
 }
 
 /** Rename per-game follow lists when a game slug is archived off the shared `new` slot. */
 export async function renameGameSlugInFollows(fromSlug: string, toSlug: string): Promise<number> {
   if (!fromSlug || !toSlug || fromSlug === toSlug) return 0
-  return runSerializedByKey(FOLLOWS_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(FOLLOWS_PATH, async () => {
     const raw = await readRaw()
     const s: FollowsNested = {}
     for (const [uid, val] of Object.entries(raw)) {
@@ -166,7 +166,7 @@ export async function renameGameSlugInFollows(fromSlug: string, toSlug: string):
 /** Merge per-game follow lists from a browser id into the canonical account id. */
 export async function clearAllFollowsForUser(userId: string): Promise<void> {
   if (!userId || userId.length < 8) return
-  return runSerializedByKey(FOLLOWS_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(FOLLOWS_PATH, async () => {
     const s = await readNested()
     if (!(userId in s)) return
     delete s[userId]
@@ -176,7 +176,7 @@ export async function clearAllFollowsForUser(userId: string): Promise<void> {
 
 export async function mergeFollowsViewerId(fromUserId: string, toUserId: string): Promise<void> {
   if (!fromUserId || !toUserId || fromUserId.length < 8 || toUserId.length < 8 || fromUserId === toUserId) return
-  return runSerializedByKey(FOLLOWS_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(FOLLOWS_PATH, async () => {
     const raw = await readRaw()
     const s: FollowsNested = {}
     for (const [uid, val] of Object.entries(raw)) {

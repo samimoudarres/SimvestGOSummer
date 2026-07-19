@@ -11,6 +11,7 @@ import {
   loadAllSetupProfilesByKey,
 } from './userSetupProfileService'
 import { resolveProfileAvatarUrl } from '../src/user/resolveProfileAvatarUrl.ts'
+import { compactImageUrlForApi } from './mediaDataUrlStore'
 import { getRuntimeRules } from './gameRuntimeRulesService'
 import { ensureGameFinalSnapshot } from './gameFinalSnapshotService'
 import { resolveRankStreakLabel } from './performRankStreakService'
@@ -330,8 +331,11 @@ export async function fetchGameLeaderboardPayload(
       const setup = setupsByKey.get(`${uid}:::${slug}`)
       const gameLabel = gameProfileDisplayLabel(setup)
       const displayName = gameLabel ?? profile?.displayName?.trim() ?? 'Player'
-      const avatarUrl = resolveProfileAvatarUrl(
-        gameProfileAvatarUrl(setup, profile?.avatarUrl) || profile?.avatarUrl || '',
+      const avatarUrl = await compactImageUrlForApi(
+        resolveProfileAvatarUrl(
+          gameProfileAvatarUrl(setup, profile?.avatarUrl) || profile?.avatarUrl || '',
+        ),
+        '/figma-assets/blank-avatar.svg',
       )
       const fullName = setup ? `${setup.firstName} ${setup.lastName}`.trim() : ''
       const handle =

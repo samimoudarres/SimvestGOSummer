@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { LIVE_MARKETS_POLL_HIDDEN_MS } from '../config/liveMarketsPoll'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 
 export type StockPosition = {
   shares: number
@@ -77,16 +79,14 @@ export function useStockPosition(gameSlug: string | undefined, ticker: string | 
       const d = (ev as CustomEvent<{ gameSlug?: string }>).detail
       if (!d?.gameSlug || d.gameSlug === gameSlug) void load(true)
     }
-    const onVis = () => {
-      if (document.visibilityState === 'visible') void load(true)
-    }
     window.addEventListener('simvest:holdings-refresh', onHoldings)
-    document.addEventListener('visibilitychange', onVis)
-    const id = window.setInterval(() => void load(true), POLL_MS)
+    const stopPoll = visibilityAwareInterval(() => void load(true), {
+      visibleMs: POLL_MS,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+    })
     return () => {
       window.removeEventListener('simvest:holdings-refresh', onHoldings)
-      document.removeEventListener('visibilitychange', onVis)
-      window.clearInterval(id)
+      stopPoll()
     }
   }, [gameSlug, ticker, load])
 

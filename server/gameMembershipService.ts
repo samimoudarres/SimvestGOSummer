@@ -1,9 +1,7 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
-import { runSerializedByKey } from './fsMutationQueue'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 
 const MEMBERSHIP_PATH = dataFilePath('user-game-membership.json')
-const MEMBERSHIP_LOCK_KEY = MEMBERSHIP_PATH
 
 type MembershipFile = { joins: Record<string, string> }
 
@@ -24,7 +22,7 @@ async function writeFile(data: MembershipFile): Promise<void> {
 /** First time the user participates in this game (ISO UTC). */
 export async function getGameJoinedAtIso(userId: string, gameSlug: string): Promise<string | null> {
   if (!userId || !gameSlug) return null
-  return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(MEMBERSHIP_PATH, async () => {
     const file = await readFile()
     const iso = file.joins[key(userId, gameSlug)]
     return typeof iso === 'string' && iso.length >= 10 ? iso : null
@@ -37,7 +35,7 @@ export async function getGameJoinedAtIso(userId: string, gameSlug: string): Prom
  */
 export async function ensureGameJoinedAt(userId: string, gameSlug: string): Promise<string | null> {
   if (!userId || userId.length < 8 || !gameSlug) return null
-  return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(MEMBERSHIP_PATH, async () => {
     const file = await readFile()
     const k = key(userId, gameSlug)
     let cur = file.joins[k]
@@ -53,7 +51,7 @@ export async function ensureGameJoinedAt(userId: string, gameSlug: string): Prom
 /** Remove the user's membership row for this game. Idempotent; returns true when something was removed. */
 export async function removeGameMembership(userId: string, gameSlug: string): Promise<boolean> {
   if (!userId || !gameSlug) return false
-  return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(MEMBERSHIP_PATH, async () => {
     const file = await readFile()
     const k = key(userId, gameSlug)
     if (!(k in file.joins)) return false
@@ -66,7 +64,7 @@ export async function removeGameMembership(userId: string, gameSlug: string): Pr
 /** Drop every membership row for a game (used when the host purges/ends the game permanently). */
 export async function clearAllMembershipsForGame(gameSlug: string): Promise<number> {
   if (!gameSlug) return 0
-  return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(MEMBERSHIP_PATH, async () => {
     const file = await readFile()
     const suffix = `:::${gameSlug}`
     let removed = 0
@@ -86,7 +84,7 @@ export async function clearAllMembershipsForGame(gameSlug: string): Promise<numb
 /** All distinct game slugs this user has a stored join timestamp for. */
 export async function listGameSlugsJoinedByUser(userId: string): Promise<string[]> {
   if (!userId || userId.length < 8) return []
-  return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(MEMBERSHIP_PATH, async () => {
     const prefix = `${userId}:::`
     const file = await readFile()
     const slugs = new Set<string>()
@@ -102,7 +100,7 @@ export async function listGameSlugsJoinedByUser(userId: string): Promise<string[
 
 /** Admin / analytics — player counts per game slug. */
 export async function getMembershipCountsByGame(): Promise<Record<string, number>> {
-  return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(MEMBERSHIP_PATH, async () => {
     const file = await readFile()
     const counts: Record<string, number> = {}
     for (const k of Object.keys(file.joins)) {
@@ -118,7 +116,7 @@ export async function getMembershipCountsByGame(): Promise<Record<string, number
 
 export async function listUserIdsJoinedGame(gameSlug: string): Promise<string[]> {
   if (!gameSlug) return []
-  return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(MEMBERSHIP_PATH, async () => {
     const file = await readFile()
     const suffix = `:::${gameSlug}`
     const out: string[] = []
@@ -145,7 +143,7 @@ export async function listUserIdsJoinedGame(gameSlug: string): Promise<string[]>
 export async function reconcileMembershipFile(input: {
   hostsByGameSlug: Map<string, string | null>
 }): Promise<{ kept: number; removed: number; removedKeys: string[] }> {
-  return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(MEMBERSHIP_PATH, async () => {
     const file = await readFile()
     const next: MembershipFile = { joins: {} }
     const removedKeys: string[] = []
@@ -175,7 +173,7 @@ export async function reconcileMembershipFile(input: {
  */
 export async function mergeMembershipViewerIds(fromUserId: string, toUserId: string): Promise<void> {
   if (!fromUserId || !toUserId || fromUserId.length < 8 || toUserId.length < 8 || fromUserId === toUserId) return
-  return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(MEMBERSHIP_PATH, async () => {
     const file = await readFile()
     const prefix = `${fromUserId}:::`
     let changed = false
@@ -205,7 +203,7 @@ export async function mergeMembershipViewerIds(fromUserId: string, toUserId: str
 /** Re-key every `userId:::fromSlug` membership row to `userId:::toSlug`. */
 export async function renameGameSlugInMembership(fromSlug: string, toSlug: string): Promise<number> {
   if (!fromSlug || !toSlug || fromSlug === toSlug) return 0
-  return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(MEMBERSHIP_PATH, async () => {
     const file = await readFile()
     const fromSuffix = `:::${fromSlug}`
     const next: Record<string, string> = { ...file.joins }
@@ -236,7 +234,7 @@ export async function seedGameJoinedDaysAgo(
   daysAgo: number,
 ): Promise<string | null> {
   if (!userId || userId.length < 8 || !gameSlug) return null
-  return runSerializedByKey(MEMBERSHIP_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(MEMBERSHIP_PATH, async () => {
     const d = Math.min(730, Math.max(1, Math.floor(daysAgo)))
     const file = await readFile()
     const k = key(userId, gameSlug)

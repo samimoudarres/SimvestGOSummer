@@ -2,9 +2,9 @@
  * Tiny localStorage-backed flag that tells `HomeRoute` whether to render the
  * onboarding carousel (`LoginScreen`) or the real `SimvestHome`.
  *
- * Set to `true` after a successful `POST /api/auth/login` call; cleared on
- * sign-out (not implemented yet). Kept dead simple — a session token /
- * server-issued cookie can replace this later without touching callers.
+ * Set to `true` after a successful `POST /api/auth/login` (with session token).
+ * Cleared on sign-out via `clearAuthSession`. Gate also requires
+ * `simvest:session-token` (see `RequireAuth` / `initialAuthGate`).
  */
 
 const LOGIN_STATE_KEY = 'simvest-login-complete-v1'

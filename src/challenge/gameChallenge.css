@@ -2106,6 +2106,28 @@ button.gc-tradeTap:focus-visible {
   line-height: 1.4;
 }
 
+.gc-placeholderCard--error {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gc-feedRetry {
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: #05557d;
+  color: #fff;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.gc-feedRetry:focus-visible {
+  outline: 2px solid #0a9be3;
+  outline-offset: 2px;
+}
+
 .gc-gainCard--ghost {
   display: flex;
   flex-direction: column;

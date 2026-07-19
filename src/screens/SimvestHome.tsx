@@ -46,7 +46,20 @@ export function SimvestHome() {
     () => readCachedAccount()?.avatarUrl ?? '',
   )
 
-  const { posts, status, error, reload } = useHomeActivityFeed()
+  const { posts, status, error, reload, hasMore, loadingMore, loadMore } = useHomeActivityFeed()
+  const feedScrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = feedScrollRef.current
+    if (!el || !hasMore) return
+    const onScroll = () => {
+      const remaining = el.scrollHeight - el.scrollTop - el.clientHeight
+      if (remaining < 280) loadMore()
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [hasMore, loadMore, posts.length])
 
   /* Brand-new accounts with no joined games see a curated "Suggested
    * games" block in place of the empty activity feed. Once they join even
@@ -499,6 +512,7 @@ export function SimvestHome() {
 
         <div
           className="sv-feed-scroll"
+          ref={feedScrollRef}
           data-node-id="225:4564"
           style={{ top: layout.feedTop, height: layout.feedHeight }}
         >
@@ -846,6 +860,11 @@ export function SimvestHome() {
                 </article>
               )
             })}
+            {hasMore || loadingMore ? (
+              <p className="sv-feedStatus" aria-live="polite">
+                {loadingMore ? 'Loading more…' : ''}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

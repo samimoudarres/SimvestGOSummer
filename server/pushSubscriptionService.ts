@@ -1,5 +1,5 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { normalizeUserId } from './followsService'
 import { invalidateJsonFileCache } from './jsonFileCache'
 
@@ -12,15 +12,8 @@ export type StoredPushSubscription = {
 
 type SubsFile = { byUserId: Record<string, StoredPushSubscription[]> }
 
-let mutex = Promise.resolve()
-
 function runMutation<T>(fn: () => Promise<T>): Promise<T> {
-  const p = mutex.then(fn)
-  mutex = p.then(
-    () => undefined,
-    () => undefined,
-  )
-  return p
+  return withDataJsonDocumentLock(SUBS_PATH, fn)
 }
 
 async function readFile(): Promise<SubsFile> {

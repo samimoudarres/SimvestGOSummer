@@ -6,9 +6,10 @@ import {
   simvestJsonCacheKey,
   writeSimvestJsonCache,
 } from '../api/simvestJsonCache'
-import { LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
+import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { isSimvestPollDebugEnabled } from '../lib/debugPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import { TRADE_BROWSE_CACHE_MS } from './tradePrefetch'
 import type { TradeBrowsePayload, TradeCategoryId } from './tradeTypes'
 
@@ -90,11 +91,15 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
     }
 
     load(false)
-    const id = window.setInterval(() => load(true), LIVE_MARKETS_POLL_MS)
+    const stopPoll = visibilityAwareInterval(() => load(true), {
+      visibleMs: LIVE_MARKETS_POLL_MS,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+      runOnVisible: false,
+    })
     const offVisible = onDocumentVisible(() => load(true))
     return () => {
       cancelled = true
-      window.clearInterval(id)
+      stopPoll()
       offVisible()
     }
   }, [gameSlug, category])

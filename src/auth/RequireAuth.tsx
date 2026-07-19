@@ -8,6 +8,7 @@ import { readCachedAccount, writeCachedAccount, clearCachedAccount } from './acc
 import { getSimvestUserId, setSimvestUserId } from '../user/simvestUserId'
 import { registerSimvestPushIfPossible } from '../push/registerSimvestPush'
 import { initialRequireAuthGate, type AuthGate } from './initialAuthGate'
+import { getSessionToken } from './sessionToken'
 
 function deferPushRegistration(): void {
   const run = () => void registerSimvestPushIfPossible()
@@ -16,8 +17,8 @@ function deferPushRegistration(): void {
 }
 
 /**
- * Protects app routes: requires `simvest-login-complete-v1` and a real `/api/me/account`.
- * Stale flags (logged-in bit set but no account) are cleared so users see login, not an empty home.
+ * Protects app routes: requires login flag + session token + a real userId
+ * (from cache or `/api/me/account`). Never marks authed without both token and userId.
  */
 export function RequireAuth() {
   const location = useLocation()
@@ -30,7 +31,9 @@ export function RequireAuth() {
       if (!cancelled) setGate(next)
     }
 
-    if (!isSimvestLoggedIn()) {
+    const token = getSessionToken()
+    if (!isSimvestLoggedIn() || !token) {
+      if (isSimvestLoggedIn() && !token) clearAuthSession()
       finish('guest')
       return () => {
         cancelled = true
@@ -39,10 +42,12 @@ export function RequireAuth() {
 
     const cached = readCachedAccount()
     const storedId = getSimvestUserId()
-    if (!storedId && cached?.userId) {
-      setSimvestUserId(cached.userId)
-    }
-    if (storedId || cached?.userId) {
+    const knownUserId =
+      (storedId && storedId.length >= 8 ? storedId : null) ||
+      (cached?.userId && cached.userId.length >= 8 ? cached.userId : null)
+
+    if (knownUserId) {
+      if (!storedId) setSimvestUserId(knownUserId)
       finish('authed')
       deferPushRegistration()
     }
@@ -52,7 +57,14 @@ export function RequireAuth() {
         const result = await fetchMyAccount()
         if (cancelled) return
         if (result.ok) {
-          setSimvestUserId(result.account.userId)
+          const uid = result.account.userId?.trim() ?? ''
+          if (uid.length < 8 || !getSessionToken()) {
+            clearCachedAccount()
+            clearAuthSession()
+            finish('guest')
+            return
+          }
+          setSimvestUserId(uid)
           writeCachedAccount(result.account)
           finish('authed')
           deferPushRegistration()
@@ -64,10 +76,19 @@ export function RequireAuth() {
           finish('guest')
           return
         }
-        /* Transient server/network issues — keep session if the user was logged in. */
-        finish('authed')
+        /* Transient server/network — keep session only if we already have token + userId. */
+        if (knownUserId && getSessionToken()) finish('authed')
+        else {
+          clearAuthSession()
+          finish('guest')
+        }
       } catch {
-        if (!cancelled) finish('authed')
+        if (cancelled) return
+        if (knownUserId && getSessionToken()) finish('authed')
+        else {
+          clearAuthSession()
+          finish('guest')
+        }
       }
     })()
 
@@ -78,7 +99,13 @@ export function RequireAuth() {
 
   if (gate === 'loading') return <AuthBootScreen />
   if (gate === 'guest') {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: `${location.pathname}${location.search}` }}
+      />
+    )
   }
   return <Outlet />
 }

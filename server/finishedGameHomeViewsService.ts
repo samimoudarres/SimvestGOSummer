@@ -1,9 +1,7 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
-import { runSerializedByKey } from './fsMutationQueue'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 
 const VIEWS_PATH = dataFilePath('user-finished-game-home-views.json')
-const LOCK_KEY = VIEWS_PATH
 
 /** After this many home opens following game end, hide from "Your games" (still in API if queried directly). */
 export const FINISHED_GAME_HOME_SHOW_LIMIT = 5
@@ -32,7 +30,7 @@ export function finishedGameEnded(endsAtIso: string | null | undefined, nowMs = 
 
 export async function getFinishedGameHomeViewCount(userId: string, gameSlug: string): Promise<number> {
   if (!userId || userId.length < 8 || !gameSlug) return 0
-  return runSerializedByKey(LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(VIEWS_PATH, async () => {
     const file = await readFile()
     const n = file.views[key(userId, gameSlug)]
     return typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
@@ -45,7 +43,7 @@ export async function getFinishedGameHomeViewCount(userId: string, gameSlug: str
  */
 export async function bumpFinishedGameHomeView(userId: string, gameSlug: string): Promise<number> {
   if (!userId || userId.length < 8 || !gameSlug) return 0
-  return runSerializedByKey(LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(VIEWS_PATH, async () => {
     const file = await readFile()
     const k = key(userId, gameSlug)
     const prev = file.views[k] ?? 0

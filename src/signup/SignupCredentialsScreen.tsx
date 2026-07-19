@@ -28,6 +28,7 @@ import { PrivacyPolicyModal } from '../legal/PrivacyPolicyModal'
 import { TermsOfServiceModal } from '../legal/TermsOfServiceModal'
 import { ensurePreLoginViewerId, setSimvestUserId } from '../user/simvestUserId'
 import { setSimvestLoggedIn } from '../login/loginState'
+import { setSessionToken } from '../auth/sessionToken'
 import {
   clearDraft,
   completeSignup,
@@ -212,6 +213,10 @@ export function SignupCredentialsScreen() {
 
         const swapped = setSimvestUserId(result.user.userId)
         if (!swapped) {
+          setError('Account created but the session could not be saved on this device.')
+          return
+        }
+        if (!setSessionToken(result.token)) {
           setError('Account created but the session could not be saved on this device.')
           return
         }

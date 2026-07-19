@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { networkErrorMessage } from '../api/networkErrorMessage'
+import { LIVE_MARKETS_POLL_HIDDEN_MS } from '../config/liveMarketsPoll'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import { readCachedGameFeed, writeCachedGameFeed } from './gameFeedSessionCache'
 import type { FeedPollPayload, RichTextSegment } from '../feed/richTextTypes'
+import {
+  FEED_PAGE_SIZE,
+  appendFeedPage,
+  mergeFeedPage1,
+  resolveNextBefore,
+} from '../feed/feedPagination'
 
 export type GameFeedPostRow = {
   id: string
@@ -45,31 +54,85 @@ type Status = 'idle' | 'loading' | 'ready' | 'error'
 
 const POLL_MS = 20_000
 
+type FeedBody = {
+  posts?: GameFeedPostRow[]
+  nextBeforeIso?: string | null
+  error?: string
+}
+
 export function useGameFeed(gameSlug: string | undefined) {
   const cachedInitial = gameSlug ? readCachedGameFeed(gameSlug) : null
   const [posts, setPosts] = useState<GameFeedPostRow[]>(() => cachedInitial ?? [])
-  const [status, setStatus] = useState<Status>(() => (cachedInitial?.length ? 'ready' : 'idle'))
+  const [status, setStatus] = useState<Status>(() => (cachedInitial != null ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
-  const hasShownPostsRef = useRef(!!cachedInitial?.length)
-  const skipInitialLoadingUiRef = useRef(!!cachedInitial?.length)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const hasShownPostsRef = useRef(cachedInitial != null)
+  const skipInitialLoadingUiRef = useRef(cachedInitial != null)
+  const nextBeforeRef = useRef<string | null>(null)
+  const loadingMoreRef = useRef(false)
+  const postsRef = useRef(posts)
+  postsRef.current = posts
+  const hasMoreRef = useRef(hasMore)
+  hasMoreRef.current = hasMore
 
   const load = useCallback(
-    async (mode: 'initial' | 'refresh' = 'initial') => {
+    async (mode: 'initial' | 'refresh' | 'more' = 'initial') => {
       if (!gameSlug) return
+      if (mode === 'more') {
+        if (loadingMoreRef.current || !hasMoreRef.current || !nextBeforeRef.current) return
+        loadingMoreRef.current = true
+        setLoadingMore(true)
+      }
       const silent =
-        mode === 'refresh' ? hasShownPostsRef.current : skipInitialLoadingUiRef.current
+        mode === 'refresh' || mode === 'more'
+          ? hasShownPostsRef.current
+          : skipInitialLoadingUiRef.current
       if (mode === 'initial') skipInitialLoadingUiRef.current = false
-      if (!silent) {
+      if (!silent && mode !== 'more') {
         setStatus('loading')
         setError(null)
       }
       try {
-        const r = await simvestFetch(`/api/games/${encodeURIComponent(gameSlug)}/feed`)
-        const body = await r.json().catch(() => ({}))
+        const qs = new URLSearchParams()
+        qs.set('limit', String(FEED_PAGE_SIZE))
+        if (mode === 'more' && nextBeforeRef.current) {
+          qs.set('before', nextBeforeRef.current)
+        }
+        const r = await simvestFetch(
+          `/api/games/${encodeURIComponent(gameSlug)}/feed?${qs.toString()}`,
+        )
+        const body = (await r.json().catch(() => ({}))) as FeedBody
         if (r.ok && body && Array.isArray(body.posts)) {
-          const next = body.posts as GameFeedPostRow[]
-          setPosts(next)
-          writeCachedGameFeed(gameSlug, next)
+          const page = body.posts
+          const serverNext =
+            typeof body.nextBeforeIso === 'string' && body.nextBeforeIso.trim()
+              ? body.nextBeforeIso.trim()
+              : null
+          let nextPosts: GameFeedPostRow[]
+          if (mode === 'more') {
+            nextPosts = appendFeedPage(postsRef.current, page)
+            nextBeforeRef.current = serverNext
+            setHasMore(Boolean(serverNext))
+          } else {
+            const merged =
+              mode === 'refresh' && postsRef.current.length > 0
+                ? mergeFeedPage1(page, postsRef.current)
+                : page
+            nextPosts = merged
+            const keepOlderCursor =
+              mode === 'refresh' &&
+              hasMoreRef.current &&
+              merged.length > page.length
+            nextBeforeRef.current = resolveNextBefore(
+              merged,
+              keepOlderCursor ? null : serverNext,
+              Boolean(serverNext) || keepOlderCursor,
+            )
+            setHasMore(Boolean(serverNext) || keepOlderCursor)
+          }
+          setPosts(nextPosts)
+          writeCachedGameFeed(gameSlug, nextPosts)
           hasShownPostsRef.current = true
           setStatus('ready')
         } else if (silent) {
@@ -78,12 +141,17 @@ export function useGameFeed(gameSlug: string | undefined) {
           setError(typeof body?.error === 'string' ? body.error : 'Could not load feed')
           setStatus('error')
         }
-      } catch {
+      } catch (err) {
         if (silent) {
           setStatus('ready')
         } else {
-          setError('Network error')
+          setError(networkErrorMessage(err))
           setStatus('error')
+        }
+      } finally {
+        if (mode === 'more') {
+          loadingMoreRef.current = false
+          setLoadingMore(false)
         }
       }
     },
@@ -92,9 +160,11 @@ export function useGameFeed(gameSlug: string | undefined) {
 
   useEffect(() => {
     const cached = gameSlug ? readCachedGameFeed(gameSlug) : null
-    hasShownPostsRef.current = !!cached?.length
-    skipInitialLoadingUiRef.current = !!cached?.length
-    if (cached?.length) {
+    hasShownPostsRef.current = cached != null
+    skipInitialLoadingUiRef.current = cached != null
+    nextBeforeRef.current = null
+    setHasMore(false)
+    if (cached != null) {
       setPosts(cached)
       setStatus('ready')
       setError(null)
@@ -116,20 +186,30 @@ export function useGameFeed(gameSlug: string | undefined) {
       const d = (ev as CustomEvent<{ gameSlug?: string }>).detail
       if (!d?.gameSlug || d.gameSlug === gameSlug) tick()
     }
-    const onVis = () => {
-      if (document.visibilityState === 'visible') tick()
-    }
     window.addEventListener('simvest:activity-refresh', onActivity)
     window.addEventListener('simvest:holdings-refresh', onHoldings)
-    document.addEventListener('visibilitychange', onVis)
-    const id = window.setInterval(tick, POLL_MS)
+    const stopPoll = visibilityAwareInterval(tick, {
+      visibleMs: POLL_MS,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+    })
     return () => {
       window.removeEventListener('simvest:activity-refresh', onActivity)
       window.removeEventListener('simvest:holdings-refresh', onHoldings)
-      document.removeEventListener('visibilitychange', onVis)
-      window.clearInterval(id)
+      stopPoll()
     }
   }, [gameSlug, load])
 
-  return { posts, status, error, reload: () => void load('refresh') }
+  const loadMore = useCallback(() => {
+    void load('more')
+  }, [load])
+
+  return {
+    posts,
+    status,
+    error,
+    reload: () => void load('refresh'),
+    hasMore,
+    loadingMore,
+    loadMore,
+  }
 }

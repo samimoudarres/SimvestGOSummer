@@ -26,12 +26,15 @@ import { mergeCachedAccountFromLogin, writeCachedAccount } from '../auth/account
 import { fetchMyAccount } from '../settings/settingsClient'
 import { ensurePreLoginViewerId, setSimvestUserId } from '../user/simvestUserId'
 import { setSimvestLoggedIn } from './loginState'
+import { setSessionToken } from '../auth/sessionToken'
 import { simvestFetch } from '../api/simvestFetch'
 import { PrivacyPolicyModal } from '../legal/PrivacyPolicyModal'
 import { TermsOfServiceModal } from '../legal/TermsOfServiceModal'
 import './simvestLoginForm.css'
 
 type LoginResponse = {
+  token?: string
+  sessionToken?: string
   user?: {
     userId?: string
     username?: string
@@ -50,7 +53,6 @@ export function SimvestLoginFormScreen() {
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [privacyOpen, setPrivacyOpen] = useState(false)
@@ -108,14 +110,17 @@ export function SimvestLoginFormScreen() {
           return
         }
 
+        const token = (body.token ?? body.sessionToken)?.trim() ?? ''
+        if (!token || !setSessionToken(token)) {
+          setError('Login succeeded but the session could not be saved on this device.')
+          return
+        }
+
         const swapped = setSimvestUserId(body.user.userId)
         if (!swapped) {
           setError('Login succeeded but the session could not be saved on this device.')
           return
         }
-        /* `rememberMe` is a UI courtesy today — we always persist the gate
-         * flag because the device id is also persisted. If/when sessions move
-         * to short-lived tokens, gate this on `rememberMe`. */
         setSimvestLoggedIn(true)
         mergeCachedAccountFromLogin({
           userId: body.user.userId,
@@ -238,30 +243,6 @@ export function SimvestLoginFormScreen() {
               </button>
             </span>
           </label>
-
-          <div className="sli-row">
-            <label className="sli-remember">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                disabled={busy}
-              />
-              <span className="sli-rememberBox" aria-hidden>
-                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M5 12.5l4.5 4.5L19 7"
-                    stroke="#fff"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    fill="none"
-                  />
-                </svg>
-              </span>
-              <span className="sli-rememberText">Remember me</span>
-            </label>
-          </div>
 
           <button type="button" className="sli-link" onClick={() => { /* placeholder */ }}>
             Forgot username or password?

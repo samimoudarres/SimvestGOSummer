@@ -11,6 +11,8 @@ import {
 } from '../api/feedPostSocialApi'
 import { ProfileAvatar } from '../components/ProfileAvatar'
 import { formatFeedPostShareText } from './formatFeedPostShare'
+import { LIVE_MARKETS_POLL_HIDDEN_MS } from '../config/liveMarketsPoll'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import './feedPostSocial.css'
 
 const defaultSocial = { likeCount: 0, likedByViewer: false, commentCount: 0 }
@@ -212,8 +214,10 @@ export function FeedPostSocialBar({
   useEffect(() => {
     if (!commentsOpen) return
     void reloadComments()
-    const id = window.setInterval(() => void reloadComments(), 8000)
-    return () => window.clearInterval(id)
+    return visibilityAwareInterval(() => void reloadComments(), {
+      visibleMs: 12_000,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+    })
   }, [commentsOpen, reloadComments])
 
   useEffect(() => {

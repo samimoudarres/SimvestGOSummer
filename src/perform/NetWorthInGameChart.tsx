@@ -26,8 +26,8 @@ export function NetWorthInGameChart({ gameSlug, userId, enabled = true }: Props)
     }))
   }, [data])
 
-  const loading = enabled && !data && (status === 'loading' || status === 'idle')
-  const err = enabled ? error : null
+  const loading = enabled && !bars.length && (status === 'loading' || status === 'idle')
+  const err = enabled && !bars.length ? error : null
 
   return (
     <section className="pf-nwChartWrap" aria-label="Net worth in this game">

@@ -1,5 +1,5 @@
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { getRuntimeRules } from './gameRuntimeRulesService'
 import { getLedgerHoldingsForGame, getUserLedger } from './userGameStateService'
 import { listParticipantIdsForGame } from './gameParticipantIds'
@@ -42,16 +42,18 @@ export async function renameGameSlugInFinalSnapshots(fromSlug: string, toSlug: s
   const from = String(fromSlug ?? '').trim()
   const to = String(toSlug ?? '').trim()
   if (!from || !to || from === to) return false
-  const file = await readFile()
-  const row = file.bySlug?.[from]
-  if (!row) return false
-  const bySlug = { ...(file.bySlug ?? {}) }
-  if (!bySlug[to]) bySlug[to] = row
-  delete bySlug[from]
-  await writeFile({ bySlug })
-  mem.delete(from)
-  mem.delete(to)
-  return true
+  return withDataJsonDocumentLock(SNAP_PATH, async () => {
+    const file = await readFile()
+    const row = file.bySlug?.[from]
+    if (!row) return false
+    const bySlug = { ...(file.bySlug ?? {}) }
+    if (!bySlug[to]) bySlug[to] = row
+    delete bySlug[from]
+    await writeFile({ bySlug })
+    mem.delete(from)
+    mem.delete(to)
+    return true
+  })
 }
 
 async function uniqueTickersForGame(slug: string): Promise<string[]> {
@@ -155,10 +157,19 @@ export async function ensureGameFinalSnapshot(gameSlug: string): Promise<GameFin
       tickerLastPx,
       players,
     }
-    bySlug[slug] = snap
-    await writeFile({ bySlug })
-    mem.set(slug, snap)
-    return snap
+    return withDataJsonDocumentLock(SNAP_PATH, async () => {
+      const latest = await readFile()
+      const nextBySlug = { ...(latest.bySlug ?? {}) }
+      const raced = nextBySlug[slug]
+      if (raced && raced.endsAtIso === rules.endsAtIso) {
+        mem.set(slug, raced)
+        return raced
+      }
+      nextBySlug[slug] = snap
+      await writeFile({ bySlug: nextBySlug })
+      mem.set(slug, snap)
+      return snap
+    })
   })()
 
   inflight.set(slug, work)

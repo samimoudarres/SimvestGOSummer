@@ -242,7 +242,7 @@ async function loadUserTradeEvents(gameSlug: string, userId: string): Promise<Tr
   if (!uid) return []
   let posts: GameFeedPost[] = []
   try {
-    posts = await listPostsForGame(gameSlug)
+    posts = (await listPostsForGame(gameSlug)).posts
   } catch {
     return []
   }

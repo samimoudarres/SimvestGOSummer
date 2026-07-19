@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "990097055418",
+    "project_id": "simvest-d3856",
+    "storage_bucket": "simvest-d3856.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:990097055418:android:3fe20f98b380e4b0dfec83",
+        "android_client_info": {
+          "package_name": "com.simvest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDdwUVktFLrVbDniaOu6cOUe7Wk03rMrr0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:990097055418:android:e8ed05f46933435ddfec83",
+        "android_client_info": {
+          "package_name": "com.simvest.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDdwUVktFLrVbDniaOu6cOUe7Wk03rMrr0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

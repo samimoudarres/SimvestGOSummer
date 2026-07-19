@@ -27,9 +27,12 @@ import { useGameChallengeHeader } from './useGameChallengeHeader'
 import { InviteGameSheet } from '../join/InviteGameSheet'
 import { fetchCreateGameSettings } from '../createGame/createGameSettingsApi'
 import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
+import { warmAllGameTabChunksIdle } from '../game/warmGameTabChunks'
+import { LIVE_MARKETS_POLL_HIDDEN_MS } from '../config/liveMarketsPoll'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import { simvestFetch } from '../api/simvestFetch'
 import { StockBrandingImage } from '../components/StockBrandingImage'
-import { apiAssetSrc } from '../config/apiAssetSrc'
+import { ProfileAvatar } from '../components/ProfileAvatar'
 import './gameChallenge.css'
 
 const GAIN_CARD_W = 111
@@ -343,7 +346,9 @@ export function GameChallengeScreen() {
   }, [actionFlash])
 
   useEffect(() => {
-    void refreshGameShellMeta()
+    /* Defer so first paint can use header cache; still refresh host/join meta soon after. */
+    const id = window.setTimeout(() => void refreshGameShellMeta(), 0)
+    return () => window.clearTimeout(id)
   }, [refreshGameShellMeta])
 
   useEffect(() => {
@@ -361,15 +366,27 @@ export function GameChallengeScreen() {
 
   useEffect(() => {
     if (!viewerIsHost || !gameIsPrivate) return
-    const id = window.setInterval(() => void refreshGameShellMeta(), 20_000)
-    return () => window.clearInterval(id)
+    return visibilityAwareInterval(() => void refreshGameShellMeta(), {
+      visibleMs: 20_000,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+      runOnVisible: false,
+    })
   }, [viewerIsHost, gameIsPrivate, refreshGameShellMeta])
 
   useEffect(() => {
     rememberActiveGameSlug(slug)
+    if (slug) warmAllGameTabChunksIdle()
   }, [slug])
 
-  const { posts: feedPosts, status: feedStatus, error: feedErr, reload: reloadFeed } = useGameFeed(slug)
+  const {
+    posts: feedPosts,
+    status: feedStatus,
+    error: feedErr,
+    reload: reloadFeed,
+    hasMore: feedHasMore,
+    loadingMore: feedLoadingMore,
+    loadMore: loadMoreFeed,
+  } = useGameFeed(slug)
   const { ctx: composerCtx, reload: reloadComposer } = useComposerContext(shellIsLive ? slug : null)
   const {
     rows: topGainRows,
@@ -383,6 +400,19 @@ export function GameChallengeScreen() {
   )
 
   const viewerUserId = useMemo(() => getSimvestUserId(), [])
+  const phoneMainRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = phoneMainRef.current
+    if (!el || !feedHasMore) return
+    const onScroll = () => {
+      const remaining = el.scrollHeight - el.scrollTop - el.clientHeight
+      if (remaining < 320) loadMoreFeed()
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [feedHasMore, loadMoreFeed, feedPosts.length])
 
   const chromeStyle = useGameChromeCssVars(slug)
 
@@ -396,7 +426,7 @@ export function GameChallengeScreen() {
         className={`gc-phone${isTemplate && !shellIsLive ? ' gc-phone--template' : ''}`}
         data-node-id="19:7"
       >
-        <div className="gc-phoneMain">
+        <div className="gc-phoneMain" ref={phoneMainRef}>
           <div className="gc-phoneCanvas">
         <header className="gc-headerBand">
           <button type="button" className="gc-back" aria-label="Back to home" onClick={goHome}>
@@ -821,7 +851,7 @@ export function GameChallengeScreen() {
                           aria-label={`View ${g.displayName} profile, today ${g.pctLabel}`}
                           onClick={() => openProfile(g.userId)}
                         >
-                          <img src={apiAssetSrc(g.avatarUrl)} alt="" />
+                          <ProfileAvatar url={g.avatarUrl} alt="" />
                           <p className="gc-gainName gc-gainName--ellipsis" title={g.displayName}>
                             {g.displayNameShort}
                           </p>
@@ -882,8 +912,11 @@ export function GameChallengeScreen() {
         ) : feedStatus === 'loading' || feedStatus === 'idle' ? (
           <p className="gc-feedLoad">Loading activity…</p>
         ) : feedStatus === 'error' ? (
-          <div className="gc-placeholderCard">
+          <div className="gc-placeholderCard gc-placeholderCard--error">
             <p>{feedErr ?? 'Could not load activity.'}</p>
+            <button type="button" className="gc-feedRetry" onClick={() => reloadFeed()}>
+              Retry
+            </button>
           </div>
         ) : feedPosts.length === 0 ? (
           <div className="gc-placeholderCard">
@@ -912,7 +945,7 @@ export function GameChallengeScreen() {
                       aria-label={`View ${post.author}'s profile`}
                       onClick={() => openProfile(post.userId)}
                     >
-                      <img className="gc-feedAvatar" src={apiAssetSrc(post.avatar)} alt="" />
+                      <ProfileAvatar className="gc-feedAvatar" url={post.avatar} alt="" />
                     </button>
                     <div className="gc-feedTextCol">
                       <p className="gc-feedByline">
@@ -1137,6 +1170,11 @@ export function GameChallengeScreen() {
                 </article>
               )
             })}
+            {feedHasMore || feedLoadingMore ? (
+              <p className="gc-feedLoad" aria-live="polite">
+                {feedLoadingMore ? 'Loading more…' : ''}
+              </p>
+            ) : null}
           </div>
         )}
           </div>

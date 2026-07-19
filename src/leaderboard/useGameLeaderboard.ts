@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { LIVE_MARKETS_POLL_HIDDEN_MS } from '../config/liveMarketsPoll'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import type { LeaderboardPayload, LeaderboardSortKey } from './leaderboardTypes'
 import { readCachedLeaderboard, writeCachedLeaderboard } from './leaderboardSessionCache'
+import { prefetchLeaderboardAllSorts } from './leaderboardPrefetch'
 
 type Status = 'idle' | 'loading' | 'ok' | 'error'
 
@@ -16,17 +19,20 @@ export function useGameLeaderboard(gameSlug: string | undefined, sort: Leaderboa
 
   useEffect(() => {
     if (!gameSlug) return
+    prefetchLeaderboardAllSorts(gameSlug)
     const cached = readCachedLeaderboard(gameSlug, sort)
-    hasDataRef.current = !!cached
-    skipInitialLoadingUiRef.current = !!cached
     if (cached) {
       setData(cached)
+      hasDataRef.current = true
+      skipInitialLoadingUiRef.current = true
       setStatus('ok')
       setError(null)
     } else {
-      setData(null)
-      setStatus('idle')
-      hasDataRef.current = false
+      /* Keep previous sort’s rows on screen while the new sort loads. */
+      skipInitialLoadingUiRef.current = hasDataRef.current
+      if (!hasDataRef.current) {
+        setStatus('idle')
+      }
     }
   }, [sort, gameSlug])
 
@@ -49,9 +55,12 @@ export function useGameLeaderboard(gameSlug: string | undefined, sort: Leaderboa
       writeCachedLeaderboard(gameSlug, sort, json)
       hasDataRef.current = true
       setStatus('ok')
+      setError(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load leaderboard')
-      setStatus('error')
+      if (!hasDataRef.current) {
+        setError(e instanceof Error ? e.message : 'Could not load leaderboard')
+        setStatus('error')
+      }
     }
   }, [gameSlug, sort])
 
@@ -59,12 +68,13 @@ export function useGameLeaderboard(gameSlug: string | undefined, sort: Leaderboa
     void load()
   }, [load])
 
-  /** Refresh when markets move — matches live perform/portfolio aggregates */
   useEffect(() => {
     if (!gameSlug) return
     if (data?.gameFinished) return
-    const id = window.setInterval(() => void load(), 45_000)
-    return () => window.clearInterval(id)
+    return visibilityAwareInterval(() => void load(), {
+      visibleMs: 45_000,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+    })
   }, [gameSlug, load, data?.gameFinished])
 
   return { data, status, error, reload: load }

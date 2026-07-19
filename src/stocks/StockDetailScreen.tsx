@@ -256,7 +256,20 @@ export function StockDetailScreen() {
         window.dispatchEvent(
           new CustomEvent('simvest:activity-refresh', { detail: { gameSlug: snap.draft.gameSlug } }),
         )
-        setCompletedTrade({ ...snap, postId: result.postId })
+        const serverFill =
+          typeof result.fillPrice === 'number' && Number.isFinite(result.fillPrice) && result.fillPrice > 0
+            ? result.fillPrice
+            : snap.fillPrice
+        const serverTotal =
+          typeof result.orderTotal === 'number' && Number.isFinite(result.orderTotal) && result.orderTotal > 0
+            ? result.orderTotal
+            : snap.shares * serverFill
+        setCompletedTrade({
+          ...snap,
+          fillPrice: serverFill,
+          orderTotal: serverTotal,
+          postId: result.postId,
+        })
         setActiveOrderDraft(null)
         setPendingRestoreDraft(null)
         setPlaceOrderError(null)
@@ -364,6 +377,14 @@ export function StockDetailScreen() {
         window.dispatchEvent(
           new CustomEvent('simvest:activity-refresh', { detail: { gameSlug: snap.draft.gameSlug } }),
         )
+        const serverFill =
+          typeof result.fillPrice === 'number' && Number.isFinite(result.fillPrice) && result.fillPrice > 0
+            ? result.fillPrice
+            : snap.fillPrice
+        const serverTotal =
+          typeof result.orderTotal === 'number' && Number.isFinite(result.orderTotal) && result.orderTotal > 0
+            ? result.orderTotal
+            : snap.shares * serverFill
         // Use the backend's authoritative FIFO cost basis when present (covers split lots).
         const fallbackCostBasis = avgCost > 0 ? snap.shares * avgCost : null
         const costBasisExact =
@@ -374,16 +395,18 @@ export function StockDetailScreen() {
           typeof result.realizedPnlDollars === 'number' && Number.isFinite(result.realizedPnlDollars)
             ? result.realizedPnlDollars
             : costBasisExact != null
-              ? snap.orderTotal - costBasisExact
+              ? serverTotal - costBasisExact
               : null
         const realizedPnlPct =
           typeof result.realizedPnlPct === 'number' && Number.isFinite(result.realizedPnlPct)
             ? result.realizedPnlPct
             : costBasisExact != null && costBasisExact > 0
-              ? ((snap.orderTotal - costBasisExact) / costBasisExact) * 100
+              ? ((serverTotal - costBasisExact) / costBasisExact) * 100
               : null
         setCompletedTrade({
           ...snap,
+          fillPrice: serverFill,
+          orderTotal: serverTotal,
           postId: result.postId,
           ...(costBasisExact != null ? { costBasis: costBasisExact } : {}),
           ...(realizedPnlDollars != null ? { realizedPnlDollars } : {}),
@@ -539,7 +562,7 @@ export function StockDetailScreen() {
             bars={bars}
             range={range}
             onRangeChange={setRange}
-            loading={barStatus === 'loading'}
+            loading={barStatus === 'loading' && bars.length === 0}
             error={barErr}
           />
 

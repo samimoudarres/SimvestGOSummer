@@ -1,14 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { dataFilePath } from './dataDir.ts'
-import { readDataJsonObject, writeDataJsonObject } from './db/persistedJson.ts'
+import { readDataJsonObject, writeDataJsonObject, withDataJsonDocumentLock } from './db/persistedJson.ts'
 import { normalizeUserId } from './followsService'
-import { runSerializedByKey } from './fsMutationQueue'
 import { ensureGameJoinedAt } from './gameMembershipService'
 import { canonicalGameSlugKey, normalizeGameSlugParam } from './gameSlugNormalize'
 import { getRuntimeRules } from './gameRuntimeRulesService'
 
 const REQ_PATH = dataFilePath('game-join-requests.json')
-const REQ_LOCK_KEY = REQ_PATH
 
 export type JoinRequestStatus = 'pending' | 'approved' | 'rejected'
 
@@ -65,7 +63,7 @@ async function readAllUnlocked(): Promise<GameJoinRequest[]> {
 }
 
 async function readAll(): Promise<GameJoinRequest[]> {
-  return runSerializedByKey(REQ_LOCK_KEY, readAllUnlocked)
+  return withDataJsonDocumentLock(REQ_PATH, readAllUnlocked)
 }
 
 async function writeAllUnlocked(items: GameJoinRequest[]): Promise<void> {
@@ -73,7 +71,7 @@ async function writeAllUnlocked(items: GameJoinRequest[]): Promise<void> {
 }
 
 async function writeAll(items: GameJoinRequest[]): Promise<void> {
-  return runSerializedByKey(REQ_LOCK_KEY, () => writeAllUnlocked(items))
+  return withDataJsonDocumentLock(REQ_PATH, () => writeAllUnlocked(items))
 }
 
 /** Admin dashboard — all join requests, newest first. */
@@ -101,7 +99,7 @@ export async function createJoinRequestIfNeeded(input: {
   if (!gameSlug || userId.length < 8) {
     throw new Error('Invalid join request input')
   }
-  return runSerializedByKey(REQ_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(REQ_PATH, async () => {
     const all = await readAllUnlocked()
     const existing = all.find(
       (r) => slugMatches(r.gameSlug, gameSlug) && viewerIdsMatch(r.userId, userId) && r.status === 'pending',
@@ -166,7 +164,7 @@ export async function approveJoinRequest(
   requestId: string,
   hostUserId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  return runSerializedByKey(REQ_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(REQ_PATH, async () => {
     const all = await readAllUnlocked()
     const idx = all.findIndex((r) => r.id === requestId)
     if (idx < 0) return { ok: false, error: 'Request not found' }
@@ -201,7 +199,7 @@ export async function rejectJoinRequest(
   requestId: string,
   hostUserId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  return runSerializedByKey(REQ_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(REQ_PATH, async () => {
     const all = await readAllUnlocked()
     const idx = all.findIndex((r) => r.id === requestId)
     if (idx < 0) return { ok: false, error: 'Request not found' }
@@ -226,7 +224,7 @@ export async function countPendingForGame(gameSlug: string): Promise<number> {
 /** Drop every join-request row for a user/game (used when they leave or are kicked). */
 export async function clearJoinRequestsForUserGame(userId: string, gameSlug: string): Promise<number> {
   if (!userId || !gameSlug) return 0
-  return runSerializedByKey(REQ_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(REQ_PATH, async () => {
     const all = await readAllUnlocked()
     const next = all.filter((r) => !(slugMatches(r.gameSlug, gameSlug) && viewerIdsMatch(r.userId, userId)))
     if (next.length === all.length) return 0
@@ -238,7 +236,7 @@ export async function clearJoinRequestsForUserGame(userId: string, gameSlug: str
 /** Update `gameSlug` on every join-request row (archive shared `new` slot). */
 export async function renameGameSlugInJoinRequests(fromSlug: string, toSlug: string): Promise<number> {
   if (!fromSlug || !toSlug || fromSlug === toSlug) return 0
-  return runSerializedByKey(REQ_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(REQ_PATH, async () => {
     const all = await readAllUnlocked()
     let moved = 0
     for (const row of all) {
@@ -254,7 +252,7 @@ export async function renameGameSlugInJoinRequests(fromSlug: string, toSlug: str
 /** Remove all join requests targeting a game (pending or resolved). */
 export async function clearAllJoinRequestsForGame(gameSlug: string): Promise<number> {
   if (!gameSlug) return 0
-  return runSerializedByKey(REQ_LOCK_KEY, async () => {
+  return withDataJsonDocumentLock(REQ_PATH, async () => {
     const all = await readAllUnlocked()
     const next = all.filter((r) => !slugMatches(r.gameSlug, gameSlug))
     const removed = all.length - next.length

@@ -126,7 +126,9 @@ export type UpdatePasswordInput = {
   newPassword: string
 }
 
-export type UpdatePasswordResult = { ok: true } | { ok: false; error: AccountApiError }
+export type UpdatePasswordResult =
+  | { ok: true; token?: string }
+  | { ok: false; error: AccountApiError }
 
 export async function updatePassword(input: UpdatePasswordInput): Promise<UpdatePasswordResult> {
   const resp = await simvestFetch('/api/me/account/password', {
@@ -137,7 +139,12 @@ export async function updatePassword(input: UpdatePasswordInput): Promise<Update
   if (!resp.ok) {
     return { ok: false, error: await parseError(resp) }
   }
-  return { ok: true }
+  const body = (await resp.json().catch(() => ({}))) as {
+    token?: string
+    sessionToken?: string
+  }
+  const token = (body.token ?? body.sessionToken)?.trim()
+  return { ok: true, ...(token ? { token } : {}) }
 }
 
 /* ------------------------------------------------------------------------- */

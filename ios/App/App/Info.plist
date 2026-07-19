@@ -54,6 +54,12 @@
     </dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Simvest uses the camera to scan QR codes when joining a game.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Simvest uses your photo library so you can set a profile picture or attach an image to a post.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>UIViewControllerBasedStatusBarAppearance</key>

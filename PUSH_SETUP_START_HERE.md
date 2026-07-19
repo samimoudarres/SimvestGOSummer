@@ -89,7 +89,7 @@ When all **3 files** are in `setup-input\`:
 
 ## Optional — iPhone (later)
 
-iPhone needs an Apple Developer account ($99/year) and extra steps in Xcode. Android + browser testing works first. See `docs/PUSH_NOTIFICATIONS.md` when you are ready for iOS.
+iPhone needs an Apple Developer account ($99/year), `GoogleService-Info.plist` from Firebase (never invent one), APNs key upload, and Firebase iOS SDK (Core + Messaging). Repo already has Push entitlements, `AppDelegate` token stubs, and `UIBackgroundModes`. Full checklist: `docs/PUSH_NOTIFICATIONS.md` → **iOS (App Store)**.
 
 ---
 

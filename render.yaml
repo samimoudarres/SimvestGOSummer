@@ -1,11 +1,14 @@
 # Deploy on Render: https://dashboard.render.com → New → Blueprint → connect this repo.
-# Set MASSIVE_API_KEY and DATABASE_URL (Supabase) in the Render dashboard (required).
+# Set MASSIVE_API_KEY and DATABASE_URL (Supabase Postgres URI) in the Render dashboard (required).
+# Topology: keep a single API instance — see docs/LAUNCH_TOPOLOGY.md.
 services:
   - type: web
     name: simvest-api
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
+    # Do not raise until Redis quote cache + SQL-primary ledger/feed are ready.
+    numInstances: 1
     healthCheckPath: /api/health
     # Persistent disk kept for rollback / seed files; primary data is Supabase when DATABASE_URL is set.
     disk:

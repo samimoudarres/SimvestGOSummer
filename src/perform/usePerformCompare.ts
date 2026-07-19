@@ -1,59 +1,94 @@
 import { useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import {
+  dedupeSimvestJsonFetch,
+  readSimvestJsonCacheStale,
+  writeSimvestJsonCache,
+} from '../api/simvestJsonCache'
+import { LIVE_MARKETS_POLL_HIDDEN_MS } from '../config/liveMarketsPoll'
+import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import type { ChartRange } from '../stocks/stockDetailTypes'
 import type { PerformCompareChartPayload } from './performTypes'
+import {
+  PERFORM_COMPARE_CACHE_MS,
+  normalizeCompareChartPayload,
+  performCompareChartCacheKey,
+  performCompareChartUrl,
+  prefetchPerformCompareRanges,
+} from './performChartPrefetch'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
 
 export function usePerformCompare(gameSlug: string | undefined, range: ChartRange, withTokens: string[]) {
-  const [data, setData] = useState<PerformCompareChartPayload | null>(null)
-  const [status, setStatus] = useState<Status>('idle')
+  const withParam = [...new Set(withTokens)].sort().join(',')
+  const initialKey = gameSlug ? performCompareChartCacheKey(gameSlug, range, withParam) : ''
+  const cachedInitial = initialKey
+    ? readSimvestJsonCacheStale<PerformCompareChartPayload>(initialKey)
+    : undefined
+
+  const [data, setData] = useState<PerformCompareChartPayload | null>(() => cachedInitial ?? null)
+  const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
   const [refreshBump, setRefreshBump] = useState(0)
-  /** Same slug+range+comparisons as last fetch — when only refreshBump changes, keep chart visible (background refresh). */
-  const lastFetchKeyRef = useRef<string>('')
+  const hasDataRef = useRef(!!cachedInitial)
+  const scopeRef = useRef(`${gameSlug}|${withParam}`)
 
-  const withParam = [...new Set(withTokens)].sort().join(',')
+  useEffect(() => {
+    hasDataRef.current = !!data?.series?.length
+  }, [data])
 
   useEffect(() => {
     if (!gameSlug) return
     let cancelled = false
-    const fetchKey = `${gameSlug}|${range}|${withParam}`
-    const isBackgroundPoll = fetchKey === lastFetchKeyRef.current && refreshBump > 0
-    lastFetchKeyRef.current = fetchKey
-    if (!isBackgroundPoll) {
+    const scope = `${gameSlug}|${withParam}`
+    const scopeChanged = scopeRef.current !== scope
+    scopeRef.current = scope
+
+    const key = performCompareChartCacheKey(gameSlug, range, withParam)
+    const cached = readSimvestJsonCacheStale<PerformCompareChartPayload>(key)
+    const isBackgroundPoll = !scopeChanged && refreshBump > 0 && hasDataRef.current
+
+    if (cached?.series?.length) {
+      setData(cached)
+      hasDataRef.current = true
+      setStatus('ready')
+      setError(null)
+    } else if (scopeChanged) {
+      setData(null)
+      hasDataRef.current = false
       setStatus('loading')
+      setError(null)
+    } else if (!isBackgroundPoll) {
+      setStatus(hasDataRef.current ? 'ready' : 'loading')
       setError(null)
     }
 
-    const q = new URLSearchParams()
-    q.set('range', range)
-    if (withParam.length > 0) q.set('with', withParam)
-    if (refreshBump > 0) q.set('cb', String(refreshBump))
+    prefetchPerformCompareRanges(gameSlug, withParam ? withParam.split(',').filter(Boolean) : [])
 
-    const url = `/api/games/${encodeURIComponent(gameSlug)}/perform/compare?${q}`
-
-    simvestFetch(url)
-      .then((r) =>
-        r
-          .json()
-          .then((body) => ({ ok: r.ok, body }))
-          .catch(() => ({ ok: false, body: { error: 'Bad response' } })),
-      )
+    const url = performCompareChartUrl(gameSlug, range, withParam, refreshBump > 0 ? refreshBump : undefined)
+    void dedupeSimvestJsonFetch(`${key}|${refreshBump}`, async () => {
+      const r = await simvestFetch(url)
+      const body = await r.json().catch(() => ({ error: 'Bad response' }))
+      return { ok: r.ok, body }
+    })
       .then(({ ok, body }) => {
         if (cancelled) return
-        if (ok && body && typeof body === 'object' && Array.isArray(body.series)) {
-          const p = body as PerformCompareChartPayload
-          const now = Date.now()
-          const payload: PerformCompareChartPayload = {
-            ...p,
-            sampledAtMs: Array.isArray(p.sampledAtMs) ? p.sampledAtMs : [],
-            domainStartMs: typeof p.domainStartMs === 'number' ? p.domainStartMs : now,
-            domainEndMs: typeof p.domainEndMs === 'number' ? p.domainEndMs : now,
+        if (ok) {
+          const payload = normalizeCompareChartPayload(body)
+          if (payload) {
+            writeSimvestJsonCache(key, payload, PERFORM_COMPARE_CACHE_MS)
+            setData(payload)
+            hasDataRef.current = true
+            setStatus('ready')
+            setError(null)
+          } else if (isBackgroundPoll || hasDataRef.current) {
+            setStatus('ready')
+          } else {
+            setError(typeof body?.error === 'string' ? body.error : 'Compare chart failed')
+            setData(null)
+            setStatus('error')
           }
-          setData(payload)
-          setStatus('ready')
-        } else if (isBackgroundPoll) {
+        } else if (isBackgroundPoll || hasDataRef.current) {
           setStatus('ready')
         } else {
           setError(typeof body?.error === 'string' ? body.error : 'Compare chart failed')
@@ -63,7 +98,7 @@ export function usePerformCompare(gameSlug: string | undefined, range: ChartRang
       })
       .catch(() => {
         if (!cancelled) {
-          if (isBackgroundPoll) {
+          if (isBackgroundPoll || hasDataRef.current) {
             setStatus('ready')
           } else {
             setError('Network error')
@@ -88,12 +123,16 @@ export function usePerformCompare(gameSlug: string | undefined, range: ChartRang
       if (document.visibilityState === 'visible') setRefreshBump((b) => b + 1)
     }
     window.addEventListener('simvest:holdings-refresh', onHoldingsRefresh)
+    const stopPoll = visibilityAwareInterval(() => setRefreshBump((b) => b + 1), {
+      visibleMs: 12_000,
+      hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
+      runOnVisible: false,
+    })
     document.addEventListener('visibilitychange', onVisible)
-    const t = window.setInterval(() => setRefreshBump((b) => b + 1), 10_000)
     return () => {
       window.removeEventListener('simvest:holdings-refresh', onHoldingsRefresh)
       document.removeEventListener('visibilitychange', onVisible)
-      window.clearInterval(t)
+      stopPoll()
     }
   }, [gameSlug])
 

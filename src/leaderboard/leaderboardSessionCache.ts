@@ -1,10 +1,11 @@
 import type { LeaderboardPayload, LeaderboardSortKey } from './leaderboardTypes'
 import { readSessionJson, writeSessionJson } from '../lib/sessionJsonCache'
+import { viewerScopedCacheKey } from '../lib/viewerScopedCacheKey'
 
 const MAX_AGE_MS = 3 * 60_000
 
 function cacheKey(slug: string, sort: LeaderboardSortKey): string {
-  return `simvest-lb-v1:${slug.trim().toLowerCase()}:${sort}`
+  return viewerScopedCacheKey('simvest-lb-v1', `${slug.trim().toLowerCase()}:${sort}`)
 }
 
 export function readCachedLeaderboard(slug: string, sort: LeaderboardSortKey): LeaderboardPayload | null {
