@@ -42,7 +42,7 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
       setStatus('ready')
       setError(null)
     } else {
-      /* Keep prior category rows painted while the new category loads. */
+      /* Keep prior category rows painted while the new category loads (TradeScreen shows them). */
       setStatus(hasDataRef.current ? 'ready' : 'idle')
     }
 

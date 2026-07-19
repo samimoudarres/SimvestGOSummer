@@ -93,9 +93,10 @@ export function TradeScreen() {
   }, [category])
 
   const rows = useMemo(() => {
-    if (!payload || payload.category !== category) return []
+    if (!payload?.rows?.length) return []
+    /* Keep prior category painted while the next category loads (never blank the strip). */
     return payload.rows.filter((row) => !isMassiveCryptoSymbol(row.symbol))
-  }, [payload, category])
+  }, [payload])
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')

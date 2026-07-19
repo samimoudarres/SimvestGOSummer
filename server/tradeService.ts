@@ -1,12 +1,10 @@
 import { getFollowTickersForGame } from './followsService'
 import { massiveGet } from './massiveClient'
 import {
-  fetchStockBars1DayOrLastTwoSessions,
   normalizeCryptoCompositeTicker,
   normalizeCryptoSnapshotShape,
   normalizeTicker,
   pickLastCloseFromRecentAggs,
-  pickTickerSnapshotPrice,
   resolveMassiveTicker,
   unwrapCryptoSnapshotBody,
 } from './stockService'
@@ -212,7 +210,6 @@ async function failNull<T>(p: Promise<T>): Promise<T | null> {
   }
 }
 
-/** Crypto rows only — snapshot-derived spark (no per-row aggs). */
 function sparkFromSnapshot(sym: string, snap: SnapTicker | undefined): number[] {
   const last = pickPrice(sym, snap)
   const prev = numFromObj(snap?.prevDay, 'c', 'C', 'close')
@@ -231,59 +228,11 @@ function sparkFromSnapshot(sym: string, snap: SnapTicker | undefined): number[] 
   return [1, 1]
 }
 
-function downsampleCloses(closes: number[], maxPoints: number): number[] {
-  if (!closes.length) return []
-  if (closes.length <= maxPoints) return closes
-  const out: number[] = []
-  const last = closes.length - 1
-  for (let i = 0; i < maxPoints; i++) {
-    const idx = Math.round((i / (maxPoints - 1)) * last)
-    out.push(closes[idx]!)
-  }
-  return out
-}
-
-/** Stock spark cache — long TTL keeps browse/search fast while shapes stay accurate. */
-const STOCK_SPARK_CACHE_MS = 120_000
-const stockSparkCache = new Map<string, { exp: number; data: number[] }>()
-const stockSparkInflight = new Map<string, Promise<number[]>>()
-
-async function sparkFor(sym: string): Promise<number[]> {
-  const now = Date.now()
-  const hit = stockSparkCache.get(sym)
-  if (hit && hit.exp > now) return hit.data
-
-  const pending = stockSparkInflight.get(sym)
-  if (pending) return pending
-
-  const work = (async (): Promise<number[]> => {
-    const bars = await failNull(fetchStockBars1DayOrLastTwoSessions(sym))
-    const closes = (bars ?? []).map((b) => b.c).filter((c) => typeof c === 'number' && Number.isFinite(c))
-    const data = downsampleCloses(closes, 24)
-    if (data.length >= 2) {
-      stockSparkCache.set(sym, { exp: Date.now() + STOCK_SPARK_CACHE_MS, data })
-    }
-    return data.length >= 2 ? data : sparkFromSnapshot(sym, undefined)
-  })()
-
-  stockSparkInflight.set(sym, work)
-  try {
-    return await work
-  } finally {
-    stockSparkInflight.delete(sym)
-  }
-}
-
-async function stockSparkBatch(stockSyms: string[]): Promise<Map<string, number[]>> {
-  const map = new Map<string, number[]>()
-  for (const chunk of chunkArray(stockSyms, 16)) {
-    const part = await Promise.all(chunk.map(async (s) => [s, await sparkFor(s)] as const))
-    for (const [s, sp] of part) {
-      map.set(s, sp)
-    }
-  }
-  return map
-}
+/**
+ * Browse/search list sparklines are snapshot-derived (prev→last), not per-row 1D aggs.
+ * Fetching bars for every list row was the dominant browse latency (dozens of paced Massive
+ * calls under concurrency limits). Real charts still use `/api/stocks/:t/bars`.
+ */
 
 const POPULAR: readonly string[] = [
   'AAPL',
@@ -599,7 +548,16 @@ async function refNamesFor(symbols: string[]): Promise<Map<string, string>> {
   return out
 }
 
+/** Curated / Massive-derived symbol lists — slow-changing; avoid refetching on every browse. */
+const SYMBOL_LIST_CACHE_MS = 5 * 60_000
+const symbolListCache = new Map<string, { exp: number; syms: string[] }>()
+
 async function movers(direction: 'gainers' | 'losers'): Promise<string[]> {
+  const cacheKey = `movers:${direction}`
+  const now = Date.now()
+  const hit = symbolListCache.get(cacheKey)
+  if (hit && hit.exp > now) return hit.syms
+
   const data = await failNull(
     massiveGet<MoversResponse>(`/v2/snapshot/locale/us/markets/stocks/${direction}`, {
       include_otc: 'false',
@@ -612,13 +570,13 @@ async function movers(direction: 'gainers' | 'losers'): Promise<string[]> {
     const sym = row?.ticker
     if (sym) out.push(sym)
   }
-  if (out.length >= 4) return out
-  /* Pre / post market the movers list can be empty — fall back to liquid large caps. */
-  return [...POPULAR].slice(0, 18)
+  const result = out.length >= 4 ? out : [...POPULAR].slice(0, 18)
+  symbolListCache.set(cacheKey, { exp: now + SYMBOL_LIST_CACHE_MS, syms: result })
+  return result
 }
 
 async function fillMissingCryptoSnapshots(syms: string[], map: Map<string, SnapTicker>): Promise<void> {
-  const missing = syms.filter((s) => s.startsWith('X:') && !map.has(s))
+  const missing = syms.filter((s) => s.startsWith('X:') && !map.has(s)).slice(0, 8)
   for (const batch of chunkArray(missing, 8)) {
     await Promise.all(
       batch.map(async (sym) => {
@@ -724,6 +682,11 @@ const POPULAR_ETF_ORDER: readonly string[] = [
 ]
 
 async function etfTickers(limit = 30): Promise<string[]> {
+  const cacheKey = `etf:${limit}`
+  const now = Date.now()
+  const hit = symbolListCache.get(cacheKey)
+  if (hit && hit.exp > now) return hit.syms
+
   let rows = (await failNull(
     massiveGet<RefTickersResponse>('/v3/reference/tickers', {
       type: 'ETF',
@@ -779,7 +742,9 @@ async function etfTickers(limit = 30): Promise<string[]> {
       }
     }
   }
-  return out.slice(0, limit)
+  const result = out.slice(0, limit)
+  symbolListCache.set(cacheKey, { exp: now + SYMBOL_LIST_CACHE_MS, syms: result })
+  return result
 }
 
 const CRYPTO_FALLBACK = ['X:BTCUSD', 'X:ETHUSD', 'X:SOLUSD', 'X:XRPUSD', 'X:DOGEUSD', 'X:LTCUSD', 'X:ADAUSD']
@@ -813,42 +778,40 @@ const CRYPTO_PRIORITY: readonly string[] = [
 ]
 
 async function cryptoTickers(limit = 24): Promise<string[]> {
-  let rows = (
-    await failNull(
-      massiveGet<RefTickersResponse>('/v3/reference/tickers', {
-        market: 'crypto',
-        active: 'true',
-        limit: '200',
-        sort: 'market_cap',
-        order: 'desc',
-      }),
-    )
-  )?.results
+  const cacheKey = `crypto:${limit}`
+  const now = Date.now()
+  const hit = symbolListCache.get(cacheKey)
+  if (hit && hit.exp > now) return hit.syms
 
-  if (!rows?.length) {
-    rows = (
+  /* Curated majors are enough for browse — avoid blocking on a 200-row crypto ref list. */
+  const fast = [...new Set([...CRYPTO_PRIORITY, ...CRYPTO_FALLBACK])].slice(0, limit)
+  symbolListCache.set(cacheKey, { exp: now + SYMBOL_LIST_CACHE_MS, syms: fast })
+
+  void (async () => {
+    const rows = (
       await failNull(
         massiveGet<RefTickersResponse>('/v3/reference/tickers', {
           market: 'crypto',
           active: 'true',
           limit: '200',
+          sort: 'market_cap',
+          order: 'desc',
         }),
       )
     )?.results
-  }
+    const fromRef = [
+      ...new Set(
+        (rows ?? [])
+          .map((r) => normalizeCryptoCompositeTicker(r.ticker ?? ''))
+          .filter((t): t is string => !!t),
+      ),
+    ]
+    if (!fromRef.length) return
+    const merged = [...new Set([...CRYPTO_PRIORITY, ...fromRef, ...CRYPTO_FALLBACK])].slice(0, limit)
+    symbolListCache.set(cacheKey, { exp: Date.now() + SYMBOL_LIST_CACHE_MS, syms: merged })
+  })()
 
-  const fromRef = [
-    ...new Set(
-      (rows ?? [])
-        .map((r) => normalizeCryptoCompositeTicker(r.ticker ?? ''))
-        .filter((t): t is string => !!t),
-    ),
-  ]
-
-  /* Order: curated majors first, then Massive ref list (already market-cap sorted), then fallbacks.
-   * Do not prefetch snapshots here — buildRowsForSymbols loads one batch + sparks (avoids 2× API load). */
-  const merged = [...new Set([...CRYPTO_PRIORITY, ...fromRef, ...CRYPTO_FALLBACK])]
-  return merged.slice(0, limit)
+  return fast
 }
 
 async function buildRowsForSymbols(
@@ -857,19 +820,19 @@ async function buildRowsForSymbols(
 ): Promise<TradeBrowseRow[]> {
   const syms = orderedSymbols.slice(0, maxRows)
 
-  const stockSyms = syms.filter((s) => !s.startsWith('X:'))
-
-  const [snapMap, names, stockSparks] = await Promise.all([
+  const [snapMap, names] = await Promise.all([
     (async () => {
       const m = await fetchStockSnapshotsBatch(syms)
       await fillMissingCryptoSnapshots(syms, m)
       return m
     })(),
     refNamesFor(syms),
-    stockSparkBatch(stockSyms),
   ])
 
-  const cryptoMissingPx = syms.filter((s) => s.startsWith('X:') && pickPrice(s, snapMap.get(s)) == null)
+  /* Cap agg fallbacks — unbounded per-row closes were freezing crypto browse under Massive pacing. */
+  const cryptoMissingPx = syms
+    .filter((s) => s.startsWith('X:') && pickPrice(s, snapMap.get(s)) == null)
+    .slice(0, 4)
   if (cryptoMissingPx.length) {
     const fills = await Promise.all(
       cryptoMissingPx.map(async (s) => [s, await pickLastCloseFromRecentAggs(s)] as const),
@@ -890,25 +853,15 @@ async function buildRowsForSymbols(
     }
   }
 
-  /* Live browse prices come from the batched crypto snapshot (+ fills above). Do not fan out one
-   * `/v2/aggs/.../minute` request per row — that was freezing the Crypto trade tab and hammering
-   * Massive rate limits while duplicating data the snapshot already carries. */
-
-  const sparkMap = new Map<string, number[]>(stockSparks)
-  for (const sym of syms) {
-    if (sym.startsWith('X:')) {
-      sparkMap.set(sym, sparkFromSnapshot(sym, snapMap.get(sym)))
-    } else if (!sparkMap.has(sym) || (sparkMap.get(sym)?.length ?? 0) < 2) {
-      sparkMap.set(sym, sparkFromSnapshot(sym, snapMap.get(sym)))
-    }
-  }
+  /* Live browse prices come from the batched snapshot (+ limited fills above). Sparklines are
+   * snapshot-derived so list endpoints stay under ~0.5s warm without an O(N) aggs storm. */
 
   const rows: TradeBrowseRow[] = []
   for (const sym of syms) {
     const snap = snapMap.get(sym)
     const lastPrice = pickPrice(sym, snap)
     const chp = changePctFromSnap(sym, snap)
-    const sparkline = sparkMap.get(sym) ?? []
+    const sparkline = sparkFromSnapshot(sym, snap)
     const spark =
       sparkline.length >= 2 ? sparkline : lastPrice != null ? [lastPrice, lastPrice] : [1, 1]
     const prevClose = numFromObj(snap?.prevDay, 'c', 'C', 'close')
@@ -985,15 +938,20 @@ async function symbolsForCategory(
 }
 
 const tradeBrowseInflight = new Map<string, Promise<TradeBrowsePayload>>()
-const tradeBrowsePayloadCache = new Map<string, { exp: number; payload: TradeBrowsePayload }>()
-/** Short TTL — coalesces tab switches + 5s polls without stale quotes for long. */
-const TRADE_BROWSE_CACHE_MS = 15_000
+type BrowseCacheEntry = { freshUntil: number; staleUntil: number; payload: TradeBrowsePayload }
+const tradeBrowsePayloadCache = new Map<string, BrowseCacheEntry>()
+/** Fresh TTL — client polls ~8s; keep server coalescing ahead of that. */
+const TRADE_BROWSE_CACHE_MS = 45_000
+/** Serve last-good while a refresh runs (warm requests stay under ~50ms). */
+const TRADE_BROWSE_STALE_MS = 3 * 60_000
 
 const tradeSearchRowsCache = new Map<string, { exp: number; rows: TradeBrowseRow[] }>()
 const TRADE_SEARCH_CACHE_MS = 60_000
 
 function tradeBrowseInflightKey(gameSlug: string, viewerUserId: string | null, category: TradeCategoryId): string {
-  return `${gameSlug}\t${viewerUserId ?? ''}\t${category}`
+  /* Shared Massive lists are identical across games/users — only Following is viewer-specific. */
+  if (category === 'following') return `${gameSlug}\t${viewerUserId ?? ''}\tfollowing`
+  return `shared\t${category}`
 }
 
 type TradeBrowsePayload = {
@@ -1010,10 +968,14 @@ async function refreshTradeBrowse(
   const k = tradeBrowseInflightKey(gameSlug, viewerUserId, category)
   const now = Date.now()
   const cached = tradeBrowsePayloadCache.get(k)
-  if (cached && cached.exp > now) return cached.payload
+  if (cached && cached.freshUntil > now) return cached.payload
 
   const pending = tradeBrowseInflight.get(k)
-  if (pending) return pending
+  if (pending) {
+    if (cached && cached.staleUntil > now) return cached.payload
+    return pending
+  }
+
   const work = (async (): Promise<TradeBrowsePayload> => {
     const syms = await symbolsForCategory(category, { gameSlug, userId: viewerUserId })
     const rows = await buildRowsForSymbols(syms, 30)
@@ -1022,11 +984,22 @@ async function refreshTradeBrowse(
       categories: TRADE_CATEGORY_OPTIONS,
       rows,
     }
-    tradeBrowsePayloadCache.set(k, { exp: Date.now() + TRADE_BROWSE_CACHE_MS, payload })
+    const t = Date.now()
+    tradeBrowsePayloadCache.set(k, {
+      freshUntil: t + TRADE_BROWSE_CACHE_MS,
+      staleUntil: t + TRADE_BROWSE_STALE_MS,
+      payload,
+    })
     return payload
   })()
   tradeBrowseInflight.set(k, work)
   work.finally(() => tradeBrowseInflight.delete(k))
+
+  /* Stale-while-revalidate: return last-good immediately, refresh in background. */
+  if (cached && cached.staleUntil > now) {
+    void work.catch(() => {})
+    return cached.payload
+  }
   return work
 }
 

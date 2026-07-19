@@ -1,15 +1,25 @@
 import { simvestFetch } from '../api/simvestFetch'
-import { readSimvestJsonCache, simvestJsonCacheKey, writeSimvestJsonCache } from '../api/simvestJsonCache'
+import {
+  readSimvestJsonCache,
+  readSimvestJsonCacheStale,
+  simvestJsonCacheKey,
+  writeSimvestJsonCache,
+} from '../api/simvestJsonCache'
 import type { TradeBrowsePayload } from './tradeTypes'
 
-export const TRADE_BROWSE_CACHE_MS = 12_000
+/** Align with server browse fresh TTL — keep lists painted across tab switches. */
+export const TRADE_BROWSE_CACHE_MS = 45_000
 const inflight = new Set<string>()
 
-/** Warm the default Trade tab list before navigation (chrome prefetch + this). */
+function browsePopularUrl(gameSlug: string): string {
+  return `/api/games/${encodeURIComponent(gameSlug)}/trade/browse?category=popular`
+}
+
+/** Warm the default Trade tab list before navigation (chrome prefetch + game shell). */
 export function prefetchTradeBrowsePopular(gameSlug: string): void {
   const slug = gameSlug.trim()
   if (!slug) return
-  const url = `/api/games/${encodeURIComponent(slug)}/trade/browse?category=popular`
+  const url = browsePopularUrl(slug)
   const key = simvestJsonCacheKey(url)
   if (readSimvestJsonCache<TradeBrowsePayload>(key)) return
   if (inflight.has(key)) return
@@ -23,4 +33,11 @@ export function prefetchTradeBrowsePopular(gameSlug: string): void {
     })
     .catch(() => {})
     .finally(() => inflight.delete(key))
+}
+
+/** True when we already have a (possibly stale) popular list for instant Trade paint. */
+export function peekTradeBrowsePopularCached(gameSlug: string): TradeBrowsePayload | undefined {
+  const slug = gameSlug.trim()
+  if (!slug) return undefined
+  return readSimvestJsonCacheStale<TradeBrowsePayload>(simvestJsonCacheKey(browsePopularUrl(slug)))
 }

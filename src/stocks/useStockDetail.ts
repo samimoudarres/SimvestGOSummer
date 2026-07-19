@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
 import {
   dedupeSimvestJsonFetch,
@@ -23,6 +23,7 @@ export function useStockDetail(ticker: string | undefined) {
   const [data, setData] = useState<StockDetailPayload | null>(() => cachedInitial ?? null)
   const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
+  const hasDataRef = useRef(!!cachedInitial)
 
   useEffect(() => {
     if (!ticker) return
@@ -32,16 +33,17 @@ export function useStockDetail(ticker: string | undefined) {
     const cached = readSimvestJsonCacheStale<StockDetailPayload>(key)
     if (cached) {
       setData(cached)
+      hasDataRef.current = true
       setStatus('ready')
       setError(null)
     } else {
-      setData(null)
-      setStatus('loading')
-      setError(null)
+      /* Keep prior ticker painted until the new one arrives (prefetch usually fills cache). */
+      setStatus(hasDataRef.current ? 'ready' : 'loading')
+      if (!hasDataRef.current) setError(null)
     }
 
     const load = (isPoll: boolean) => {
-      if (!isPoll && !readSimvestJsonCacheStale<StockDetailPayload>(key)) {
+      if (!isPoll && !readSimvestJsonCacheStale<StockDetailPayload>(key) && !hasDataRef.current) {
         setStatus('loading')
         setError(null)
       }
@@ -56,6 +58,7 @@ export function useStockDetail(ticker: string | undefined) {
             const next = body as StockDetailPayload
             writeSimvestJsonCache(key, next, STOCK_DETAIL_CACHE_MS)
             setData(next)
+            hasDataRef.current = true
             setStatus('ready')
           } else {
             if (isPoll && isSimvestPollDebugEnabled()) {
@@ -65,14 +68,14 @@ export function useStockDetail(ticker: string | undefined) {
                 body,
               })
             }
-            if (!isPoll && !readSimvestJsonCacheStale<StockDetailPayload>(key)) {
+            if (!isPoll && !readSimvestJsonCacheStale<StockDetailPayload>(key) && !hasDataRef.current) {
               setError(typeof body?.error === 'string' ? body.error : 'Failed to load stock')
               setStatus('error')
             }
           }
         })
         .catch(() => {
-          if (!cancelled && !isPoll && !readSimvestJsonCacheStale<StockDetailPayload>(key)) {
+          if (!cancelled && !isPoll && !readSimvestJsonCacheStale<StockDetailPayload>(key) && !hasDataRef.current) {
             setError('Network error')
             setStatus('error')
           }

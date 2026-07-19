@@ -33,6 +33,7 @@ import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import { simvestFetch } from '../api/simvestFetch'
 import { StockBrandingImage } from '../components/StockBrandingImage'
 import { ProfileAvatar } from '../components/ProfileAvatar'
+import { prefetchTradeBrowsePopular } from '../trade/tradePrefetch'
 import './gameChallenge.css'
 
 const GAIN_CARD_W = 111
@@ -375,7 +376,10 @@ export function GameChallengeScreen() {
 
   useEffect(() => {
     rememberActiveGameSlug(slug)
-    if (slug) warmAllGameTabChunksIdle()
+    if (slug) {
+      warmAllGameTabChunksIdle()
+      prefetchTradeBrowsePopular(slug)
+    }
   }, [slug])
 
   const {

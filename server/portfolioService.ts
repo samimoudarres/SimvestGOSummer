@@ -2,7 +2,6 @@ import { emptyPerformDashboard } from '../src/perform/performDummy'
 import type { PerformDashboardPayload, PerformStockRow } from '../src/perform/performTypes'
 import { massiveGet } from './massiveClient'
 import {
-  fetchStockBars1DayOrLastTwoSessions,
   normalizeTicker,
   normalizeCryptoSnapshotShape,
   pickLastCloseFromRecentAggs,
@@ -109,18 +108,6 @@ function truncateName(name: string, max = 22): string {
   return `${name.slice(0, max - 1).trim()}…`
 }
 
-function downsampleCloses(closes: number[], maxPoints: number): number[] {
-  if (!closes.length) return []
-  if (closes.length <= maxPoints) return closes
-  const out: number[] = []
-  const last = closes.length - 1
-  for (let i = 0; i < maxPoints; i++) {
-    const idx = Math.round((i / (maxPoints - 1)) * last)
-    out.push(closes[idx]!)
-  }
-  return out
-}
-
 export async function getHoldingsForGame(gameSlug: string): Promise<HoldingRecord[]> {
   return getLegacyHoldingsForGame(gameSlug)
 }
@@ -188,20 +175,6 @@ export type PortfolioTotals = {
   asOfIso: string
 }
 
-async function failNull<T>(p: Promise<T>): Promise<T | null> {
-  try {
-    return await p
-  } catch {
-    return null
-  }
-}
-
-async function spark1D(sym: string): Promise<number[]> {
-  const bars = await failNull(fetchStockBars1DayOrLastTwoSessions(sym))
-  const closes = (bars ?? []).map((b) => b.c).filter((c) => typeof c === 'number' && Number.isFinite(c))
-  return downsampleCloses(closes, 24)
-}
-
 type BatchSnapshotResponse = { tickers?: unknown[] }
 type BatchRefRow = { ticker?: string; name?: string }
 type BatchRefResponse = { results?: BatchRefRow[] }
@@ -238,12 +211,10 @@ type PortfolioMassiveBundle = {
 
 /**
  * One paged batch fetch for snapshots + names — avoids the previous O(N) per-holding fan-out
- * that dominated portfolio load time. Bars (sparklines) are still per-symbol because Massive
- * has no batched aggregates endpoint, but they run in parallel and benefit from the existing
- * Massive response cache.
+ * that dominated portfolio load time. Sparklines are snapshot-derived (prev→last) so holdings
+ * lists stay fast under Massive concurrency limits; full charts still use `/bars`.
  *
- * Pass `skipSparks: true` for net-worth / leaderboard aggregates — sparklines are UI-only and
- * otherwise dominate latency under Massive concurrency limits.
+ * Pass `skipSparks: true` for net-worth / leaderboard aggregates when even mini-sparks are unused.
  */
 async function loadPortfolioMassiveData(
   symbols: string[],
@@ -320,8 +291,14 @@ async function loadPortfolioMassiveData(
   })()
   const sparksTask = (async () => {
     if (opts?.skipSparks) return
-    const entries = await Promise.all(symbols.map(async (sym) => [sym, await spark1D(sym)] as const))
-    for (const [sym, sp] of entries) sparks.set(sym, sp)
+    /* Snapshot-derived sparks (same as trade browse) — O(N) 1D aggs dominated portfolio latency. */
+    await Promise.all([snapStock, snapCrypto])
+    for (const sym of symbols) {
+      const snap = snapshots.get(sym)
+      const lastPx = pickTickerSnapshotPrice(snap) ?? pickStockMarkPrice(sym, snap)
+      const sp = sparkFromCryptoSnapshot(snap, lastPx)
+      sparks.set(sym, sp.length >= 2 ? sp : lastPx != null ? [lastPx, lastPx] : [])
+    }
   })()
 
   await Promise.all([snapStock, snapCrypto, refNames, sparksTask])
@@ -358,6 +335,17 @@ async function loadPortfolioMassiveData(
       }),
     )
   }
+
+  if (!opts?.skipSparks) {
+    for (const sym of missingSnap) {
+      if (sparks.has(sym) && (sparks.get(sym)?.length ?? 0) >= 2) continue
+      const snap = snapshots.get(sym)
+      const lastPx = pickTickerSnapshotPrice(snap) ?? pickStockMarkPrice(sym, snap)
+      const sp = sparkFromCryptoSnapshot(snap, lastPx)
+      sparks.set(sym, sp.length >= 2 ? sp : lastPx != null ? [lastPx, lastPx] : [])
+    }
+  }
+
   const missingName = opts?.skipNames ? [] : stockSyms.filter((s) => !names.has(s))
   if (missingName.length > 0) {
     type SingleRef = { results?: { name?: string } }
