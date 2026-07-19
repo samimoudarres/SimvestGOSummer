@@ -6,6 +6,8 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 
 COPY package.json package-lock.json ./
+# Local file: dependency (see package.json overrides) must exist before npm ci.
+COPY vendor ./vendor
 # Render injects NODE_ENV=production before build; devDependencies (tsc, vite) are required to compile.
 ENV NPM_CONFIG_PRODUCTION=false
 RUN npm ci --include=dev

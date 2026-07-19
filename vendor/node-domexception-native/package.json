@@ -1,0 +1,8 @@
+{
+  "name": "node-domexception",
+  "version": "1.0.0-native",
+  "description": "Shim: re-export Node's native DOMException (replaces deprecated node-domexception polyfill)",
+  "main": "index.cjs",
+  "type": "commonjs",
+  "license": "MIT"
+}
