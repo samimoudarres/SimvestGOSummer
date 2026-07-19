@@ -457,7 +457,8 @@ export function StockDetailScreen() {
     )
   }
 
-  if (status === 'loading' || status === 'idle') {
+  /* Keep chrome + last-good body; only blank when we have nothing to paint. */
+  if ((status === 'loading' || status === 'idle') && !data) {
     return (
       <div className="sd-root" style={chromeStyle}>
         <div className="sd-phone">

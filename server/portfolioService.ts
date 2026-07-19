@@ -230,17 +230,25 @@ function flattenSnapshotRowForPortfolio(row: unknown): { sym: string | null; tic
   return { sym, ticker: o as Snapshot['ticker'] }
 }
 
+type PortfolioMassiveBundle = {
+  snapshots: Map<string, NonNullable<Snapshot['ticker']>>
+  names: Map<string, string>
+  sparks: Map<string, number[]>
+}
+
 /**
  * One paged batch fetch for snapshots + names — avoids the previous O(N) per-holding fan-out
  * that dominated portfolio load time. Bars (sparklines) are still per-symbol because Massive
  * has no batched aggregates endpoint, but they run in parallel and benefit from the existing
  * Massive response cache.
+ *
+ * Pass `skipSparks: true` for net-worth / leaderboard aggregates — sparklines are UI-only and
+ * otherwise dominate latency under Massive concurrency limits.
  */
-async function loadPortfolioMassiveData(symbols: string[]): Promise<{
-  snapshots: Map<string, NonNullable<Snapshot['ticker']>>
-  names: Map<string, string>
-  sparks: Map<string, number[]>
-}> {
+async function loadPortfolioMassiveData(
+  symbols: string[],
+  opts?: { skipSparks?: boolean; skipNames?: boolean },
+): Promise<PortfolioMassiveBundle> {
   const stockSyms = symbols.filter((s) => !s.startsWith('X:'))
   const cryptoSyms = symbols.filter((s) => s.startsWith('X:'))
   const snapshots = new Map<string, NonNullable<Snapshot['ticker']>>()
@@ -293,7 +301,7 @@ async function loadPortfolioMassiveData(symbols: string[]): Promise<{
     }
   })()
   const refNames = (async () => {
-    if (stockSyms.length === 0) return
+    if (opts?.skipNames || stockSyms.length === 0) return
     for (const chunk of chunkSyms(stockSyms, 50)) {
       try {
         const data = await massiveGet<BatchRefResponse>('/v3/reference/tickers', {
@@ -311,6 +319,7 @@ async function loadPortfolioMassiveData(symbols: string[]): Promise<{
     }
   })()
   const sparksTask = (async () => {
+    if (opts?.skipSparks) return
     const entries = await Promise.all(symbols.map(async (sym) => [sym, await spark1D(sym)] as const))
     for (const [sym, sp] of entries) sparks.set(sym, sp)
   })()
@@ -349,7 +358,7 @@ async function loadPortfolioMassiveData(symbols: string[]): Promise<{
       }),
     )
   }
-  const missingName = stockSyms.filter((s) => !names.has(s))
+  const missingName = opts?.skipNames ? [] : stockSyms.filter((s) => !names.has(s))
   if (missingName.length > 0) {
     type SingleRef = { results?: { name?: string } }
     await Promise.all(
@@ -462,7 +471,16 @@ function positionTodayPct(
 /** Enriched rows for holdings list / profile (Massive-backed prices and sparklines). */
 export async function buildPortfolioRows(
   holdings: HoldingRecord[],
-  opts?: { frozenTickerPx?: Map<string, number> | null; lots?: PositionLot[] | null },
+  opts?: {
+    frozenTickerPx?: Map<string, number> | null
+    lots?: PositionLot[] | null
+    /** Skip per-symbol sparkline bars (leaderboard / net-worth aggregates). */
+    skipSparks?: boolean
+    /** Skip reference-name lookups when display names are unused. */
+    skipNames?: boolean
+    /** Shared Massive bundle from a prior batch load (leaderboard multi-player). */
+    massive?: PortfolioMassiveBundle
+  },
 ): Promise<PortfolioApiRow[]> {
   if (!holdings.length) {
     return []
@@ -470,7 +488,12 @@ export async function buildPortfolioRows(
 
   const resolved = holdings.map((h) => ({ holding: h, sym: resolveMassiveTicker(h.ticker) }))
   const knownSymbols = [...new Set(resolved.map((r) => r.sym).filter((s): s is string => !!s))]
-  const { snapshots, names, sparks } = await loadPortfolioMassiveData(knownSymbols)
+  const { snapshots, names, sparks } =
+    opts?.massive ??
+    (await loadPortfolioMassiveData(knownSymbols, {
+      skipSparks: opts?.skipSparks,
+      skipNames: opts?.skipNames,
+    }))
 
   const cryptoMissingPrice = knownSymbols.filter(
     (s) => s.startsWith('X:') && pickTickerSnapshotPrice(snapshots.get(s)) == null,
@@ -749,6 +772,64 @@ export type PlayerPerformAggregate = {
   todayPct: number
 }
 
+function aggregateFromPortfolioRows(
+  ledgerCash: number,
+  holdings: HoldingRecord[],
+  rows: PortfolioApiRow[],
+  frozen: boolean,
+  frozenTickerPx?: Map<string, number> | null,
+): PlayerPerformAggregate {
+  let equityMv = 0
+  let costBasis = 0
+  let todayDollars = 0
+
+  for (const r of rows) {
+    equityMv += r.marketValue ?? 0
+    costBasis += r.shares * r.avgCost
+    todayDollars += r.todayDollars ?? 0
+  }
+
+  if (!rows.length && holdings.length > 0) {
+    for (const h of holdings) {
+      const sh = Number.isFinite(h.shares) ? h.shares : 0
+      const ac = Number.isFinite(h.avgCost) && h.avgCost > 0 ? h.avgCost : 0
+      const sym = resolveMassiveTicker(h.ticker)
+      const px =
+        sym && frozenTickerPx?.has(sym)
+          ? frozenTickerPx.get(sym)!
+          : ac
+      const mv = sh * (Number.isFinite(px) && px > 0 ? px : ac)
+      equityMv += mv
+      costBasis += sh * ac
+    }
+    todayDollars = 0
+  }
+
+  const netWorth = ledgerCash + equityMv
+  const totalReturnDollars = equityMv - costBasis
+  const totalReturnPct = costBasis > 1e-6 ? (totalReturnDollars / costBasis) * 100 : 0
+
+  let todayPct = 0
+  if (frozen) {
+    todayDollars = 0
+    todayPct = 0
+  } else {
+    const openingEquityProxy = equityMv - todayDollars
+    todayPct = openingEquityProxy > 1e-6 ? (todayDollars / openingEquityProxy) * 100 : 0
+  }
+
+  return {
+    cash: ledgerCash,
+    equityMarketValue: equityMv,
+    costBasis,
+    netWorth,
+    totalReturnDollars,
+    totalReturnPct,
+    todayDollars,
+    todayPct,
+  }
+}
+
 export async function getPlayerPerformAggregate(
   gameSlug: string,
   userId: string,
@@ -803,61 +884,127 @@ export async function getPlayerPerformAggregate(
 
   let rows: Awaited<ReturnType<typeof buildPortfolioRows>>
   try {
-    rows = await buildPortfolioRows(holdings, { frozenTickerPx, lots: lots.length ? lots : null })
+    rows = await buildPortfolioRows(holdings, {
+      frozenTickerPx,
+      lots: lots.length ? lots : null,
+      /* Aggregates only need marks + day move — skip spark bar fan-out. */
+      skipSparks: true,
+      skipNames: true,
+    })
   } catch {
     rows = []
   }
 
-  let equityMv = 0
-  let costBasis = 0
-  let todayDollars = 0
+  const out = aggregateFromPortfolioRows(ledgerCash, holdings, rows, Boolean(endSnap), frozenTickerPx)
+  await recordGameNetWorthSnapshot(slug, userId, out.netWorth).catch(() => {})
+  return out
+}
 
-  for (const r of rows) {
-    equityMv += r.marketValue ?? 0
-    costBasis += r.shares * r.avgCost
-    todayDollars += r.todayDollars ?? 0
+/**
+ * One Massive snapshot batch for every participant’s holdings — used by the game leaderboard
+ * so N players do not each trigger their own spark/snapshot storm under concurrency limits.
+ */
+export async function getPlayersPerformAggregatesBatch(
+  gameSlug: string,
+  userIds: string[],
+): Promise<Map<string, PlayerPerformAggregate>> {
+  const slug = String(gameSlug ?? '').trim()
+  const out = new Map<string, PlayerPerformAggregate>()
+  const ids = [...new Set(userIds.filter((id) => id && id.length >= 8))]
+  if (!slug || ids.length === 0) return out
+
+  const endSnap = await ensureGameFinalSnapshot(slug)
+  const frozenTickerPx = endSnap ? new Map(Object.entries(endSnap.tickerLastPx)) : undefined
+
+  type Loaded = {
+    uid: string
+    cash: number
+    holdings: HoldingRecord[]
+    lots: PositionLot[]
   }
 
-  if (!rows.length && holdings.length > 0) {
-    for (const h of holdings) {
-      const sh = Number.isFinite(h.shares) ? h.shares : 0
-      const ac = Number.isFinite(h.avgCost) && h.avgCost > 0 ? h.avgCost : 0
+  const loaded: Loaded[] = await Promise.all(
+    ids.map(async (uid) => {
+      let cash = 0
+      try {
+        const ledger = await getUserLedger(uid, slug)
+        cash = Number.isFinite(ledger.cash) ? ledger.cash : 0
+      } catch {
+        cash = 0
+      }
+      let holdings: HoldingRecord[] = []
+      let lots: PositionLot[] = []
+      try {
+        const [h, ls] = await Promise.all([
+          getLedgerHoldingsForGame(uid, slug),
+          getUserLots(uid, slug).catch(() => [] as PositionLot[]),
+        ])
+        holdings = h
+        lots = ls
+      } catch {
+        holdings = []
+        lots = []
+      }
+      return { uid, cash, holdings, lots }
+    }),
+  )
+
+  const allSymbols = new Set<string>()
+  for (const row of loaded) {
+    for (const h of row.holdings) {
       const sym = resolveMassiveTicker(h.ticker)
-      const px =
-        sym && frozenTickerPx?.has(sym)
-          ? frozenTickerPx.get(sym)!
-          : ac
-      const mv = sh * (Number.isFinite(px) && px > 0 ? px : ac)
-      equityMv += mv
-      costBasis += sh * ac
+      if (sym) allSymbols.add(sym)
     }
-    todayDollars = 0
   }
 
-  const netWorth = ledgerCash + equityMv
-  const totalReturnDollars = equityMv - costBasis
-  const totalReturnPct = costBasis > 1e-6 ? (totalReturnDollars / costBasis) * 100 : 0
+  const massive =
+    allSymbols.size > 0
+      ? await loadPortfolioMassiveData([...allSymbols], { skipSparks: true, skipNames: true })
+      : {
+          snapshots: new Map<string, NonNullable<Snapshot['ticker']>>(),
+          names: new Map<string, string>(),
+          sparks: new Map<string, number[]>(),
+        }
 
-  let todayPct = 0
-  if (endSnap) {
-    todayDollars = 0
-    todayPct = 0
-  } else {
-    const openingEquityProxy = equityMv - todayDollars
-    todayPct = openingEquityProxy > 1e-6 ? (todayDollars / openingEquityProxy) * 100 : 0
-  }
+  await Promise.all(
+    loaded.map(async ({ uid, cash, holdings, lots }) => {
+      if (!holdings.length) {
+        const net =
+          endSnap?.players[uid]?.netWorth != null && Number.isFinite(endSnap.players[uid]!.netWorth)
+            ? Math.max(0, endSnap.players[uid]!.netWorth)
+            : Math.max(0, cash)
+        const empty = {
+          cash,
+          equityMarketValue: 0,
+          costBasis: 0,
+          netWorth: net,
+          totalReturnDollars: 0,
+          totalReturnPct: 0,
+          todayDollars: 0,
+          todayPct: 0,
+        }
+        out.set(uid, empty)
+        await recordGameNetWorthSnapshot(slug, uid, empty.netWorth).catch(() => {})
+        return
+      }
+      let rows: PortfolioApiRow[] = []
+      try {
+        rows = await buildPortfolioRows(holdings, {
+          frozenTickerPx,
+          lots: lots.length ? lots : null,
+          skipSparks: true,
+          skipNames: true,
+          massive,
+        })
+      } catch {
+        rows = []
+      }
+      const agg = aggregateFromPortfolioRows(cash, holdings, rows, Boolean(endSnap), frozenTickerPx)
+      out.set(uid, agg)
+      await recordGameNetWorthSnapshot(slug, uid, agg.netWorth).catch(() => {})
+    }),
+  )
 
-  const out = {
-    cash: ledgerCash,
-    equityMarketValue: equityMv,
-    costBasis,
-    netWorth,
-    totalReturnDollars,
-    totalReturnPct,
-    todayDollars,
-    todayPct,
-  }
-  await recordGameNetWorthSnapshot(slug, userId, netWorth).catch(() => {})
   return out
 }
 

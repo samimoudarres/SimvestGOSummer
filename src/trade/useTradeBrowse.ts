@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
 import {
   dedupeSimvestJsonFetch,
-  readSimvestJsonCache,
+  readSimvestJsonCacheStale,
   simvestJsonCacheKey,
   writeSimvestJsonCache,
 } from '../api/simvestJsonCache'
@@ -22,7 +22,7 @@ function browseUrl(gameSlug: string, category: TradeCategoryId): string {
 export function useTradeBrowse(gameSlug: string | undefined, category: TradeCategoryId) {
   const cacheKey =
     gameSlug && category ? simvestJsonCacheKey(browseUrl(gameSlug, category)) : ''
-  const cachedInitial = cacheKey ? readSimvestJsonCache<TradeBrowsePayload>(cacheKey) : undefined
+  const cachedInitial = cacheKey ? readSimvestJsonCacheStale<TradeBrowsePayload>(cacheKey) : undefined
   const [payload, setPayload] = useState<TradeBrowsePayload | null>(() => cachedInitial ?? null)
   const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
@@ -34,17 +34,16 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
     let cancelled = false
     const url = browseUrl(gameSlug, category)
     const key = simvestJsonCacheKey(url)
-    const cached = readSimvestJsonCache<TradeBrowsePayload>(key)
-    hasDataRef.current = !!cached
-    skipInitialLoadingUiRef.current = !!cached
+    const cached = readSimvestJsonCacheStale<TradeBrowsePayload>(key)
+    hasDataRef.current = !!cached || hasDataRef.current
+    skipInitialLoadingUiRef.current = !!cached || hasDataRef.current
     if (cached) {
       setPayload(cached)
       setStatus('ready')
       setError(null)
     } else {
-      setPayload(null)
-      setStatus('idle')
-      hasDataRef.current = false
+      /* Keep prior category rows painted while the new category loads. */
+      setStatus(hasDataRef.current ? 'ready' : 'idle')
     }
 
     const load = (isPoll: boolean) => {

@@ -268,7 +268,7 @@ export function PerformScreen() {
     )
   }
 
-  if (!data || dashStatus === 'loading') {
+  if (!data) {
     return (
       <div className="pf-root" style={chromeStyle}>
         <div className="pf-phone">

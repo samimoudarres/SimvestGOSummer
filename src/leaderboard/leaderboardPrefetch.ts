@@ -23,11 +23,14 @@ async function warmOne(slug: string, sort: LeaderboardSortKey): Promise<void> {
   }
 }
 
-/** Warm every sort so switching Overall / Today / 7D / Month never flashes Loading. */
+/** Warm every sort so switching Overall / Today / 7D / Month never flashes Loading.
+ * Stagger enough that the first request can populate the shared server metrics cache
+ * before the others arrive (avoids four parallel Massive rebuilds on a cold game).
+ */
 export function prefetchLeaderboardAllSorts(slug: string): void {
   const s = slug.trim()
   if (!s) return
   LEADERBOARD_SORT_OPTIONS.forEach((opt, i) => {
-    window.setTimeout(() => void warmOne(s, opt.key), i * 70)
+    window.setTimeout(() => void warmOne(s, opt.key), i * 350)
   })
 }

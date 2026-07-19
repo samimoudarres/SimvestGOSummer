@@ -987,7 +987,7 @@ async function symbolsForCategory(
 const tradeBrowseInflight = new Map<string, Promise<TradeBrowsePayload>>()
 const tradeBrowsePayloadCache = new Map<string, { exp: number; payload: TradeBrowsePayload }>()
 /** Short TTL — coalesces tab switches + 5s polls without stale quotes for long. */
-const TRADE_BROWSE_CACHE_MS = 8_000
+const TRADE_BROWSE_CACHE_MS = 15_000
 
 const tradeSearchRowsCache = new Map<string, { exp: number; rows: TradeBrowseRow[] }>()
 const TRADE_SEARCH_CACHE_MS = 60_000

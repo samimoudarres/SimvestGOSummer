@@ -2567,6 +2567,11 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
       /* non-fatal — trade already applied */
     }
   }
+  clearTtlCachePrefix(`feed:${slug}`)
+  clearTtlCachePrefix(`lb:${slug}`)
+  clearTtlCachePrefix(`lb-metrics:${slug}`)
+  clearTtlCachePrefix(`perform:${slug}:`)
+  clearTtlCachePrefix(`portfolio:${slug}:`)
   res.json(successBody)
 })
 
@@ -2748,7 +2753,8 @@ app.get('/api/games/:slug/leaderboard', async (req, res) => {
       return
     }
     const payload = await fetchGameLeaderboardPayload(slugResolved, sort)
-    writeTtlCache(cacheKey, payload, 10_000)
+    /* 30s — matches shared metrics TTL; sort switches stay cheap after first build. */
+    writeTtlCache(cacheKey, payload, 30_000)
     res.json(payload)
   } catch (err) {
     res.status(500).json({
@@ -2764,7 +2770,15 @@ app.get('/api/games/:slug/perform', async (req, res) => {
   if (!(await requireGameAccessForResponse(res, slugResolved, uid))) return
   res.setHeader('Cache-Control', 'private, no-store')
   try {
-    res.json(await getPerformDashboard(slugResolved, uid))
+    const cacheKey = `perform:${slugResolved}:${uid ?? ''}`
+    const cached = readTtlCache<unknown>(cacheKey)
+    if (cached) {
+      res.json(cached)
+      return
+    }
+    const payload = await getPerformDashboard(slugResolved, uid)
+    writeTtlCache(cacheKey, payload, 8_000)
+    res.json(payload)
   } catch {
     res.json(emptyPerformDashboard(slugResolved))
   }
@@ -2810,7 +2824,14 @@ app.get('/api/games/:slug/portfolio', async (req, res) => {
   res.setHeader('Cache-Control', 'private, no-store, must-revalidate')
   res.setHeader('Pragma', 'no-cache')
   try {
+    const cacheKey = `portfolio:${slugResolved}:${uid ?? ''}`
+    const cached = readTtlCache<unknown>(cacheKey)
+    if (cached) {
+      res.json(cached)
+      return
+    }
     const payload = await fetchPortfolioPayload(slugResolved, uid)
+    writeTtlCache(cacheKey, payload, 8_000)
     res.json(payload)
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Portfolio failed' })

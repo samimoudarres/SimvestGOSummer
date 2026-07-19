@@ -15,6 +15,7 @@ import { compactImageUrlForApi } from './mediaDataUrlStore'
 import { getRuntimeRules } from './gameRuntimeRulesService'
 import { ensureGameFinalSnapshot } from './gameFinalSnapshotService'
 import { resolveRankStreakLabel } from './performRankStreakService'
+import { readTtlCache, writeTtlCache } from './ttlCache.ts'
 
 /** Avoid static import cycle with `portfolioService` (Perform dashboard imports leaderboard). */
 async function aggregateNetWorth(slug: string, uid: string): Promise<number> {
@@ -292,13 +293,28 @@ function badgeMetricForSort(
   }
 }
 
-export async function fetchGameLeaderboardPayload(
-  gameSlug: string,
-  sort: LeaderboardSortKey,
-): Promise<GameLeaderboardPayload> {
-  const slug = String(gameSlug ?? '').trim()
-  const { getPlayerPerformAggregate } = await import('./portfolioService')
+type LeaderboardRowMetrics = {
+  userId: string
+  displayName: string
+  handle: string
+  avatarUrl: string
+  nw: number
+  overall: number
+  today: number
+  d7: number | null
+  d30: number | null
+}
 
+type LeaderboardMetricsBundle = {
+  gameSlug: string
+  gameFinished: boolean
+  rows: LeaderboardRowMetrics[]
+}
+
+const LEADERBOARD_METRICS_TTL_MS = 30_000
+const leaderboardMetricsInflight = new Map<string, Promise<LeaderboardMetricsBundle>>()
+
+async function buildLeaderboardMetricsBundle(slug: string): Promise<LeaderboardMetricsBundle> {
   let participantIds = await listParticipantIdsForGame(slug)
 
   const rules = await getRuntimeRules(slug)
@@ -312,20 +328,24 @@ export async function fetchGameLeaderboardPayload(
   const profiles = await ensureUserProfilesBatch(participantIds)
   const setupsByKey = await loadAllSetupProfilesByKey()
 
-  type RowWork = {
-    userId: string
-    displayName: string
-    handle: string
-    avatarUrl: string
-    nw: number
-    overall: number
-    today: number
-    d7: number | null
-    d30: number | null
-    sortVal: number
-  }
+  const liveIds = finalSnap
+    ? participantIds.filter(
+        (uid) =>
+          !(finalSnap.players[uid] && Number.isFinite(finalSnap.players[uid]!.netWorth)),
+      )
+    : participantIds
+  const { getPlayersPerformAggregatesBatch } = await import('./portfolioService')
+  const aggsByUser =
+    liveIds.length > 0
+      ? await getPlayersPerformAggregatesBatch(slug, liveIds)
+      : (new Map() as Awaited<ReturnType<typeof getPlayersPerformAggregatesBatch>>)
 
-  const built: RowWork[] = await Promise.all(
+  const histByUser = await Promise.all(
+    participantIds.map(async (uid) => [uid, await getNetWorthHistory(slug, uid)] as const),
+  )
+  const histMap = new Map(histByUser)
+
+  const rows: LeaderboardRowMetrics[] = await Promise.all(
     participantIds.map(async (uid) => {
       const profile = profiles.get(uid)
       const setup = setupsByKey.get(`${uid}:::${slug}`)
@@ -347,40 +367,25 @@ export async function fetchGameLeaderboardPayload(
 
       const pf = finalSnap?.players[uid]
       if (pf && Number.isFinite(pf.netWorth)) {
-        const nw = pf.netWorth
-        const overall = Number.isFinite(pf.overallReturnPct) ? pf.overallReturnPct : 0
-        const today = 0
-        const d7 = null
-        const d30 = null
-        const sortVal = overall
         return {
           userId: uid,
           displayName,
           handle,
           avatarUrl,
-          nw,
-          overall,
-          today,
-          d7,
-          d30,
-          sortVal,
+          nw: pf.netWorth,
+          overall: Number.isFinite(pf.overallReturnPct) ? pf.overallReturnPct : 0,
+          today: 0,
+          d7: null,
+          d30: null,
         }
       }
 
-      const [agg, hist] = await Promise.all([
-        getPlayerPerformAggregate(slug, uid),
-        getNetWorthHistory(slug, uid),
-      ])
+      const agg = aggsByUser.get(uid)
+      const hist = histMap.get(uid) ?? []
       const nw =
         agg?.netWorth ??
         (await getRecordedNetWorth(slug, uid)) ??
         FALLBACK_NET_WORTH
-
-      const overall = agg != null ? agg.totalReturnPct : 0
-      const today = agg != null ? agg.todayPct : 0
-
-      const d7 = estimatePeriodReturnPct(nw, hist, 7)
-      const d30 = estimatePeriodReturnPct(nw, hist, 30)
 
       return {
         userId: uid,
@@ -388,14 +393,45 @@ export async function fetchGameLeaderboardPayload(
         handle,
         avatarUrl,
         nw,
-        overall,
-        today,
-        d7,
-        d30,
-        sortVal: sortMetricValue(sort, overall, today, d7, d30),
+        overall: agg != null ? agg.totalReturnPct : 0,
+        today: agg != null ? agg.todayPct : 0,
+        d7: estimatePeriodReturnPct(nw, hist, 7),
+        d30: estimatePeriodReturnPct(nw, hist, 30),
       }
     }),
   )
+
+  return { gameSlug: slug, gameFinished: Boolean(finalSnap), rows }
+}
+
+async function getLeaderboardMetricsBundle(slug: string): Promise<LeaderboardMetricsBundle> {
+  const cacheKey = `lb-metrics:${slug}`
+  const cached = readTtlCache<LeaderboardMetricsBundle>(cacheKey)
+  if (cached) return cached
+
+  const existing = leaderboardMetricsInflight.get(slug)
+  if (existing) return existing
+
+  const work = buildLeaderboardMetricsBundle(slug)
+    .then((bundle) => {
+      writeTtlCache(cacheKey, bundle, LEADERBOARD_METRICS_TTL_MS)
+      return bundle
+    })
+    .finally(() => {
+      leaderboardMetricsInflight.delete(slug)
+    })
+  leaderboardMetricsInflight.set(slug, work)
+  return work
+}
+
+function formatLeaderboardPayload(
+  bundle: LeaderboardMetricsBundle,
+  sort: LeaderboardSortKey,
+): GameLeaderboardPayload {
+  const built = bundle.rows.map((r) => ({
+    ...r,
+    sortVal: sortMetricValue(sort, r.overall, r.today, r.d7, r.d30),
+  }))
 
   built.sort((a, b) => {
     const d = b.sortVal - a.sortVal
@@ -419,7 +455,9 @@ export async function fetchGameLeaderboardPayload(
       }
     }
 
-    const badgePct = finalSnap ? r.overall : badgeMetricForSort(sort, r.overall, r.today, r.d7, r.d30)
+    const badgePct = bundle.gameFinished
+      ? r.overall
+      : badgeMetricForSort(sort, r.overall, r.today, r.d7, r.d30)
     rows.push({
       rank,
       userId: r.userId,
@@ -439,11 +477,20 @@ export async function fetchGameLeaderboardPayload(
   }
 
   return {
-    gameSlug: slug,
+    gameSlug: bundle.gameSlug,
     sort,
     sortLabel: LEADERBOARD_SORT_LABELS[sort],
     totalPlayers: rows.length,
     rows,
-    gameFinished: Boolean(finalSnap),
+    gameFinished: bundle.gameFinished,
   }
+}
+
+export async function fetchGameLeaderboardPayload(
+  gameSlug: string,
+  sort: LeaderboardSortKey,
+): Promise<GameLeaderboardPayload> {
+  const slug = String(gameSlug ?? '').trim()
+  const bundle = await getLeaderboardMetricsBundle(slug)
+  return formatLeaderboardPayload(bundle, sort)
 }

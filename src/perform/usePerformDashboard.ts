@@ -35,7 +35,8 @@ export function usePerformDashboard(gameSlug: string | undefined) {
     } else {
       setData(fallback)
       setFromApi(false)
-      setStatus('loading')
+      /* Paint empty/dummy shell immediately — never full-page block on Massive. */
+      setStatus('ready')
       hasDataRef.current = false
     }
     let cancelled = false

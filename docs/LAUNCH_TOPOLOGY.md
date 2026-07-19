@@ -37,6 +37,17 @@ Trades and feed posts dual-write into:
 
 **Backfill:** on boot (when `DATABASE_URL` is set), the API upserts all feed posts from `game-feed.json` into `game_feed_posts`, and upserts ledger rows from `user-game-state.json` when `user_game_cash` is empty. You can also re-run `npm run db:migrate-json` / `npm run db:sync-normalized`.
 
+## Render free-tier sleep (cold start)
+
+Free / spun-down Render web services sleep after idle traffic. The first request after sleep can take many seconds before Node even handles `/api/health`. Warm hits are typically a few hundred ms.
+
+**Keep-alive options (ops, not required in app code):**
+
+1. External ping: cron / UptimeRobot / GitHub Action hitting `GET https://simvest-api.onrender.com/api/health` every ~5–10 minutes.
+2. Render paid plan with always-on (no sleep).
+
+Do **not** add an in-process self-ping loop on the free tier — it does not stop platform sleep and can confuse health metrics. Prefer an external lightweight health ping.
+
 ## Scaling later (out of scope for launch)
 
 1. Shared short-TTL quote cache (Redis) **or** Massive plan that tolerates N× traffic.
