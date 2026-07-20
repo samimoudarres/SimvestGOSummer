@@ -8,6 +8,7 @@ import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
 import '../perform/performScreen.css'
 import { MiniSparkLine } from '../components/MiniSparkLine'
 import { navigateToStock } from '../stocks/navigateToStock'
+import { prefetchStockDetail, seedStockDetailFromBrowse } from '../stocks/stockDetailPrefetch'
 import { StockBrandingImage } from '../components/StockBrandingImage'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import type { CategoryIcon, CategoryVisual, TradeBrowseRow, TradeCategoryId } from './tradeTypes'
@@ -160,28 +161,48 @@ export function TradeScreen() {
   }, [navigate, slug])
 
   const onStock = useCallback(
-    (symbol: string) => {
-      navigateToStock(navigate, symbol, {
+    (row: TradeBrowseRow) => {
+      navigateToStock(navigate, row.symbol, {
         gameSlug: slug,
         challengeTitle: headerCtl.headerTitle,
         returnPath: `/g/${slug}/trade`,
         navTab: 'trade',
+        seed: {
+          symbol: row.symbol,
+          companyName: row.companyName,
+          price: row.price,
+          changeLabel: row.changeLabel,
+          logoUrl: row.logoUrl,
+          sparkline: row.sparkline,
+        },
       })
     },
     [navigate, slug, headerCtl.headerTitle],
   )
 
+  const warmStock = useCallback((row: TradeBrowseRow) => {
+    seedStockDetailFromBrowse({
+      symbol: row.symbol,
+      companyName: row.companyName,
+      price: row.price,
+      changeLabel: row.changeLabel,
+      logoUrl: row.logoUrl,
+      sparkline: row.sparkline,
+    })
+    prefetchStockDetail(row.symbol)
+  }, [])
+
   const pushRecentAndNavigate = useCallback(
-    (symbol: string) => {
-      if (isMassiveCryptoSymbol(symbol)) return
+    (row: TradeBrowseRow) => {
+      if (isMassiveCryptoSymbol(row.symbol)) return
       setRecentTickers((prev) => {
-        const next = [symbol, ...prev.filter((x) => x !== symbol)].slice(0, 12)
+        const next = [row.symbol, ...prev.filter((x) => x !== row.symbol)].slice(0, 12)
         persistRecentTickers(next)
         return next
       })
       setSearchOpen(false)
       setQuery('')
-      onStock(symbol)
+      onStock(row)
     },
     [onStock],
   )
@@ -313,7 +334,8 @@ export function TradeScreen() {
                       key={row.symbol}
                       row={row}
                       displaySym={displayTickerLabel(row.symbol)}
-                      onPick={() => onStock(row.symbol)}
+                      onPick={() => onStock(row)}
+                      onWarm={() => warmStock(row)}
                     />
                   ))
                 : null}
@@ -376,7 +398,8 @@ export function TradeScreen() {
                         key={row.symbol}
                         row={row}
                         displaySym={displayTickerLabel(row.symbol)}
-                        onPick={() => pushRecentAndNavigate(row.symbol)}
+                        onPick={() => pushRecentAndNavigate(row)}
+                        onWarm={() => warmStock(row)}
                       />
                     ))
                   : null}
@@ -393,13 +416,20 @@ function TradeRow({
   row,
   displaySym,
   onPick,
+  onWarm,
 }: {
   row: TradeBrowseRow
   displaySym: string
   onPick: () => void
+  onWarm?: () => void
 }) {
   return (
-    <button type="button" className="pf-stockRow" onClick={onPick}>
+    <button
+      type="button"
+      className="pf-stockRow"
+      onClick={onPick}
+      onPointerDown={() => onWarm?.()}
+    >
       <span className="pf-stockLogoWrap">
         <StockBrandingImage className="pf-stockLogo" src={row.logoUrl} alt="" loading="lazy" decoding="async" />
       </span>

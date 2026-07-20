@@ -33,7 +33,7 @@ const snap = {
 
 assert(pickStockMarkPrice('AAPL', snap, tueAfterClose) === 100, 'After hours uses day close not lastTrade')
 assert(pickUsEquityFrozenChangePct('AAPL', snap, tueAfterClose) === 5.26, 'Frozen % from snapshot')
-assert(pickUsEquityFrozenChangePct('AAPL', snap, satAfternoon) === 0, 'Weekend today % is zero')
+assert(pickUsEquityFrozenChangePct('AAPL', snap, satAfternoon) === 5.26, 'Weekend keeps last session %')
 
 // Weekend: alternate snapshots must not flicker (batch vs single-ticker shapes)
 const snapA = { day: { c: 81.21 }, prevDay: { c: 80.5 }, lastTrade: { p: 81.92 } }
@@ -41,7 +41,9 @@ const snapB = { prevDay: { c: 81.21 }, lastTrade: { p: 81.92 } }
 const pxA = pickStockMarkPrice('KO', snapA, satAfternoon)
 const pxB = pickStockMarkPrice('KO', snapB, satAfternoon)
 assert(pxA === pxB, `Weekend KO mark must be stable (got ${pxA} vs ${pxB})`)
-assert(pxA === 81.21, `Weekend uses prevDay close (got ${pxA})`)
+assert(pxA === 81.21, `Weekend uses day/prev close (got ${pxA})`)
+const pctWeekendA = pickUsEquityFrozenChangePct('KO', snapA, satAfternoon)
+assert(pctWeekendA != null && Math.abs(pctWeekendA - ((81.21 - 80.5) / 80.5) * 100) < 0.01, 'Weekend % from day vs prev')
 
 // Since-purchase % for buy @ 80.88 must not jump when lastTrade drifts
 const purchase = 80.88

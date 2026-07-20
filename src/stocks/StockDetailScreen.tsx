@@ -11,6 +11,7 @@ import { StockFinancialsChart } from './StockFinancialsChart'
 import { StockPriceChart } from './StockPriceChart'
 import { displayTickerLabel } from './displayTicker'
 import type { StockLocationState } from './navigateToStock'
+import { seedStockDetailFromBrowse } from './stockDetailPrefetch'
 import { readActiveGameSlug, rememberActiveGameSlug } from '../user/activeGameSlug'
 import { useStockBars } from './useStockBars'
 import { useStockDetail } from './useStockDetail'
@@ -107,6 +108,11 @@ export function StockDetailScreen() {
 
   const chromeStyle = useGameChromeCssVars(effectiveGameSlug)
   const gameShell = useGameChallengeHeader(effectiveGameSlug)
+
+  /* Sync handoff before hooks read session cache (pointerdown/navigate usually already seeded). */
+  if (ticker && state.seed && state.seed.symbol.toUpperCase() === ticker) {
+    seedStockDetailFromBrowse(state.seed)
+  }
 
   const { data, status, error } = useStockDetail(ticker || undefined)
   const { following, toggle } = useFollowStatus(ticker || undefined, effectiveGameSlug || undefined)

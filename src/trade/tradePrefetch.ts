@@ -9,10 +9,21 @@ import type { TradeBrowsePayload } from './tradeTypes'
 
 /** Align with server browse fresh TTL — keep lists painted across tab switches. */
 export const TRADE_BROWSE_CACHE_MS = 45_000
+/** Bump with server `TRADE_BROWSE_CACHE_VER` so client doesn’t keep flat/0% browse rows after deploy. */
+const TRADE_BROWSE_CLIENT_CACHE_VER = 'v2-snap-spark'
 const inflight = new Set<string>()
 
 function browsePopularUrl(gameSlug: string): string {
   return `/api/games/${encodeURIComponent(gameSlug)}/trade/browse?category=popular`
+}
+
+function browseCacheKey(url: string): string {
+  return `${TRADE_BROWSE_CLIENT_CACHE_VER}:${simvestJsonCacheKey(url)}`
+}
+
+/** Versioned client cache key for trade browse (shared by hook + prefetch). */
+export function tradeBrowseClientCacheKey(url: string): string {
+  return browseCacheKey(url)
 }
 
 /** Warm the default Trade tab list before navigation (chrome prefetch + game shell). */
@@ -20,7 +31,7 @@ export function prefetchTradeBrowsePopular(gameSlug: string): void {
   const slug = gameSlug.trim()
   if (!slug) return
   const url = browsePopularUrl(slug)
-  const key = simvestJsonCacheKey(url)
+  const key = browseCacheKey(url)
   if (readSimvestJsonCache<TradeBrowsePayload>(key)) return
   if (inflight.has(key)) return
   inflight.add(key)
@@ -39,5 +50,5 @@ export function prefetchTradeBrowsePopular(gameSlug: string): void {
 export function peekTradeBrowsePopularCached(gameSlug: string): TradeBrowsePayload | undefined {
   const slug = gameSlug.trim()
   if (!slug) return undefined
-  return readSimvestJsonCacheStale<TradeBrowsePayload>(simvestJsonCacheKey(browsePopularUrl(slug)))
+  return readSimvestJsonCacheStale<TradeBrowsePayload>(browseCacheKey(browsePopularUrl(slug)))
 }

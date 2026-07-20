@@ -364,19 +364,36 @@ async function loadPortfolioMassiveData(
   return { snapshots, names, sparks }
 }
 
-/** Mini-spark for crypto when aggregate bars are sparse — same idea as trade browse. */
+/** Mini-spark from snapshot (same idea as trade browse) — reconstruct prior close from % when flat. */
 function sparkFromCryptoSnapshot(s: NonNullable<Snapshot['ticker']> | undefined, lastPx: number | null): number[] {
-  const prev = numFromObj(s?.prevDay, 'c', 'C', 'close')
   const n = 24
-  if (lastPx != null && prev != null && prev > 0) {
+  let prev = numFromObj(s?.prevDay, 'c', 'C', 'close')
+  let open = numFromObj(s?.day, 'o', 'O', 'open')
+  const raw = s as Record<string, unknown> | undefined
+  const chp =
+    s && typeof s.todaysChangePerc === 'number' && Number.isFinite(s.todaysChangePerc)
+      ? s.todaysChangePerc
+      : raw && typeof raw.todays_change_perc === 'number' && Number.isFinite(raw.todays_change_perc)
+        ? (raw.todays_change_perc as number)
+        : null
+  if (lastPx != null && lastPx > 0 && chp != null && Math.abs(chp) > 1e-6) {
+    const implied = lastPx / (1 + chp / 100)
+    if (Number.isFinite(implied) && implied > 0) {
+      if (prev == null || Math.abs(prev - lastPx) / lastPx < 1e-6) prev = implied
+      if (open == null || Math.abs(open - lastPx) / lastPx < 1e-6) open = implied
+    }
+  }
+  const from = open != null && lastPx != null && Math.abs(open - lastPx) > 1e-9 ? open : prev
+  if (lastPx != null && from != null && from > 0) {
     const out: number[] = []
     for (let i = 0; i < n; i++) {
       const t = n === 1 ? 1 : i / (n - 1)
-      out.push(prev + (lastPx - prev) * t)
+      out.push(from + (lastPx - from) * t)
     }
     return out
   }
-  if (lastPx != null) return Array(n).fill(lastPx)
+  if (lastPx != null && prev != null && prev > 0) return [prev, lastPx]
+  if (lastPx != null) return [lastPx, lastPx]
   return []
 }
 

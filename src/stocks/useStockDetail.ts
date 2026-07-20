@@ -24,9 +24,13 @@ export function useStockDetail(ticker: string | undefined) {
   const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
   const hasDataRef = useRef(!!cachedInitial)
+  const tickerRef = useRef(ticker)
 
   useEffect(() => {
     if (!ticker) return
+    const tickerChanged = tickerRef.current !== ticker
+    tickerRef.current = ticker
+
     let cancelled = false
     const url = stockDetailUrl(ticker)
     const key = simvestJsonCacheKey(url)
@@ -36,8 +40,13 @@ export function useStockDetail(ticker: string | undefined) {
       hasDataRef.current = true
       setStatus('ready')
       setError(null)
+    } else if (tickerChanged) {
+      /* Never keep the previous symbol painted — only seed/cache for *this* ticker. */
+      setData(null)
+      hasDataRef.current = false
+      setStatus('loading')
+      setError(null)
     } else {
-      /* Keep prior ticker painted until the new one arrives (prefetch usually fills cache). */
       setStatus(hasDataRef.current ? 'ready' : 'loading')
       if (!hasDataRef.current) setError(null)
     }

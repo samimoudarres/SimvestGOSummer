@@ -210,20 +210,56 @@ async function failNull<T>(p: Promise<T>): Promise<T | null> {
   }
 }
 
+/** Session % from snapshot fields only (no weekend freeze) — used to rebuild a non-flat mini-spark. */
+function rawSessionChangePct(snap: SnapTicker | undefined): number | null {
+  if (!snap) return null
+  const raw = snap as Record<string, unknown>
+  if (typeof snap.todaysChangePerc === 'number' && Number.isFinite(snap.todaysChangePerc)) {
+    return snap.todaysChangePerc
+  }
+  if (typeof raw.todays_change_perc === 'number' && Number.isFinite(raw.todays_change_perc)) {
+    return raw.todays_change_perc as number
+  }
+  if (typeof raw.todays_change_percent === 'number' && Number.isFinite(raw.todays_change_percent)) {
+    return raw.todays_change_percent as number
+  }
+  return null
+}
+
+/**
+ * Browse/search mini-sparks from snapshot only (no per-row 1D aggs).
+ * Prefer day open→last; else prevClose→last; if those collapse (weekend empty `day`),
+ * reconstruct prior close from `todaysChangePerc` so the line isn’t flat when % ≠ 0.
+ */
 function sparkFromSnapshot(sym: string, snap: SnapTicker | undefined): number[] {
   const last = pickPrice(sym, snap)
-  const prev = numFromObj(snap?.prevDay, 'c', 'C', 'close')
+  let start = numFromObj(snap?.day, 'o', 'O', 'open')
+  let prev = numFromObj(snap?.prevDay, 'c', 'C', 'close')
+  const chp = rawSessionChangePct(snap)
   const n = 24
-  if (last != null && prev != null && Number.isFinite(last) && Number.isFinite(prev) && prev > 0) {
+
+  if (last != null && Number.isFinite(last) && last > 0 && chp != null && Number.isFinite(chp) && Math.abs(chp) > 1e-6) {
+    const impliedPrev = last / (1 + chp / 100)
+    if (Number.isFinite(impliedPrev) && impliedPrev > 0) {
+      if (prev == null || Math.abs(prev - last) / last < 1e-6) prev = impliedPrev
+      if (start == null || Math.abs(start - last) / last < 1e-6) start = impliedPrev
+    }
+  }
+
+  const from = start != null && Math.abs(start - (last ?? start)) > 1e-9 ? start : prev
+  if (last != null && from != null && Number.isFinite(last) && Number.isFinite(from) && from > 0) {
     const out: number[] = []
     for (let i = 0; i < n; i++) {
       const t = n === 1 ? 1 : i / (n - 1)
-      out.push(prev + (last - prev) * t)
+      out.push(from + (last - from) * t)
     }
     return out
   }
+  if (last != null && prev != null && Number.isFinite(last) && Number.isFinite(prev) && prev > 0) {
+    return [prev, last]
+  }
   if (last != null && Number.isFinite(last)) {
-    return Array(n).fill(last)
+    return [last, last]
   }
   return [1, 1]
 }
@@ -948,10 +984,15 @@ const TRADE_BROWSE_STALE_MS = 3 * 60_000
 const tradeSearchRowsCache = new Map<string, { exp: number; rows: TradeBrowseRow[] }>()
 const TRADE_SEARCH_CACHE_MS = 60_000
 
+/** Bump when browse row shape / spark / % math changes so stale 0% caches are not sticky after deploy. */
+const TRADE_BROWSE_CACHE_VER = 'v2-snap-spark'
+
 function tradeBrowseInflightKey(gameSlug: string, viewerUserId: string | null, category: TradeCategoryId): string {
   /* Shared Massive lists are identical across games/users — only Following is viewer-specific. */
-  if (category === 'following') return `${gameSlug}\t${viewerUserId ?? ''}\tfollowing`
-  return `shared\t${category}`
+  if (category === 'following') {
+    return `${TRADE_BROWSE_CACHE_VER}\t${gameSlug}\t${viewerUserId ?? ''}\tfollowing`
+  }
+  return `${TRADE_BROWSE_CACHE_VER}\tshared\t${category}`
 }
 
 type TradeBrowsePayload = {

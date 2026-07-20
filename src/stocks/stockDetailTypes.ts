@@ -38,12 +38,16 @@ export type StockDetailPayload = {
   financialsEpsAnnual: { year: number; eps: number }[]
   financialsEpsQuarterly: { year: number; quarter: number; eps: number }[]
   updatedAt: string
+  /** Client-only: browse handoff seed — still prefetch full detail underneath. */
+  seed?: boolean
 }
 
 export type StockBarsPayload = {
   ticker: string
   range: ChartRange
   bars: { t: number; o: number; h: number; l: number; c: number; v: number }[]
+  /** Client-only: sparkline stand-in until real 1D bars arrive. */
+  seed?: boolean
 }
 
 /** `GET /api/games/:slug/users/:userId/net-worth-chart` — dollar net worth in this game over time. */

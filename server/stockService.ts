@@ -831,6 +831,7 @@ export function normalizeAggTimestampMs(t: number): number {
 }
 
 const stockBarsCache = new Map<string, { at: number; bars: StockDetailBar[] }>()
+const stockBarsInflight = new Map<string, Promise<StockDetailBar[]>>()
 const STOCK_BARS_CACHE_MS = 45_000
 
 function stockBarsCacheKey(sym: string, range: ChartRange, window?: FetchStockBarsWindow | null): string {
@@ -853,6 +854,29 @@ export async function fetchStockBars(
   if (cached && Date.now() - cached.at < STOCK_BARS_CACHE_MS) {
     return cached.bars.map((b) => ({ ...b }))
   }
+
+  const pending = stockBarsInflight.get(cacheKey)
+  if (pending) {
+    const bars = await pending
+    return bars.map((b) => ({ ...b }))
+  }
+
+  const work = fetchStockBarsUncached(sym, range, window ?? null, cacheKey)
+  stockBarsInflight.set(cacheKey, work)
+  try {
+    const bars = await work
+    return bars.map((b) => ({ ...b }))
+  } finally {
+    stockBarsInflight.delete(cacheKey)
+  }
+}
+
+async function fetchStockBarsUncached(
+  sym: string,
+  range: ChartRange,
+  window: FetchStockBarsWindow | null,
+  cacheKey: string,
+): Promise<StockDetailBar[]> {
   let to: Date
   let from: Date
   let multiplier = 1

@@ -1,6 +1,10 @@
 import type { NavigateFunction } from 'react-router-dom'
 import type { ChallengeNavTab } from '../challenge/ChallengeBottomNav'
-import { prefetchStockDetail } from './stockDetailPrefetch'
+import {
+  prefetchStockDetail,
+  seedStockDetailFromBrowse,
+  type TradeBrowseSeedRow,
+} from './stockDetailPrefetch'
 import { stockPath } from './stockPaths'
 
 export type StockLocationState = {
@@ -8,6 +12,8 @@ export type StockLocationState = {
   challengeTitle?: string
   returnPath?: string
   navTab?: ChallengeNavTab
+  /** Optional browse handoff for instant detail chrome. */
+  seed?: TradeBrowseSeedRow
 }
 
 export function navigateToStock(
@@ -15,6 +21,9 @@ export function navigateToStock(
   ticker: string,
   state?: StockLocationState,
 ) {
+  if (state?.seed) {
+    seedStockDetailFromBrowse(state.seed)
+  }
   prefetchStockDetail(ticker)
   navigate(stockPath(ticker), { state })
 }

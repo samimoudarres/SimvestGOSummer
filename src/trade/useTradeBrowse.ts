@@ -3,14 +3,13 @@ import { simvestFetch } from '../api/simvestFetch'
 import {
   dedupeSimvestJsonFetch,
   readSimvestJsonCacheStale,
-  simvestJsonCacheKey,
   writeSimvestJsonCache,
 } from '../api/simvestJsonCache'
 import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { isSimvestPollDebugEnabled } from '../lib/debugPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
 import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
-import { TRADE_BROWSE_CACHE_MS } from './tradePrefetch'
+import { TRADE_BROWSE_CACHE_MS, tradeBrowseClientCacheKey } from './tradePrefetch'
 import type { TradeBrowsePayload, TradeCategoryId } from './tradeTypes'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -21,7 +20,7 @@ function browseUrl(gameSlug: string, category: TradeCategoryId): string {
 
 export function useTradeBrowse(gameSlug: string | undefined, category: TradeCategoryId) {
   const cacheKey =
-    gameSlug && category ? simvestJsonCacheKey(browseUrl(gameSlug, category)) : ''
+    gameSlug && category ? tradeBrowseClientCacheKey(browseUrl(gameSlug, category)) : ''
   const cachedInitial = cacheKey ? readSimvestJsonCacheStale<TradeBrowsePayload>(cacheKey) : undefined
   const [payload, setPayload] = useState<TradeBrowsePayload | null>(() => cachedInitial ?? null)
   const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
@@ -33,7 +32,7 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
     if (!gameSlug) return
     let cancelled = false
     const url = browseUrl(gameSlug, category)
-    const key = simvestJsonCacheKey(url)
+    const key = tradeBrowseClientCacheKey(url)
     const cached = readSimvestJsonCacheStale<TradeBrowsePayload>(key)
     hasDataRef.current = !!cached || hasDataRef.current
     skipInitialLoadingUiRef.current = !!cached || hasDataRef.current

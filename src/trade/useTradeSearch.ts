@@ -3,14 +3,13 @@ import { simvestFetch } from '../api/simvestFetch'
 import {
   dedupeSimvestJsonFetch,
   readSimvestJsonCacheStale,
-  simvestJsonCacheKey,
   writeSimvestJsonCache,
 } from '../api/simvestJsonCache'
 import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
 import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import { isMassiveCryptoSymbol } from '../stocks/displayTicker'
-import { TRADE_BROWSE_CACHE_MS } from './tradePrefetch'
+import { TRADE_BROWSE_CACHE_MS, tradeBrowseClientCacheKey } from './tradePrefetch'
 import type { TradeBrowseRow } from './tradeTypes'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -43,7 +42,7 @@ export function useTradeSearchResults(
           ? recentsUrl(gameSlug, nonCryptoRecents)
           : ''
       : ''
-  const cacheKey = url ? simvestJsonCacheKey(url) : ''
+  const cacheKey = url ? tradeBrowseClientCacheKey(url) : ''
   const cachedInitial = cacheKey ? readSimvestJsonCacheStale<SearchPayload>(cacheKey) : undefined
   const [rows, setRows] = useState<TradeBrowseRow[]>(() =>
     cachedInitial?.rows?.filter((row) => !isMassiveCryptoSymbol(row.symbol)) ?? [],
@@ -73,7 +72,7 @@ export function useTradeSearchResults(
     }
 
     const nextUrl = query.length >= 1 ? searchUrl(gameSlug, query) : recentsUrl(gameSlug, recents)
-    const key = simvestJsonCacheKey(nextUrl)
+    const key = tradeBrowseClientCacheKey(nextUrl)
     const cached = readSimvestJsonCacheStale<SearchPayload>(key)
     if (cached?.rows) {
       const filtered = cached.rows.filter((row) => !isMassiveCryptoSymbol(row.symbol))

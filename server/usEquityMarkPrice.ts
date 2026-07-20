@@ -134,25 +134,23 @@ function computeStableUsQuote(s: SnapshotTickerLike | undefined, atMs: number): 
 
   if (markPx == null || !Number.isFinite(markPx) || markPx <= 0) return null
 
+  /* Weekends/holidays still carry the last completed session’s move on Massive snapshots
+   * (`todaysChangePerc`, day vs prev). Forcing 0% made Trade browse show +0.00% / flat sparks. */
+  const fromSnap$ = readTodaysChangeDollars(s)
+  const fromSnapPct = readTodaysChangePerc(s)
   let dayChangePerShare = 0
   let dayChangePct = 0
-
-  if (!isUsEquityCalendarTradingDay(atMs)) {
-    dayChangePerShare = 0
-    dayChangePct = 0
-  } else {
-    const fromSnap$ = readTodaysChangeDollars(s)
-    const fromSnapPct = readTodaysChangePerc(s)
-    if (fromSnap$ != null && Number.isFinite(fromSnap$)) {
-      dayChangePerShare = fromSnap$
-    } else if (prev != null && prev !== 0 && dayClose != null) {
-      dayChangePerShare = dayClose - prev
-    }
-    if (fromSnapPct != null && Number.isFinite(fromSnapPct)) {
-      dayChangePct = fromSnapPct
-    } else if (prev != null && prev !== 0) {
-      dayChangePct = (dayChangePerShare / prev) * 100
-    }
+  if (fromSnap$ != null && Number.isFinite(fromSnap$)) {
+    dayChangePerShare = fromSnap$
+  } else if (prev != null && prev !== 0 && dayClose != null) {
+    dayChangePerShare = dayClose - prev
+  }
+  if (fromSnapPct != null && Number.isFinite(fromSnapPct)) {
+    dayChangePct = fromSnapPct
+  } else if (prev != null && prev !== 0 && dayChangePerShare !== 0) {
+    dayChangePct = (dayChangePerShare / prev) * 100
+  } else if (prev != null && prev !== 0 && dayClose != null) {
+    dayChangePct = ((dayClose - prev) / prev) * 100
   }
 
   return { markPx, dayChangePerShare, dayChangePct }
@@ -165,7 +163,7 @@ function getStableUsEquityQuote(
 ): StableUsQuote | null {
   if (!isUsEquitySymbol(sym) || isUsEquityRegularSessionOpen(atMs)) return null
 
-  const cacheKey = `${sym}:${etDateKey(atMs)}`
+  const cacheKey = `${sym}:v2:${etDateKey(atMs)}`
   const hit = stableQuoteCache.get(cacheKey)
   if (hit && hit.exp > atMs) return hit.quote
 
