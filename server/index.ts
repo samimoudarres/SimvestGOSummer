@@ -673,6 +673,10 @@ function rateLimitSubjectKey(req: express.Request): string {
 }
 
 async function rateLimitHit(bucket: RateBucketName, ipKey: string): Promise<boolean> {
+  /* marketRead is hit on every browse/search/bars poll — durable JSON RMW was write amplification. */
+  if (bucket === 'marketRead') {
+    return rateLimitHitMemory(bucket, ipKey)
+  }
   const now = Date.now()
   let hit = false
   await mutateDataJsonStore(RATE_LIMITS_PATH, emptyRateLimits(), (cur) => {
@@ -694,6 +698,27 @@ async function rateLimitHit(bucket: RateBucketName, ipKey: string): Promise<bool
     return { buckets: { ...buckets, [bucket]: map } }
   })
   return hit
+}
+
+/** In-process rate limit (single API instance). Used for high-frequency market reads. */
+const marketReadMemoryWindows = new Map<string, RateAttemptWindow>()
+
+function rateLimitHitMemory(bucket: 'marketRead', ipKey: string): boolean {
+  const now = Date.now()
+  const max = RATE_MAX_PER_WINDOW[bucket]
+  if (marketReadMemoryWindows.size > 4000) {
+    for (const [k, win] of marketReadMemoryWindows) {
+      if (now - win.windowStart > RATE_WINDOW_MS * 5) marketReadMemoryWindows.delete(k)
+    }
+  }
+  const existing = marketReadMemoryWindows.get(ipKey)
+  if (!existing || now - existing.windowStart > RATE_WINDOW_MS) {
+    marketReadMemoryWindows.set(ipKey, { windowStart: now, count: 1 })
+    return false
+  }
+  const nextCount = existing.count + 1
+  marketReadMemoryWindows.set(ipKey, { windowStart: existing.windowStart, count: nextCount })
+  return nextCount > max
 }
 
 /** Backwards-compatible alias — `/api/auth/login` still calls this. */

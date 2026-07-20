@@ -22,11 +22,13 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
   const cacheKey =
     gameSlug && category ? tradeBrowseClientCacheKey(browseUrl(gameSlug, category)) : ''
   const cachedInitial = cacheKey ? readSimvestJsonCacheStale<TradeBrowsePayload>(cacheKey) : undefined
-  const [payload, setPayload] = useState<TradeBrowsePayload | null>(() => cachedInitial ?? null)
-  const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
+  const matchingInitial =
+    cachedInitial && cachedInitial.category === category ? cachedInitial : undefined
+  const [payload, setPayload] = useState<TradeBrowsePayload | null>(() => matchingInitial ?? null)
+  const [status, setStatus] = useState<Status>(() => (matchingInitial ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
-  const hasDataRef = useRef(!!cachedInitial)
-  const skipInitialLoadingUiRef = useRef(!!cachedInitial)
+  const hasDataForCategoryRef = useRef(!!matchingInitial)
+  const skipInitialLoadingUiRef = useRef(!!matchingInitial)
 
   useEffect(() => {
     if (!gameSlug) return
@@ -34,19 +36,22 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
     const url = browseUrl(gameSlug, category)
     const key = tradeBrowseClientCacheKey(url)
     const cached = readSimvestJsonCacheStale<TradeBrowsePayload>(key)
-    hasDataRef.current = !!cached || hasDataRef.current
-    skipInitialLoadingUiRef.current = !!cached || hasDataRef.current
-    if (cached) {
-      setPayload(cached)
+    const cachedMatch = cached && cached.category === category ? cached : undefined
+    hasDataForCategoryRef.current = !!cachedMatch
+    skipInitialLoadingUiRef.current = !!cachedMatch
+    if (cachedMatch) {
+      setPayload(cachedMatch)
       setStatus('ready')
       setError(null)
     } else {
-      /* Keep prior category rows painted while the new category loads (TradeScreen shows them). */
-      setStatus(hasDataRef.current ? 'ready' : 'idle')
+      /* Never keep another category's rows as "current" — that made tabs look stuck. */
+      setPayload(null)
+      setStatus('loading')
+      setError(null)
     }
 
     const load = (isPoll: boolean) => {
-      const silent = isPoll || skipInitialLoadingUiRef.current || hasDataRef.current
+      const silent = isPoll || skipInitialLoadingUiRef.current || hasDataForCategoryRef.current
       if (!isPoll) skipInitialLoadingUiRef.current = false
       if (!silent) {
         setStatus('loading')
@@ -61,9 +66,10 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
           if (cancelled) return
           if (ok && body && Array.isArray(body.rows) && Array.isArray(body.categories)) {
             const next = body as TradeBrowsePayload
+            if (next.category !== category) return
             setPayload(next)
             writeSimvestJsonCache(key, next, TRADE_BROWSE_CACHE_MS)
-            hasDataRef.current = true
+            hasDataForCategoryRef.current = true
             setStatus('ready')
             if (!isPoll) warmBrowseRowDetailCaches(next.rows)
           } else {

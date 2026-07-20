@@ -4,15 +4,24 @@ import { getSessionToken } from '../auth/sessionToken'
 
 const FETCH_TIMEOUT_MS = 30_000
 
-function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
+export type SimvestFetchInit = RequestInit & {
+  /** Override default 30s abort (e.g. trade complete). */
+  timeoutMs?: number
+}
+
+function fetchWithTimeout(url: string, init?: SimvestFetchInit): Promise<Response> {
+  const timeoutMs =
+    typeof init?.timeoutMs === 'number' && Number.isFinite(init.timeoutMs) && init.timeoutMs > 0
+      ? Math.floor(init.timeoutMs)
+      : FETCH_TIMEOUT_MS
   const controller = new AbortController()
-  const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
-  const userSignal = init?.signal
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+  const { timeoutMs: _timeoutMs, signal: userSignal, ...rest } = init ?? {}
   if (userSignal) {
     if (userSignal.aborted) controller.abort()
     else userSignal.addEventListener('abort', () => controller.abort(), { once: true })
   }
-  return fetch(url, { ...init, signal: controller.signal }).finally(() => window.clearTimeout(timer))
+  return fetch(url, { ...rest, signal: controller.signal }).finally(() => window.clearTimeout(timer))
 }
 
 /** Same rule as `normalizeUserId` on the API — must stay in sync. */
@@ -89,7 +98,7 @@ function finalizeApiUrl(resolved: string): string {
 }
 
 /** Sets Authorization Bearer + X-Simvest-User-Id; appends `uid` on session routes. */
-export function simvestFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+export function simvestFetch(input: RequestInfo | URL, init?: SimvestFetchInit): Promise<Response> {
   const id = viewerIdForGames()
   const headers = new Headers(init?.headers ?? undefined)
   if (id) {

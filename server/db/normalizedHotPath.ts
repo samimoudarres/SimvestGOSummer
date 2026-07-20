@@ -265,6 +265,52 @@ export async function listFeedPostsForGameSql(
   }
 }
 
+/** Global newest posts (home activity). Prefers SQL so trade appends that skip the JSON blob still appear. */
+export async function listRecentFeedPostsSql(
+  limit = 48,
+): Promise<NormalizedFeedPostRow[] | null> {
+  if (!pgReady()) return null
+  const cap =
+    typeof limit === 'number' && Number.isFinite(limit)
+      ? Math.min(200, Math.max(1, Math.floor(limit)))
+      : 48
+  try {
+    const res = await getPgPool()!.query<{
+      id: string
+      user_id: string | null
+      game_slug: string | null
+      post_kind: string | null
+      posted_at: Date | string | null
+      payload: Record<string, unknown>
+    }>(
+      `select id, user_id, game_slug, post_kind, posted_at, payload
+       from game_feed_posts
+       order by posted_at desc
+       limit $1`,
+      [cap],
+    )
+    return res.rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      gameSlug: r.game_slug,
+      postKind: r.post_kind,
+      postedAtIso:
+        r.posted_at instanceof Date
+          ? r.posted_at.toISOString()
+          : r.posted_at
+            ? String(r.posted_at)
+            : null,
+      payload: r.payload ?? {},
+    }))
+  } catch (err) {
+    console.warn(
+      '[simvest] recent feed SQL list failed, falling back to JSON:',
+      err instanceof Error ? err.message : err,
+    )
+    return null
+  }
+}
+
 export async function countFeedPostsSql(): Promise<number | null> {
   if (!pgReady()) return null
   try {

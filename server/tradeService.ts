@@ -914,8 +914,10 @@ async function cryptoTickers(limit = 24): Promise<string[]> {
 async function buildRowsForSymbols(
   orderedSymbols: string[],
   maxRows = 28,
+  opts?: { enrichLastSession?: boolean },
 ): Promise<TradeBrowseRow[]> {
   const syms = orderedSymbols.slice(0, maxRows)
+  const enrichLastSession = opts?.enrichLastSession !== false
 
   const [snapMap, names] = await Promise.all([
     (async () => {
@@ -976,7 +978,10 @@ async function buildRowsForSymbols(
       sparkline: spark,
     })
   }
-  await enrichBrowseRowsFromLastSessionBars(rows, snapMap)
+  /* Search skips this — weekend bar fan-out was the ~20s stall. Browse keeps it for sparks/%. */
+  if (enrichLastSession) {
+    await enrichBrowseRowsFromLastSessionBars(rows, snapMap)
+  }
   return rows
 }
 
@@ -1231,7 +1236,9 @@ async function refreshTradeSearch(cacheKey: string, q: string): Promise<TradeBro
     const symbols = ranked.slice(0, TRADE_SEARCH_MAX_ROWS).map((x) => x.sym)
     if (!symbols.length) return []
 
-    const rows = await buildRowsForSymbols(symbols, TRADE_SEARCH_MAX_ROWS)
+    const rows = await buildRowsForSymbols(symbols, TRADE_SEARCH_MAX_ROWS, {
+      enrichLastSession: false,
+    })
     tradeSearchRowsCache.set(cacheKey, { exp: Date.now() + TRADE_SEARCH_CACHE_MS, rows })
     return rows
   })()

@@ -9,8 +9,11 @@ import {
   deleteFeedPostSql,
   deleteFeedPostsForGameSql,
   listFeedPostsForGameSql,
+  listRecentFeedPostsSql,
   upsertFeedPostSql,
 } from './db/normalizedHotPath.ts'
+import { getDatabaseUrl } from './db/backend.ts'
+import { getPgPool } from './db/client.ts'
 import { normalizeUserId } from './followsService'
 import { canonicalGameSlugKey, normalizeGameSlugParam } from './gameSlugNormalize'
 
@@ -231,10 +234,17 @@ export async function deleteAllFeedPostsForGame(gameSlug: string): Promise<numbe
   })
 }
 
-/** Home / global activity — newest first. */
+/** Home / global activity — newest first. Prefers SQL so deferred JSON mirrors still show. */
 export async function listRecentActivityPosts(limit = 48): Promise<GameFeedPost[]> {
+  const cap = Math.max(1, Math.min(200, Math.floor(limit)))
+  const sqlRows = await listRecentFeedPostsSql(cap)
+  if (sqlRows && sqlRows.length > 0) {
+    return sqlRows
+      .map((r) => postFromSqlPayload(r.payload, r.id))
+      .filter((p): p is GameFeedPost => Boolean(p))
+  }
   const { posts } = await readFeedStore()
-  return [...posts].sort((a, b) => (a.timestampIso < b.timestampIso ? 1 : -1)).slice(0, Math.max(1, limit))
+  return [...posts].sort((a, b) => (a.timestampIso < b.timestampIso ? 1 : -1)).slice(0, cap)
 }
 
 /** Admin dashboard — newest first, capped for response size. */
@@ -244,18 +254,57 @@ export async function listAllFeedPostsForAdmin(limit = 2000): Promise<GameFeedPo
   return [...posts].sort((a, b) => (a.timestampIso < b.timestampIso ? 1 : -1)).slice(0, cap)
 }
 
+/**
+ * Append a feed post. When Postgres is configured: write SQL first (fast), return, then
+ * mirror into the legacy JSON blob in the background. Avoids rewriting ~5MB game-feed.json
+ * on the Place Order critical path.
+ */
 export async function appendGameFeedPost(post: Omit<GameFeedPost, 'id'> & { id?: string }): Promise<GameFeedPost> {
+  const gameSlug = normalizeGameSlugParam(post.gameSlug)
+  const full: GameFeedPost = {
+    ...post,
+    gameSlug,
+    postKind: post.postKind ?? 'trade',
+    id: post.id ?? randomUUID(),
+  }
+
+  const canSql = Boolean(getDatabaseUrl() && getPgPool())
+  if (canSql) {
+    try {
+      await upsertFeedPostSql({
+        id: full.id,
+        userId: full.userId ?? null,
+        gameSlug: canonicalGameSlugKey(full.gameSlug) || full.gameSlug || null,
+        postKind: full.postKind ?? 'trade',
+        postedAtIso: full.timestampIso ?? null,
+        payload: full as unknown as Record<string, unknown>,
+      })
+      queueMicrotask(() => {
+        void mirrorFeedPostIntoJsonBlob(full).catch((err) => {
+          console.warn(
+            '[simvest] deferred feed JSON mirror failed:',
+            err instanceof Error ? err.message : err,
+          )
+        })
+        void import('./activityPostFanout')
+          .then((m) => m.onNewFeedPost(full))
+          .catch(() => {})
+      })
+      return full
+    } catch (err) {
+      console.warn(
+        '[simvest] feed SQL-first append failed, falling back to JSON:',
+        err instanceof Error ? err.message : err,
+      )
+    }
+  }
+
   return runFeedMutation(async () => {
     const file = await readFeedFileUnlocked()
-    const gameSlug = normalizeGameSlugParam(post.gameSlug)
-    const full: GameFeedPost = {
-      ...post,
-      gameSlug,
-      postKind: post.postKind ?? 'trade',
-      id: post.id ?? randomUUID(),
+    if (!file.posts.some((p) => p.id === full.id)) {
+      file.posts.unshift(full)
+      await writeDataJsonObject(FEED_PATH, file)
     }
-    file.posts.unshift(full)
-    await writeDataJsonObject(FEED_PATH, file)
     await syncFeedPostSql(full)
     queueMicrotask(() => {
       void import('./activityPostFanout')
@@ -263,6 +312,16 @@ export async function appendGameFeedPost(post: Omit<GameFeedPost, 'id'> & { id?:
         .catch(() => {})
     })
     return full
+  })
+}
+
+/** Background mirror so legacy JSON readers / admin exports stay in sync. */
+async function mirrorFeedPostIntoJsonBlob(full: GameFeedPost): Promise<void> {
+  await runFeedMutation(async () => {
+    const file = await readFeedFileUnlocked()
+    if (file.posts.some((p) => p.id === full.id)) return
+    file.posts.unshift(full)
+    await writeDataJsonObject(FEED_PATH, file)
   })
 }
 
