@@ -82,6 +82,7 @@ import {
   getFeedPostById,
   listPostsForGame,
   listRecentActivityPosts,
+  pruneFeedJsonMirrorIfOversized,
   updateFeedPostRichBody,
   updateFeedPostRationale,
 } from './gameFeedService'
@@ -3098,6 +3099,18 @@ async function runStartupReconciles(): Promise<void> {
         err instanceof Error ? err.message : err,
       )
     }
+  }
+
+  try {
+    const dropped = await pruneFeedJsonMirrorIfOversized()
+    if (dropped > 0) {
+      console.log(`[startup] pruned ${dropped} old post(s) from game-feed.json mirror (cap 800).`)
+    }
+  } catch (err) {
+    console.warn(
+      '[startup] feed JSON mirror prune skipped:',
+      err instanceof Error ? err.message : err,
+    )
   }
 }
 

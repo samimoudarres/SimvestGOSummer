@@ -189,7 +189,7 @@ export function TradeScreen() {
       logoUrl: row.logoUrl,
       sparkline: row.sparkline,
     })
-    prefetchStockDetail(row.symbol)
+    prefetchStockDetail(row.symbol, '1D', { allRanges: true })
   }, [])
 
   const pushRecentAndNavigate = useCallback(

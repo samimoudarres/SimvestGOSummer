@@ -121,8 +121,12 @@ export function prefetchStockBarsAllRanges(ticker: string): void {
   })
 }
 
-/** Warm detail (+ all bar ranges) before opening a stock screen. */
-export function prefetchStockDetail(ticker: string, range: ChartRange = '1D'): void {
+/** Warm detail (+ optional all bar ranges) before opening a stock screen. */
+export function prefetchStockDetail(
+  ticker: string,
+  range: ChartRange = '1D',
+  opts?: { allRanges?: boolean },
+): void {
   const t = ticker.trim().toUpperCase()
   if (!t) return
   const detailKey = simvestJsonCacheKey(stockDetailUrl(t))
@@ -138,7 +142,7 @@ export function prefetchStockDetail(ticker: string, range: ChartRange = '1D'): v
     }).catch(() => {})
   }
   prefetchOneBarsRange(t, range)
-  prefetchStockBarsAllRanges(t)
+  if (opts?.allRanges) prefetchStockBarsAllRanges(t)
 }
 
 export function peekCachedStockBars(ticker: string, range: ChartRange): StockBarsPayload['bars'] | undefined {

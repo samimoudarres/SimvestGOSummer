@@ -24,6 +24,6 @@ export function navigateToStock(
   if (state?.seed) {
     seedStockDetailFromBrowse(state.seed)
   }
-  prefetchStockDetail(ticker)
+  prefetchStockDetail(ticker, '1D', { allRanges: true })
   navigate(stockPath(ticker), { state })
 }

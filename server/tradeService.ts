@@ -292,14 +292,24 @@ function sparkFromSnapshot(sym: string, snap: SnapTicker | undefined): number[] 
   return [1, 1]
 }
 
-/** One paced batch of 1D/last-session bars for weekend-empty snapshots (cached ~45s inside stockService). */
+/** One paced batch of 1D/last-session bars for weekend-empty snapshots (cached ~45s inside stockService).
+ * When `maxSymbols` is finite (search), enrich top N US equities even if the session isn't empty —
+ * snapshot sparks are linear diagonals; bars give real curves without enriching the whole list.
+ */
 async function enrichBrowseRowsFromLastSessionBars(
   rows: TradeBrowseRow[],
   snapMap: Map<string, SnapTicker>,
+  maxSymbols = Infinity,
 ): Promise<void> {
+  const capped = Number.isFinite(maxSymbols)
   const need = rows
     .map((r, i) => ({ row: r, i, snap: snapMap.get(r.symbol) }))
-    .filter(({ row, snap }) => isUsEquitySymbol(row.symbol) && isSnapshotDaySessionEmpty(snap as never))
+    .filter(({ row, snap }) => {
+      if (!isUsEquitySymbol(row.symbol)) return false
+      if (capped) return true
+      return isSnapshotDaySessionEmpty(snap as never)
+    })
+    .slice(0, capped ? Math.max(0, Math.floor(maxSymbols)) : undefined)
   if (!need.length) return
 
   const CONCURRENCY = 4
@@ -914,10 +924,14 @@ async function cryptoTickers(limit = 24): Promise<string[]> {
 async function buildRowsForSymbols(
   orderedSymbols: string[],
   maxRows = 28,
-  opts?: { enrichLastSession?: boolean },
+  opts?: { enrichLastSession?: boolean; enrichLastSessionMax?: number },
 ): Promise<TradeBrowseRow[]> {
   const syms = orderedSymbols.slice(0, maxRows)
   const enrichLastSession = opts?.enrichLastSession !== false
+  const enrichMax =
+    typeof opts?.enrichLastSessionMax === 'number' && Number.isFinite(opts.enrichLastSessionMax)
+      ? Math.max(0, Math.floor(opts.enrichLastSessionMax))
+      : Infinity
 
   const [snapMap, names] = await Promise.all([
     (async () => {
@@ -978,9 +992,9 @@ async function buildRowsForSymbols(
       sparkline: spark,
     })
   }
-  /* Search skips this — weekend bar fan-out was the ~20s stall. Browse keeps it for sparks/%. */
-  if (enrichLastSession) {
-    await enrichBrowseRowsFromLastSessionBars(rows, snapMap)
+  /* Search caps enrich (top hits only) so sparks aren't flat diagonals without a 20s stall. */
+  if (enrichLastSession && enrichMax > 0) {
+    await enrichBrowseRowsFromLastSessionBars(rows, snapMap, enrichMax)
   }
   return rows
 }
@@ -1237,7 +1251,8 @@ async function refreshTradeSearch(cacheKey: string, q: string): Promise<TradeBro
     if (!symbols.length) return []
 
     const rows = await buildRowsForSymbols(symbols, TRADE_SEARCH_MAX_ROWS, {
-      enrichLastSession: false,
+      enrichLastSession: true,
+      enrichLastSessionMax: 5,
     })
     tradeSearchRowsCache.set(cacheKey, { exp: Date.now() + TRADE_SEARCH_CACHE_MS, rows })
     return rows

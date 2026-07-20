@@ -40,6 +40,86 @@ function pgReady(): boolean {
   return Boolean(getDatabaseUrl() && getPgPool())
 }
 
+/** Read one user's ledger from normalized tables (null if missing / DB unavailable). */
+export async function getUserGameLedgerSql(
+  userId: string,
+  gameSlug: string,
+  client?: pg.PoolClient,
+): Promise<NormalizedLedger | null> {
+  if ((!pgReady() && !client) || !userId || !gameSlug) return null
+  try {
+    const q = client ?? getPgPool()!
+    const cashRes = await q.query<{ cash: string | number }>(
+      `select cash from user_game_cash where user_id = $1 and game_slug = $2${client ? ' for update' : ''}`,
+      [userId, gameSlug],
+    )
+    if (!cashRes.rows[0]) return null
+    const cash = Number(cashRes.rows[0].cash)
+    const [holdRes, lotRes] = await Promise.all([
+      q.query<{
+        ticker: string
+        shares: string | number
+        avg_cost: string | number | null
+        payload: unknown
+      }>(
+        `select ticker, shares, avg_cost, payload from user_game_holdings
+         where user_id = $1 and game_slug = $2`,
+        [userId, gameSlug],
+      ),
+      q.query<{
+        ticker: string
+        shares: string | number
+        cost_basis: string | number | null
+        opened_at: Date | string | null
+        payload: unknown
+      }>(
+        `select ticker, shares, cost_basis, opened_at, payload from user_game_lots
+         where user_id = $1 and game_slug = $2
+         order by opened_at asc nulls last`,
+        [userId, gameSlug],
+      ),
+    ])
+    const holdings: NormalizedHolding[] = holdRes.rows.map((r) => {
+      const fromPayload =
+        r.payload && typeof r.payload === 'object' ? (r.payload as Partial<NormalizedHolding>) : {}
+      return {
+        ticker: String(r.ticker ?? fromPayload.ticker ?? ''),
+        shares: Number(r.shares ?? fromPayload.shares ?? 0),
+        avgCost: Number(r.avg_cost ?? fromPayload.avgCost ?? 0),
+      }
+    }).filter((h) => h.ticker && Number.isFinite(h.shares) && h.shares > 0)
+
+    const lots: NormalizedLot[] = lotRes.rows.map((r) => {
+      const fromPayload =
+        r.payload && typeof r.payload === 'object' ? (r.payload as Partial<NormalizedLot>) : {}
+      const opened =
+        r.opened_at instanceof Date
+          ? r.opened_at.toISOString()
+          : r.opened_at
+            ? String(r.opened_at)
+            : fromPayload.boughtAtIso ?? new Date().toISOString()
+      return {
+        ticker: String(r.ticker ?? fromPayload.ticker ?? ''),
+        shares: Number(r.shares ?? fromPayload.shares ?? 0),
+        entryPrice: Number(r.cost_basis ?? fromPayload.entryPrice ?? 0),
+        boughtAtIso: opened,
+      }
+    }).filter((l) => l.ticker && Number.isFinite(l.shares) && l.shares > 0)
+
+    return {
+      cash: Number.isFinite(cash) ? cash : 0,
+      holdings,
+      lots,
+    }
+  } catch (err) {
+    console.warn(
+      '[simvest] ledger SQL read failed:',
+      err instanceof Error ? err.message : err,
+    )
+    return null
+  }
+}
+
 export async function upsertUserGameLedgerSql(
   userId: string,
   gameSlug: string,
@@ -92,7 +172,20 @@ export async function upsertUserGameLedgerSql(
     await run(client)
     return
   }
-  await withPgClient(run)
+  await withPgClient(async (c) => {
+    await c.query('BEGIN')
+    try {
+      await run(c)
+      await c.query('COMMIT')
+    } catch (err) {
+      try {
+        await c.query('ROLLBACK')
+      } catch {
+        /* ignore */
+      }
+      throw err
+    }
+  })
 }
 
 export async function deleteUserGameLedgerSql(

@@ -60,7 +60,7 @@ export function warmBrowseRowDetailCaches(
 ): void {
   if (!rows?.length) return
   void import('../stocks/stockDetailPrefetch').then((m) => {
-    rows.slice(0, 12).forEach((row, i) => {
+    rows.slice(0, 6).forEach((row, i) => {
       window.setTimeout(() => {
         m.seedStockDetailFromBrowse({
           symbol: row.symbol,
@@ -70,8 +70,9 @@ export function warmBrowseRowDetailCaches(
           logoUrl: row.logoUrl,
           sparkline: row.sparkline,
         })
-        m.prefetchStockDetail(row.symbol, '1D')
-      }, i * 80)
+        /* 1D only — full range fan-out was saturating Massive during browse. */
+        m.prefetchStockDetail(row.symbol, '1D', { allRanges: false })
+      }, i * 100)
     })
   })
 }

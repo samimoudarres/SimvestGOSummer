@@ -315,13 +315,34 @@ export async function appendGameFeedPost(post: Omit<GameFeedPost, 'id'> & { id?:
   })
 }
 
-/** Background mirror so legacy JSON readers / admin exports stay in sync. */
+/** Background mirror so legacy JSON readers / admin exports stay in sync. Cap size so the blob cannot grow forever. */
+const FEED_JSON_MIRROR_MAX_POSTS = 800
+
 async function mirrorFeedPostIntoJsonBlob(full: GameFeedPost): Promise<void> {
   await runFeedMutation(async () => {
     const file = await readFeedFileUnlocked()
-    if (file.posts.some((p) => p.id === full.id)) return
-    file.posts.unshift(full)
+    let dirty = false
+    if (!file.posts.some((p) => p.id === full.id)) {
+      file.posts.unshift(full)
+      dirty = true
+    }
+    if (file.posts.length > FEED_JSON_MIRROR_MAX_POSTS) {
+      file.posts = file.posts.slice(0, FEED_JSON_MIRROR_MAX_POSTS)
+      dirty = true
+    }
+    if (dirty) await writeDataJsonObject(FEED_PATH, file)
+  })
+}
+
+/** One-shot / boot: shrink oversized legacy feed JSON mirror (SQL remains source of truth for lists). */
+export async function pruneFeedJsonMirrorIfOversized(): Promise<number> {
+  return runFeedMutation(async () => {
+    const file = await readFeedFileUnlocked()
+    const before = file.posts.length
+    if (before <= FEED_JSON_MIRROR_MAX_POSTS) return 0
+    file.posts = file.posts.slice(0, FEED_JSON_MIRROR_MAX_POSTS)
     await writeDataJsonObject(FEED_PATH, file)
+    return before - file.posts.length
   })
 }
 

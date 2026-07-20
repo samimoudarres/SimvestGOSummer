@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { networkErrorMessage } from '../api/networkErrorMessage'
 import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
 import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
@@ -47,7 +48,15 @@ export function usePerformDashboard(gameSlug: string | undefined) {
       if (!silent && !hasDataRef.current) setStatus('loading')
       skipInitialLoadingUiRef.current = false
       simvestFetch(`/api/games/${encodeURIComponent(gameSlug)}/perform`)
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((r) => {
+          if (r.ok) return r.json()
+          if (r.status === 503) {
+            return Promise.reject(
+              new Error('Service temporarily unavailable. Please retry in a moment.'),
+            )
+          }
+          return Promise.reject(new Error(String(r.status)))
+        })
         .then((payload: PerformDashboardPayload) => {
           if (cancelled) return
           const next = { ...payload, gameSlug }
@@ -63,7 +72,7 @@ export function usePerformDashboard(gameSlug: string | undefined) {
           if (!hasDataRef.current) {
             setData(fallback)
             setFromApi(false)
-            setError(err instanceof Error ? err.message : 'Could not load performance')
+    setError(err instanceof Error ? networkErrorMessage(err) : 'Could not load performance')
             setStatus('error')
           }
         })

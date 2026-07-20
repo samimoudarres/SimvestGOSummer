@@ -7,9 +7,13 @@ import {
 import {
   deleteAllLedgersForGameSql,
   deleteUserGameLedgerSql,
+  getUserGameLedgerSql,
   renameGameSlugInLedgerSql,
   upsertUserGameLedgerSql,
 } from './db/normalizedHotPath.ts'
+import { getDatabaseUrl } from './db/backend.ts'
+import { getPgPool, withPgClient } from './db/client.ts'
+import { runSerializedByKey } from './fsMutationQueue.ts'
 import { normalizeCryptoCompositeTicker, normalizeTicker, resolveMassiveTicker } from './stockService'
 
 async function syncLedgerSql(
@@ -39,11 +43,71 @@ async function removeLedgerSql(userId: string, gameSlug: string): Promise<void> 
 }
 
 const STATE_PATH = dataFilePath('user-game-state.json')
+const IDEM_PATH = dataFilePath('trade-idempotency.json')
 const LEGACY_HOLDINGS_PATH = dataFilePath('holdings.json')
 
-/** Process + cross-instance lock for portfolio RMW (trades, clears, etc.). */
+/** Process + cross-instance lock for portfolio JSON RMW (clears, merges, legacy). */
 function withPortfolioLock<T>(fn: () => Promise<T>): Promise<T> {
   return withDataJsonDocumentLock(STATE_PATH, fn)
+}
+
+function withIdempotencyLock<T>(fn: () => Promise<T>): Promise<T> {
+  return withDataJsonDocumentLock(IDEM_PATH, fn)
+}
+
+/**
+ * Per-user+game ledger lock for Place Order — does NOT hold the giant
+ * `user-game-state.json` advisory lock (that was serializing every trade).
+ * When Postgres is up, `fn` runs inside one transaction with an advisory lock;
+ * `client` is that connection (use it for SQL reads/writes).
+ */
+function withUserLedgerLock<T>(
+  userId: string,
+  gameSlug: string,
+  fn: (client: import('pg').PoolClient | null) => Promise<T>,
+): Promise<T> {
+  const key = `ledger:${userId}:${gameSlug}`
+  return runSerializedByKey(key, async () => {
+    if (getDatabaseUrl() && getPgPool()) {
+      return withPgClient(async (client) => {
+        await client.query('BEGIN')
+        try {
+          await client.query(
+            `SELECT pg_advisory_xact_lock(('x' || substr(md5($1), 1, 16))::bit(64)::bigint)`,
+            [key],
+          )
+          const result = await fn(client)
+          await client.query('COMMIT')
+          return result
+        } catch (err) {
+          try {
+            await client.query('ROLLBACK')
+          } catch {
+            /* ignore */
+          }
+          throw err
+        }
+      })
+    }
+    return withPortfolioLock(() => fn(null))
+  })
+}
+
+/** Best-effort JSON seed when SQL row is missing (no portfolio lock — first-trade migration gap). */
+async function seedLedgerFromJsonUnlocked(userId: string, gameSlug: string): Promise<UserGameLedger> {
+  try {
+    const raw = await readDataJsonObject<PortfolioStateV2>(STATE_PATH)
+    if (raw && typeof raw === 'object') {
+      return {
+        cash: ledgerFor(raw, userId, gameSlug).cash,
+        holdings: [...ledgerFor(raw, userId, gameSlug).holdings],
+        lots: [...ledgerFor(raw, userId, gameSlug).lots],
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+  return { cash: DEFAULT_STARTING_CASH, holdings: [], lots: [] }
 }
 
 export type HoldingRecord = { ticker: string; shares: number; avgCost: number }
@@ -199,16 +263,22 @@ export async function writePortfolioState(s: PortfolioStateV2): Promise<void> {
 /** Drop a single user's ledger (cash + holdings + lots) for one game. Returns true when removed. */
 export async function clearUserLedgerForGame(userId: string, gameSlug: string): Promise<boolean> {
   if (!userId || !gameSlug) return false
-  return withPortfolioLock(async () => {
+  let removed = false
+  await withPortfolioLock(async () => {
     const state = await loadPortfolioStateFromDisk()
     const games = state.users[userId]
-    if (!games || !games[gameSlug]) return false
-    delete games[gameSlug]
-    if (Object.keys(games).length === 0) delete state.users[userId]
-    await writePortfolioStateToDisk(state)
-    await removeLedgerSql(userId, gameSlug)
-    return true
+    if (games?.[gameSlug]) {
+      delete games[gameSlug]
+      if (Object.keys(games).length === 0) delete state.users[userId]
+      await writePortfolioStateToDisk(state)
+      removed = true
+    }
   })
+  const hadSql =
+    Boolean(getDatabaseUrl() && getPgPool()) &&
+    Boolean(await getUserGameLedgerSql(userId, gameSlug))
+  await removeLedgerSql(userId, gameSlug)
+  return removed || hadSql
 }
 
 /** Drop persisted ledger rows for **every** user for one game slug (shared-slot republish). */
@@ -361,18 +431,35 @@ export async function getMergedHoldings(userId: string, gameSlug: string): Promi
 
 /** This user's actual positions from the trade ledger only (no seeded legacy holdings). */
 export async function getLedgerHoldingsForGame(userId: string, gameSlug: string): Promise<HoldingRecord[]> {
-  const state = await readPortfolioState()
-  return [...ledgerFor(state, userId, gameSlug).holdings]
+  return [...(await getUserLedger(userId, gameSlug)).holdings]
 }
 
 export async function getUserLedger(userId: string, gameSlug: string): Promise<UserGameLedger> {
+  if (getDatabaseUrl() && getPgPool()) {
+    const sql = await getUserGameLedgerSql(userId, gameSlug)
+    if (sql) {
+      return {
+        cash: sql.cash,
+        holdings: sql.holdings.map((h) => ({
+          ticker: h.ticker,
+          shares: h.shares,
+          avgCost: h.avgCost,
+        })),
+        lots: sql.lots.map((l) => ({
+          ticker: l.ticker,
+          shares: l.shares,
+          entryPrice: l.entryPrice,
+          boughtAtIso: l.boughtAtIso,
+        })),
+      }
+    }
+  }
   const state = await readPortfolioState()
   return ledgerFor(state, userId, gameSlug)
 }
 
 export async function getUserLots(userId: string, gameSlug: string): Promise<PositionLot[]> {
-  const state = await readPortfolioState()
-  return ledgerFor(state, userId, gameSlug).lots
+  return (await getUserLedger(userId, gameSlug)).lots
 }
 
 export type TradeSide = 'buy' | 'sell'
@@ -413,12 +500,11 @@ export async function applyTradeToUserLedger(
   if (!Number.isFinite(input.fillPrice) || input.fillPrice <= 0) return { ok: false, error: 'Invalid price' }
   if (!Number.isFinite(input.orderTotal) || input.orderTotal <= 0) return { ok: false, error: 'Invalid order total' }
 
-  return withPortfolioLock(async () => {
-    const state = await loadPortfolioStateFromDisk()
-    const ledger = ledgerFor(state, input.userId, input.gameSlug)
-
-    let unwoundCostBasis: number | undefined
-
+  const mutate = (
+    ledger: UserGameLedger,
+  ):
+    | { ok: false; error: string }
+    | { ok: true; ledger: UserGameLedger; unwoundCostBasis?: number } => {
     if (input.side === 'buy') {
       if (ledger.cash + 1e-9 < input.orderTotal) {
         return { ok: false, error: 'Insufficient cash for this trade' }
@@ -434,52 +520,148 @@ export async function applyTradeToUserLedger(
         },
       ]
       ledger.holdings = lotsToHoldings(ledger.lots)
-    } else {
-      const owned = ledger.lots
-        .filter((l) => (resolveMassiveTicker(l.ticker) ?? normalizeTicker(l.ticker)) === sym)
-        .reduce((s, l) => s + l.shares, 0)
-      if (owned + 1e-9 < input.shares) return { ok: false, error: 'Not enough shares to sell' }
-      ledger.cash += input.orderTotal
-      let remaining = input.shares
-      let costBasis = 0
-      const sorted = [...ledger.lots].sort((a, b) => (a.boughtAtIso < b.boughtAtIso ? -1 : 1))
-      const next: PositionLot[] = []
-      for (const lot of sorted) {
-        if ((resolveMassiveTicker(lot.ticker) ?? normalizeTicker(lot.ticker)) !== sym) {
-          next.push(lot)
-          continue
-        }
-        if (remaining <= 1e-9) {
-          next.push(lot)
-          continue
-        }
-        if (lot.shares <= remaining + 1e-9) {
-          costBasis += lot.shares * lot.entryPrice
-          remaining -= lot.shares
-        } else {
-          costBasis += remaining * lot.entryPrice
-          next.push({ ...lot, shares: lot.shares - remaining })
-          remaining = 0
-        }
+      return { ok: true, ledger }
+    }
+    const owned = ledger.lots
+      .filter((l) => (resolveMassiveTicker(l.ticker) ?? normalizeTicker(l.ticker)) === sym)
+      .reduce((s, l) => s + l.shares, 0)
+    if (owned + 1e-9 < input.shares) return { ok: false, error: 'Not enough shares to sell' }
+    ledger.cash += input.orderTotal
+    let remaining = input.shares
+    let costBasis = 0
+    const sorted = [...ledger.lots].sort((a, b) => (a.boughtAtIso < b.boughtAtIso ? -1 : 1))
+    const next: PositionLot[] = []
+    for (const lot of sorted) {
+      if ((resolveMassiveTicker(lot.ticker) ?? normalizeTicker(lot.ticker)) !== sym) {
+        next.push(lot)
+        continue
       }
-      ledger.lots = next.filter((l) => l.shares > 1e-8)
-      ledger.holdings = lotsToHoldings(ledger.lots)
-      unwoundCostBasis = costBasis
+      if (remaining <= 1e-9) {
+        next.push(lot)
+        continue
+      }
+      if (lot.shares <= remaining + 1e-9) {
+        costBasis += lot.shares * lot.entryPrice
+        remaining -= lot.shares
+      } else {
+        costBasis += remaining * lot.entryPrice
+        next.push({ ...lot, shares: lot.shares - remaining })
+        remaining = 0
+      }
     }
+    ledger.lots = next.filter((l) => l.shares > 1e-8)
+    ledger.holdings = lotsToHoldings(ledger.lots)
+    return { ok: true, ledger, unwoundCostBasis: costBasis }
+  }
 
-    setLedger(state, input.userId, input.gameSlug, ledger)
-    if (!state.users[input.userId]?.[input.gameSlug]) {
-      return { ok: false, error: 'Could not attach ledger to portfolio state' }
-    }
+  try {
+    return await withUserLedgerLock(input.userId, input.gameSlug, async (client) => {
+      let ledger: UserGameLedger
+      if (client) {
+        const sqlLed = await getUserGameLedgerSql(input.userId, input.gameSlug, client)
+        if (sqlLed) {
+          ledger = {
+            cash: sqlLed.cash,
+            holdings: sqlLed.holdings.map((h) => ({ ...h })),
+            lots: sqlLed.lots.map((l) => ({ ...l })),
+          }
+        } else {
+          ledger = await seedLedgerFromJsonUnlocked(input.userId, input.gameSlug)
+        }
+      } else {
+        const state = await loadPortfolioStateFromDisk()
+        ledger = ledgerFor(state, input.userId, input.gameSlug)
+      }
+
+      const result = mutate(ledger)
+      if (!result.ok) return { ok: false, error: result.error }
+
+      const persisted: UserGameLedger = {
+        cash: result.ledger.cash,
+        holdings: [...result.ledger.holdings],
+        lots: [...result.ledger.lots],
+      }
+
+      if (client) {
+        await upsertUserGameLedgerSql(input.userId, input.gameSlug, persisted, client)
+        queueMicrotask(() => {
+          void mirrorLedgerIntoJsonBlobFromSql(input.userId, input.gameSlug).catch((err) => {
+            console.warn(
+              '[simvest] deferred ledger JSON mirror failed:',
+              err instanceof Error ? err.message : err,
+            )
+          })
+        })
+        return result.unwoundCostBasis != null
+          ? { ok: true, unwoundCostBasis: result.unwoundCostBasis }
+          : { ok: true }
+      }
+
+      const state = await loadPortfolioStateFromDisk()
+      setLedger(state, input.userId, input.gameSlug, persisted)
+      if (!state.users[input.userId]?.[input.gameSlug]) {
+        return { ok: false, error: 'Could not attach ledger to portfolio state' }
+      }
+      await writePortfolioStateToDisk(state)
+      await syncLedgerSql(input.userId, input.gameSlug, persisted)
+      return result.unwoundCostBasis != null
+        ? { ok: true, unwoundCostBasis: result.unwoundCostBasis }
+        : { ok: true }
+    })
+  } catch (err) {
+    console.warn(
+      '[simvest] ledger SQL-primary trade failed, falling back to JSON:',
+      err instanceof Error ? err.message : err,
+    )
+    return withPortfolioLock(async () => {
+      const state = await loadPortfolioStateFromDisk()
+      const ledger = ledgerFor(state, input.userId, input.gameSlug)
+      const result = mutate(ledger)
+      if (!result.ok) return { ok: false, error: result.error }
+      const persisted: UserGameLedger = {
+        cash: result.ledger.cash,
+        holdings: [...result.ledger.holdings],
+        lots: [...result.ledger.lots],
+      }
+      setLedger(state, input.userId, input.gameSlug, persisted)
+      if (!state.users[input.userId]?.[input.gameSlug]) {
+        return { ok: false, error: 'Could not attach ledger to portfolio state' }
+      }
+      await writePortfolioStateToDisk(state)
+      await syncLedgerSql(input.userId, input.gameSlug, persisted)
+      return result.unwoundCostBasis != null
+        ? { ok: true, unwoundCostBasis: result.unwoundCostBasis }
+        : { ok: true }
+    })
+  }
+}
+
+/** Mirror latest SQL ledger into JSON — always re-read SQL so out-of-order mirrors cannot clobber. */
+async function mirrorLedgerIntoJsonBlobFromSql(userId: string, gameSlug: string): Promise<void> {
+  const sqlLed = await getUserGameLedgerSql(userId, gameSlug)
+  if (!sqlLed) return
+  const ledger: UserGameLedger = {
+    cash: sqlLed.cash,
+    holdings: sqlLed.holdings.map((h) => ({ ...h })),
+    lots: sqlLed.lots.map((l) => ({ ...l })),
+  }
+  await withPortfolioLock(async () => {
+    const state = await loadPortfolioStateFromDisk()
+    setLedger(state, userId, gameSlug, ledger)
     await writePortfolioStateToDisk(state)
-    const persisted = state.users[input.userId]![input.gameSlug]!
-    await syncLedgerSql(input.userId, input.gameSlug, persisted)
-    return unwoundCostBasis != null ? { ok: true, unwoundCostBasis } : { ok: true }
   })
 }
 
 const TRADE_IDEM_TTL_MS = 48 * 60 * 60 * 1000
 const TRADE_IDEM_MAX_KEYS = 400
+
+type TradeIdemFile = {
+  keys: Record<string, { atIso: string; response: unknown }>
+}
+
+function emptyIdemFile(): TradeIdemFile {
+  return { keys: {} }
+}
 
 /** Normalize optional Idempotency-Key / clientTradeId (8–128 safe chars). */
 export function normalizeClientTradeId(raw: unknown): string | null {
@@ -515,10 +697,18 @@ export async function getTradeIdempotencyResponse(
   clientTradeId: string,
 ): Promise<unknown | null> {
   const key = tradeIdemKey(userId, gameSlug, clientTradeId)
-  return withPortfolioLock(async () => {
-    const state = await loadPortfolioStateFromDisk()
-    const row = state.tradeIdempotency?.[key]
-    if (!row) return null
+  return withIdempotencyLock(async () => {
+    const file = (await readDataJsonObject<TradeIdemFile>(IDEM_PATH)) ?? emptyIdemFile()
+    const row = file.keys?.[key]
+    if (!row) {
+      /* Legacy: keys previously lived inside user-game-state.json */
+      const state = await loadPortfolioStateFromDisk()
+      const legacy = state.tradeIdempotency?.[key]
+      if (!legacy) return null
+      const ms = Date.parse(legacy.atIso)
+      if (!Number.isFinite(ms) || Date.now() - ms >= TRADE_IDEM_TTL_MS) return null
+      return legacy.response
+    }
     const ms = Date.parse(row.atIso)
     if (!Number.isFinite(ms) || Date.now() - ms >= TRADE_IDEM_TTL_MS) return null
     return row.response
@@ -533,11 +723,10 @@ export async function rememberTradeIdempotencyResponse(
   response: unknown,
 ): Promise<void> {
   const key = tradeIdemKey(userId, gameSlug, clientTradeId)
-  return withPortfolioLock(async () => {
-    const state = await loadPortfolioStateFromDisk()
-    const cur = pruneTradeIdempotency(state.tradeIdempotency ?? {})
+  return withIdempotencyLock(async () => {
+    const file = (await readDataJsonObject<TradeIdemFile>(IDEM_PATH)) ?? emptyIdemFile()
+    const cur = pruneTradeIdempotency(file.keys ?? {})
     cur[key] = { atIso: new Date().toISOString(), response }
-    state.tradeIdempotency = cur
-    await writePortfolioStateToDisk(state)
+    await writeDataJsonObject(IDEM_PATH, { keys: cur })
   })
 }
