@@ -78,7 +78,7 @@ export function useGameTopGainsToday(gameSlug: string | undefined, enabled: bool
         if (!silent) {
           setError(e instanceof Error ? e.message : 'Could not load top gains')
           setStatus('error')
-          setRows([])
+          /* Keep last-good rows on error — never blank the strip. */
         }
       }
     },
@@ -87,22 +87,25 @@ export function useGameTopGainsToday(gameSlug: string | undefined, enabled: bool
 
   useEffect(() => {
     if (!enabled || !gameSlug) {
-      hasLoadedRef.current = false
-      skipLoadingUiRef.current = false
-      setRows([])
-      setStatus('idle')
-      setError(null)
+      /* Keep last-good rows when shell briefly disables; only clear when slug gone. */
+      if (!gameSlug) {
+        hasLoadedRef.current = false
+        skipLoadingUiRef.current = false
+        setRows([])
+        setStatus('idle')
+        setError(null)
+      }
       return
     }
     const cached = readCachedLeaderboard(gameSlug, 'today')
-    hasLoadedRef.current = !!cached
-    skipLoadingUiRef.current = !!cached
+    hasLoadedRef.current = !!cached || hasLoadedRef.current
+    skipLoadingUiRef.current = !!cached || hasLoadedRef.current
     if (cached) {
       setRows(mapRows(cached.rows))
       setStatus('ready')
       setError(null)
-    } else {
-      setRows([])
+    } else if (!hasLoadedRef.current) {
+      /* First visit only — do not clear last-good from a prior slug paint. */
       setStatus('idle')
     }
     void load('initial')

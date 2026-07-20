@@ -45,6 +45,23 @@ assert(pxA === 81.21, `Weekend uses day/prev close (got ${pxA})`)
 const pctWeekendA = pickUsEquityFrozenChangePct('KO', snapA, satAfternoon)
 assert(pctWeekendA != null && Math.abs(pctWeekendA - ((81.21 - 80.5) / 80.5) * 100) < 0.01, 'Weekend % from day vs prev')
 
+// Massive weekend reset: day all zeros + todaysChangePerc=0, Friday OHLC in prevDay
+const weekendReset = {
+  day: { o: 0, h: 0, l: 0, c: 0, v: 0 },
+  prevDay: { o: 394.855, h: 398.39, l: 389.39, c: 393.82 },
+  todaysChange: 0,
+  todaysChangePerc: 0,
+  lastTrade: undefined,
+}
+assert(pickStockMarkPrice('MSFT', weekendReset, satAfternoon) === 393.82, 'Weekend mark from prevDay.c')
+const pctReset = pickUsEquityFrozenChangePct('MSFT', weekendReset, satAfternoon)
+const expectedOpenClose = ((393.82 - 394.855) / 394.855) * 100
+assert(
+  pctReset != null && Math.abs(pctReset - expectedOpenClose) < 0.01,
+  `Weekend must ignore Massive 0% when day empty (got ${pctReset})`,
+)
+assert(Math.abs(pctReset!) > 0.01, 'Weekend % must not be +0.00')
+
 // Since-purchase % for buy @ 80.88 must not jump when lastTrade drifts
 const purchase = 80.88
 const pctA = ((pxA! - purchase) / purchase) * 100

@@ -49,35 +49,7 @@ export function GameShellRosterBlock({
               />
             ))}
           </>
-        ) : rosterStatus === 'loading' || rosterStatus === 'idle' ? (
-          <>
-            {[0, 1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="gc-avatarSm"
-                style={{
-                  background: '#ececec',
-                  border: '2px dashed #d8d8d8',
-                }}
-                aria-hidden
-              />
-            ))}
-          </>
-        ) : rosterMembers.length === 0 ? (
-          <>
-            {[0, 1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="gc-avatarSm"
-                style={{
-                  background: '#f4f4f4',
-                  border: '2px solid #e4e4e4',
-                }}
-                aria-hidden
-              />
-            ))}
-          </>
-        ) : (
+        ) : rosterMembers.length > 0 ? (
           <>
             {rosterMembers.slice(0, 5).map((m, i) => {
               const face = (
@@ -112,6 +84,34 @@ export function GameShellRosterBlock({
               )
             })}
           </>
+        ) : rosterStatus === 'loading' || rosterStatus === 'idle' ? (
+          <>
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="gc-avatarSm"
+                style={{
+                  background: '#ececec',
+                  border: '2px dashed #d8d8d8',
+                }}
+                aria-hidden
+              />
+            ))}
+          </>
+        ) : (
+          <>
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="gc-avatarSm"
+                style={{
+                  background: '#f4f4f4',
+                  border: '2px solid #e4e4e4',
+                }}
+                aria-hidden
+              />
+            ))}
+          </>
         )}
         <button type="button" className="gc-invitePill" onClick={onInviteClick}>
           <img src={a.plusIcon} alt="" />
@@ -122,15 +122,7 @@ export function GameShellRosterBlock({
         <p className="gc-names">
           <strong className="gc-muted">Players you invite will appear here.</strong>
         </p>
-      ) : rosterStatus === 'loading' || rosterStatus === 'idle' ? (
-        <p className="gc-names">
-          <span className="gc-muted">Loading players…</span>
-        </p>
-      ) : totalPlayers <= 0 ? (
-        <p className="gc-names">
-          <strong className="gc-muted">No players yet — tap Invite to share your join code.</strong>
-        </p>
-      ) : (
+      ) : rosterMembers.length > 0 || totalPlayers > 0 ? (
         <p className="gc-names">
           {rosterMembers[0] ? (
             <>
@@ -161,6 +153,14 @@ export function GameShellRosterBlock({
               {totalPlayers} player{totalPlayers === 1 ? '' : 's'} in this game
             </strong>
           )}
+        </p>
+      ) : rosterStatus === 'loading' || rosterStatus === 'idle' ? (
+        <p className="gc-names">
+          <span className="gc-muted">Loading players…</span>
+        </p>
+      ) : (
+        <p className="gc-names">
+          <strong className="gc-muted">No players yet — tap Invite to share your join code.</strong>
         </p>
       )}
     </>

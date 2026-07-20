@@ -1,6 +1,8 @@
 import { getFollowTickersForGame } from './followsService'
 import { massiveGet } from './massiveClient'
 import {
+  fetchStockBars1DayOrLastTwoSessions,
+  lastSessionMetricsFromBars,
   normalizeCryptoCompositeTicker,
   normalizeCryptoSnapshotShape,
   normalizeTicker,
@@ -8,7 +10,12 @@ import {
   resolveMassiveTicker,
   unwrapCryptoSnapshotBody,
 } from './stockService'
-import { isUsEquitySymbol, pickStockMarkPrice, pickUsEquityFrozenChangePct } from './usEquityMarkPrice'
+import {
+  isSnapshotDaySessionEmpty,
+  isUsEquitySymbol,
+  pickStockMarkPrice,
+  pickUsEquityFrozenChangePct,
+} from './usEquityMarkPrice'
 
 export type TradeCategoryId =
   | 'popular'
@@ -226,17 +233,38 @@ function rawSessionChangePct(snap: SnapTicker | undefined): number | null {
   return null
 }
 
+function sparkHasMovement(spark: number[]): boolean {
+  if (spark.length < 2) return false
+  const a = spark[0]!
+  for (let i = 1; i < spark.length; i++) {
+    if (Math.abs(spark[i]! - a) > 1e-6) return true
+  }
+  return false
+}
+
 /**
  * Browse/search mini-sparks from snapshot only (no per-row 1D aggs).
  * Prefer day open→last; else prevClose→last; if those collapse (weekend empty `day`),
- * reconstruct prior close from `todaysChangePerc` so the line isn’t flat when % ≠ 0.
+ * use prevDay open→close (Massive parks Friday in prevDay) or reconstruct from %.
  */
 function sparkFromSnapshot(sym: string, snap: SnapTicker | undefined): number[] {
   const last = pickPrice(sym, snap)
   let start = numFromObj(snap?.day, 'o', 'O', 'open')
   let prev = numFromObj(snap?.prevDay, 'c', 'C', 'close')
+  const prevOpen = numFromObj(snap?.prevDay, 'o', 'O', 'open')
   const chp = rawSessionChangePct(snap)
   const n = 24
+  const dayEmpty = isSnapshotDaySessionEmpty(snap as never)
+
+  /* Weekend: day is zeroed — draw last session from prevDay OHLC instead of a flat mark. */
+  if (dayEmpty && prevOpen != null && prev != null && Math.abs(prevOpen - prev) > 1e-6) {
+    const out: number[] = []
+    for (let i = 0; i < n; i++) {
+      const t = n === 1 ? 1 : i / (n - 1)
+      out.push(prevOpen + (prev - prevOpen) * t)
+    }
+    return out
+  }
 
   if (last != null && Number.isFinite(last) && last > 0 && chp != null && Number.isFinite(chp) && Math.abs(chp) > 1e-6) {
     const impliedPrev = last / (1 + chp / 100)
@@ -262,6 +290,39 @@ function sparkFromSnapshot(sym: string, snap: SnapTicker | undefined): number[] 
     return [last, last]
   }
   return [1, 1]
+}
+
+/** One paced batch of 1D/last-session bars for weekend-empty snapshots (cached ~45s inside stockService). */
+async function enrichBrowseRowsFromLastSessionBars(
+  rows: TradeBrowseRow[],
+  snapMap: Map<string, SnapTicker>,
+): Promise<void> {
+  const need = rows
+    .map((r, i) => ({ row: r, i, snap: snapMap.get(r.symbol) }))
+    .filter(({ row, snap }) => isUsEquitySymbol(row.symbol) && isSnapshotDaySessionEmpty(snap as never))
+  if (!need.length) return
+
+  const CONCURRENCY = 4
+  for (let i = 0; i < need.length; i += CONCURRENCY) {
+    const chunk = need.slice(i, i + CONCURRENCY)
+    await Promise.all(
+      chunk.map(async ({ row, i: idx }) => {
+        try {
+          const bars = await fetchStockBars1DayOrLastTwoSessions(row.symbol)
+          const m = lastSessionMetricsFromBars(bars)
+          if (m.spark.length >= 2 && sparkHasMovement(m.spark)) {
+            rows[idx]!.sparkline = m.spark
+          }
+          if (m.changePct != null && Number.isFinite(m.changePct)) {
+            rows[idx]!.changeLabel = fmtPctSigned(m.changePct)
+            rows[idx]!.positive = m.changePct >= 0
+          }
+        } catch {
+          /* keep snapshot-derived row */
+        }
+      }),
+    )
+  }
 }
 
 /**
@@ -889,8 +950,8 @@ async function buildRowsForSymbols(
     }
   }
 
-  /* Live browse prices come from the batched snapshot (+ limited fills above). Sparklines are
-   * snapshot-derived so list endpoints stay under ~0.5s warm without an O(N) aggs storm. */
+  /* Live browse prices come from the batched snapshot (+ limited fills above). Sparklines start
+   * snapshot-derived; weekend-empty day bars get one paced 1D batch (cached) for real sparks/% . */
 
   const rows: TradeBrowseRow[] = []
   for (const sym of syms) {
@@ -915,6 +976,7 @@ async function buildRowsForSymbols(
       sparkline: spark,
     })
   }
+  await enrichBrowseRowsFromLastSessionBars(rows, snapMap)
   return rows
 }
 
@@ -985,7 +1047,7 @@ const tradeSearchRowsCache = new Map<string, { exp: number; rows: TradeBrowseRow
 const TRADE_SEARCH_CACHE_MS = 60_000
 
 /** Bump when browse row shape / spark / % math changes so stale 0% caches are not sticky after deploy. */
-const TRADE_BROWSE_CACHE_VER = 'v2-snap-spark'
+const TRADE_BROWSE_CACHE_VER = 'v3-session-bars'
 
 function tradeBrowseInflightKey(gameSlug: string, viewerUserId: string | null, category: TradeCategoryId): string {
   /* Shared Massive lists are identical across games/users — only Following is viewer-specific. */

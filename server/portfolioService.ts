@@ -364,12 +364,22 @@ async function loadPortfolioMassiveData(
   return { snapshots, names, sparks }
 }
 
-/** Mini-spark from snapshot (same idea as trade browse) — reconstruct prior close from % when flat. */
+/** Mini-spark from snapshot (same idea as trade browse) — weekend uses prevDay OHLC when day is empty. */
 function sparkFromCryptoSnapshot(s: NonNullable<Snapshot['ticker']> | undefined, lastPx: number | null): number[] {
   const n = 24
   let prev = numFromObj(s?.prevDay, 'c', 'C', 'close')
   let open = numFromObj(s?.day, 'o', 'O', 'open')
+  const prevOpen = numFromObj(s?.prevDay, 'o', 'O', 'open')
   const raw = s as Record<string, unknown> | undefined
+  const dayEmpty = !numFromObj(s?.day, 'c', 'C', 'close') && !numFromObj(s?.day, 'o', 'O', 'open')
+  if (dayEmpty && prevOpen != null && prev != null && Math.abs(prevOpen - prev) > 1e-6) {
+    const out: number[] = []
+    for (let i = 0; i < n; i++) {
+      const t = n === 1 ? 1 : i / (n - 1)
+      out.push(prevOpen + (prev - prevOpen) * t)
+    }
+    return out
+  }
   const chp =
     s && typeof s.todaysChangePerc === 'number' && Number.isFinite(s.todaysChangePerc)
       ? s.todaysChangePerc

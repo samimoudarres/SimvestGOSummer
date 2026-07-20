@@ -9,7 +9,7 @@ import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liv
 import { isSimvestPollDebugEnabled } from '../lib/debugPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
 import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
-import { TRADE_BROWSE_CACHE_MS, tradeBrowseClientCacheKey } from './tradePrefetch'
+import { TRADE_BROWSE_CACHE_MS, tradeBrowseClientCacheKey, warmBrowseRowDetailCaches } from './tradePrefetch'
 import type { TradeBrowsePayload, TradeCategoryId } from './tradeTypes'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -65,6 +65,7 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
             writeSimvestJsonCache(key, next, TRADE_BROWSE_CACHE_MS)
             hasDataRef.current = true
             setStatus('ready')
+            if (!isPoll) warmBrowseRowDetailCaches(next.rows)
           } else {
             if (isPoll && isSimvestPollDebugEnabled()) {
               console.warn('[SimvestPoll] trade/browse failed (prior payload kept)', {

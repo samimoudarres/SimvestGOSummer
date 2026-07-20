@@ -113,6 +113,29 @@ function readTodaysChangeDollars(s: SnapshotTickerLike | undefined): number | nu
 }
 
 /**
+ * Weekend/holiday Massive shape: `day` is all zeros and `todaysChangePerc` is forced to 0,
+ * while the last completed session lives in `prevDay` (OHLC). Treating that 0% as real made
+ * Trade browse / detail show +0.00% with flat sparks.
+ */
+export function isSnapshotDaySessionEmpty(s: SnapshotTickerLike | undefined): boolean {
+  if (!s?.day) return true
+  const c = numFromObj(s.day, 'c', 'C', 'close')
+  const o = numFromObj(s.day, 'o', 'O', 'open')
+  return c == null && o == null
+}
+
+/** Last-session open→close from `prevDay` when Massive zeroed `day` (weekend). */
+export function changeFromPrevDaySession(s: SnapshotTickerLike | undefined): {
+  perShare: number
+  pct: number
+} | null {
+  const o = numFromObj(s?.prevDay, 'o', 'O', 'open')
+  const c = numFromObj(s?.prevDay, 'c', 'C', 'close')
+  if (o == null || c == null || o === 0) return null
+  return { perShare: c - o, pct: ((c - o) / o) * 100 }
+}
+
+/**
  * Stable US equity mark when the regular session is closed.
  * - Weekends/holidays (non trading day): `prevDay.c` only (last completed session).
  * - After hours on a trading day: `day.c` then `prevDay.c`.
@@ -121,10 +144,11 @@ function readTodaysChangeDollars(s: SnapshotTickerLike | undefined): number | nu
 function computeStableUsQuote(s: SnapshotTickerLike | undefined, atMs: number): StableUsQuote | null {
   const prev = numFromObj(s?.prevDay, 'c', 'C', 'close')
   const dayClose = numFromObj(s?.day, 'c', 'C', 'close')
+  const dayEmpty = isSnapshotDaySessionEmpty(s)
 
   let markPx: number | null = null
   if (!isUsEquityCalendarTradingDay(atMs)) {
-    // Weekends: `day` often still holds the last session (e.g. Friday); `prevDay` can be one session older.
+    // Weekends: `day` is often zeroed; last session close sits in `prevDay`.
     markPx = dayClose ?? prev
   } else if (!isUsEquityRegularSessionOpen(atMs)) {
     markPx = dayClose ?? prev
@@ -134,23 +158,34 @@ function computeStableUsQuote(s: SnapshotTickerLike | undefined, atMs: number): 
 
   if (markPx == null || !Number.isFinite(markPx) || markPx <= 0) return null
 
-  /* Weekends/holidays still carry the last completed session’s move on Massive snapshots
-   * (`todaysChangePerc`, day vs prev). Forcing 0% made Trade browse show +0.00% / flat sparks. */
+  /* Weekends/holidays: prefer real last-session move. Ignore Massive’s reset 0% when `day` is empty. */
   const fromSnap$ = readTodaysChangeDollars(s)
   const fromSnapPct = readTodaysChangePerc(s)
+  const snapPctTrusted =
+    fromSnapPct != null && Number.isFinite(fromSnapPct) && !(dayEmpty && Math.abs(fromSnapPct) < 1e-9)
+  const snapDollarTrusted =
+    fromSnap$ != null && Number.isFinite(fromSnap$) && !(dayEmpty && Math.abs(fromSnap$) < 1e-9)
+
   let dayChangePerShare = 0
   let dayChangePct = 0
-  if (fromSnap$ != null && Number.isFinite(fromSnap$)) {
-    dayChangePerShare = fromSnap$
+  if (snapDollarTrusted) {
+    dayChangePerShare = fromSnap$!
   } else if (prev != null && prev !== 0 && dayClose != null) {
     dayChangePerShare = dayClose - prev
+  } else if (dayEmpty) {
+    const fromPrevSession = changeFromPrevDaySession(s)
+    if (fromPrevSession) dayChangePerShare = fromPrevSession.perShare
   }
-  if (fromSnapPct != null && Number.isFinite(fromSnapPct)) {
-    dayChangePct = fromSnapPct
-  } else if (prev != null && prev !== 0 && dayChangePerShare !== 0) {
-    dayChangePct = (dayChangePerShare / prev) * 100
+
+  if (snapPctTrusted) {
+    dayChangePct = fromSnapPct!
   } else if (prev != null && prev !== 0 && dayClose != null) {
     dayChangePct = ((dayClose - prev) / prev) * 100
+  } else if (dayEmpty) {
+    const fromPrevSession = changeFromPrevDaySession(s)
+    if (fromPrevSession) dayChangePct = fromPrevSession.pct
+  } else if (prev != null && prev !== 0 && dayChangePerShare !== 0) {
+    dayChangePct = (dayChangePerShare / prev) * 100
   }
 
   return { markPx, dayChangePerShare, dayChangePct }
@@ -163,7 +198,7 @@ function getStableUsEquityQuote(
 ): StableUsQuote | null {
   if (!isUsEquitySymbol(sym) || isUsEquityRegularSessionOpen(atMs)) return null
 
-  const cacheKey = `${sym}:v2:${etDateKey(atMs)}`
+  const cacheKey = `${sym}:v3:${etDateKey(atMs)}`
   const hit = stableQuoteCache.get(cacheKey)
   if (hit && hit.exp > atMs) return hit.quote
 

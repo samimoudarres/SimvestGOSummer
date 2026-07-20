@@ -1,5 +1,7 @@
 import { massiveGet } from './massiveClient'
 import {
+  isSnapshotDaySessionEmpty,
+  isUsEquitySymbol,
   pickStockMarkPrice,
   pickUsEquityFrozenChangePct,
   pickUsEquityFrozenDayChangePerShare,
@@ -652,6 +654,23 @@ export async function fetchStockDetail(ticker: string): Promise<StockDetailPaylo
     const frozenCh = pickUsEquityFrozenDayChangePerShare(sym, tkr, atMs)
     if (frozenCh != null && Number.isFinite(frozenCh)) ch = frozenCh
   }
+  /* Weekend Massive zeroes `day` + todaysChangePerc; prefer last-session bars vs prior close. */
+  if (isUsEquitySymbol(sym) && isSnapshotDaySessionEmpty(tkr)) {
+    try {
+      const bars = await fetchStockBars1DayOrLastTwoSessions(sym)
+      const m = lastSessionMetricsFromBars(bars)
+      if (m.changePct != null && Number.isFinite(m.changePct)) {
+        chp = m.changePct
+        if (m.lastClose != null && lastPrice != null) {
+          /* Keep mark from stable close; $ move matches session %. */
+          const prior = m.lastClose / (1 + m.changePct / 100)
+          if (Number.isFinite(prior) && prior > 0) ch = m.lastClose - prior
+        }
+      }
+    } catch {
+      /* keep snapshot-derived % */
+    }
+  }
   const changeTodayLabel =
     chp != null && Number.isFinite(chp) ? `${chp >= 0 ? '+' : ''}${chp.toFixed(2)}%` : '—'
 
@@ -1037,6 +1056,58 @@ const MIN_1D_INTRADAY_BARS = 2
 
 function isSparseOrMissing1Day(bars: StockDetailBar[]): boolean {
   return bars.length < MIN_1D_INTRADAY_BARS
+}
+
+/** Downsample closes for list mini-sparks (keeps shape, caps points). */
+export function downsampleBarCloses(closes: number[], maxPoints = 24): number[] {
+  if (closes.length <= maxPoints) return closes.slice()
+  const out: number[] = []
+  const last = closes.length - 1
+  for (let i = 0; i < maxPoints; i++) {
+    const idx = Math.round((i * last) / (maxPoints - 1))
+    out.push(closes[idx]!)
+  }
+  return out
+}
+
+/**
+ * Last completed ET session from intraday bars: spark + % vs prior session close
+ * (falls back to session open→close when only one day is present).
+ */
+export function lastSessionMetricsFromBars(bars: StockDetailBar[]): {
+  spark: number[]
+  changePct: number | null
+  lastClose: number | null
+} {
+  if (!bars.length) return { spark: [], changePct: null, lastClose: null }
+  const ordered = [...bars].sort((a, b) => a.t - b.t)
+  const byDay = new Map<string, StockDetailBar[]>()
+  for (const b of ordered) {
+    if (!Number.isFinite(b.c) || b.c <= 0) continue
+    const k = easternDayKey(b.t)
+    const list = byDay.get(k)
+    if (list) list.push(b)
+    else byDay.set(k, [b])
+  }
+  const days = [...byDay.keys()].sort()
+  if (!days.length) return { spark: [], changePct: null, lastClose: null }
+  const lastBars = byDay.get(days[days.length - 1]!)!
+  const closes = lastBars.map((b) => b.c)
+  const lastClose = closes[closes.length - 1] ?? null
+  let changePct: number | null = null
+  if (days.length >= 2) {
+    const prevBars = byDay.get(days[days.length - 2]!)!
+    const prevClose = prevBars[prevBars.length - 1]?.c
+    if (prevClose != null && prevClose > 0 && lastClose != null) {
+      changePct = ((lastClose - prevClose) / prevClose) * 100
+    }
+  } else {
+    const open = lastBars[0]?.o
+    if (open != null && open > 0 && lastClose != null) {
+      changePct = ((lastClose - open) / open) * 100
+    }
+  }
+  return { spark: downsampleBarCloses(closes), changePct, lastClose }
 }
 
 /**

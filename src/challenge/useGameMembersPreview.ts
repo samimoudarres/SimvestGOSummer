@@ -79,25 +79,25 @@ export function useGameMembersPreview(gameSlug: string | undefined, enabled: boo
 
   useEffect(() => {
     if (!enabled || !gameSlug?.trim()) {
-      hasLoadedRef.current = false
-      skipLoadingUiRef.current = false
-      setTotalPlayers(0)
-      setMembers([])
-      setStatus('idle')
-      setError(null)
+      if (!gameSlug?.trim()) {
+        hasLoadedRef.current = false
+        skipLoadingUiRef.current = false
+        setTotalPlayers(0)
+        setMembers([])
+        setStatus('idle')
+        setError(null)
+      }
       return
     }
     const cached = readCachedMembersPreview(gameSlug)
-    hasLoadedRef.current = !!cached
-    skipLoadingUiRef.current = !!cached
+    hasLoadedRef.current = !!cached || hasLoadedRef.current
+    skipLoadingUiRef.current = !!cached || hasLoadedRef.current
     if (cached) {
       setTotalPlayers(cached.totalPlayers)
       setMembers(cached.members)
       setStatus('ready')
       setError(null)
-    } else {
-      setTotalPlayers(0)
-      setMembers([])
+    } else if (!hasLoadedRef.current) {
       setStatus('idle')
     }
     void load('initial')

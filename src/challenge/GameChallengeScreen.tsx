@@ -796,12 +796,12 @@ export function GameChallengeScreen() {
             style={{
               width: !shellIsLive
                 ? gainsTrackWidthPx(4)
-                : topGainsStatus === 'error'
-                  ? gainsTrackWidthPx(1)
-                  : topGainsStatus === 'ready' && topGainRows.length === 0
+                : topGainRows.length > 0
+                  ? gainsTrackWidthPx(topGainRows.length)
+                  : topGainsStatus === 'error'
                     ? gainsTrackWidthPx(1)
                     : topGainsStatus === 'ready'
-                      ? gainsTrackWidthPx(topGainRows.length)
+                      ? gainsTrackWidthPx(1)
                       : gainsTrackWidthPx(5),
             }}
           >
@@ -817,27 +817,42 @@ export function GameChallengeScreen() {
                     <p className="gc-gainPct">—%</p>
                   </div>
                 ))
-              : topGainsStatus === 'loading' || topGainsStatus === 'idle'
-                ? [0, 1, 2, 3, 4].map((i) => (
-                    <div key={i} className="gc-gainCard gc-gainCard--ghost" aria-hidden>
-                      <div className="gc-ghostCircle" />
-                      <p className="gc-gainName">…</p>
-                      <p className="gc-gainPct">…</p>
-                    </div>
+              : topGainRows.length > 0
+                ? topGainRows.map((g) => (
+                    <button
+                      key={g.userId}
+                      type="button"
+                      className="gc-gainCard"
+                      aria-label={`View ${g.displayName} profile, today ${g.pctLabel}`}
+                      onClick={() => openProfile(g.userId)}
+                    >
+                      <ProfileAvatar url={g.avatarUrl} alt="" />
+                      <p className="gc-gainName gc-gainName--ellipsis" title={g.displayName}>
+                        {g.displayNameShort}
+                      </p>
+                      <p className={`gc-gainPct${g.positive ? '' : ' gc-gainPct--down'}`}>{g.pctLabel}</p>
+                    </button>
                   ))
-                : topGainsStatus === 'error'
-                  ? (
-                      <div className="gc-gainCard gc-gainCard--ghost" role="status">
-                        <p className="gc-gainName" style={{ fontSize: 11 }}>
-                          Unavailable
-                        </p>
-                        <p className="gc-gainPct" style={{ fontSize: 10, color: '#888' }}>
-                          {topGainsErr ?? 'Error'}
-                        </p>
+                : topGainsStatus === 'loading' || topGainsStatus === 'idle'
+                  ? [0, 1, 2, 3, 4].map((i) => (
+                      <div key={i} className="gc-gainCard gc-gainCard--ghost" aria-hidden>
+                        <div className="gc-ghostCircle" />
+                        <p className="gc-gainName">…</p>
+                        <p className="gc-gainPct">…</p>
                       </div>
-                    )
-                  : topGainRows.length === 0
+                    ))
+                  : topGainsStatus === 'error'
                     ? (
+                        <div className="gc-gainCard gc-gainCard--ghost" role="status">
+                          <p className="gc-gainName" style={{ fontSize: 11 }}>
+                            Unavailable
+                          </p>
+                          <p className="gc-gainPct" style={{ fontSize: 10, color: '#888' }}>
+                            {topGainsErr ?? 'Error'}
+                          </p>
+                        </div>
+                      )
+                    : (
                         <div className="gc-gainCard gc-gainCard--ghost" role="status">
                           <p className="gc-gainName" style={{ fontSize: 11 }}>
                             No players
@@ -846,22 +861,7 @@ export function GameChallengeScreen() {
                             Yet
                           </p>
                         </div>
-                      )
-                    : topGainRows.map((g) => (
-                        <button
-                          key={g.userId}
-                          type="button"
-                          className="gc-gainCard"
-                          aria-label={`View ${g.displayName} profile, today ${g.pctLabel}`}
-                          onClick={() => openProfile(g.userId)}
-                        >
-                          <ProfileAvatar url={g.avatarUrl} alt="" />
-                          <p className="gc-gainName gc-gainName--ellipsis" title={g.displayName}>
-                            {g.displayNameShort}
-                          </p>
-                          <p className={`gc-gainPct${g.positive ? '' : ' gc-gainPct--down'}`}>{g.pctLabel}</p>
-                        </button>
-                      ))}
+                      )}
           </div>
         </div>
 

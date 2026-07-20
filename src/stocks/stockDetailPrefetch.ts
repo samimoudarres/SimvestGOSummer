@@ -45,24 +45,9 @@ function parseChangeLabel(label: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/** Paint chart immediately from trade-list spark while real 1D bars load. */
-export function seedStockBarsFromSparkline(ticker: string, sparkline: number[]): void {
-  const t = ticker.trim().toUpperCase()
-  if (!t || sparkline.length < 2) return
-  const key = simvestJsonCacheKey(stockBarsUrl(t, '1D'))
-  const hit = readSimvestJsonCache<StockBarsPayload>(key)
-  if (hit?.bars?.length && !isBrowseSeedBars(hit)) return
-  const now = Date.now()
-  const step = 5 * 60_000
-  const bars = sparkline.map((c, i) => ({
-    t: now - (sparkline.length - 1 - i) * step,
-    o: c,
-    h: c,
-    l: c,
-    c,
-    v: 0,
-  }))
-  writeSimvestJsonCache(key, { ticker: t, range: '1D', bars, seed: true }, STOCK_BARS_CACHE_MS)
+/** Do not seed 1D chart from browse sparks (synthetic/flat). Prefetch real bars instead. */
+export function seedStockBarsFromSparkline(_ticker: string, _sparkline: number[]): void {
+  /* intentionally no-op — flat/synthetic sparks painted fake 1D charts with unequal Y labels */
 }
 
 export type TradeBrowseSeedRow = {
@@ -109,9 +94,8 @@ export function seedStockDetailFromBrowse(row: TradeBrowseSeedRow): void {
   }
   writeSimvestJsonCache(detailKey, seed, STOCK_DETAIL_CACHE_MS)
 
-  if (row.sparkline && row.sparkline.length >= 2) {
-    seedStockBarsFromSparkline(t, row.sparkline)
-  }
+  /* Prefetch real 1D bars immediately — never inject spark arrays into the chart cache. */
+  prefetchOneBarsRange(t, '1D')
 }
 
 function prefetchOneBarsRange(ticker: string, range: ChartRange): void {

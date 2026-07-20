@@ -10,7 +10,7 @@ import type { TradeBrowsePayload } from './tradeTypes'
 /** Align with server browse fresh TTL — keep lists painted across tab switches. */
 export const TRADE_BROWSE_CACHE_MS = 45_000
 /** Bump with server `TRADE_BROWSE_CACHE_VER` so client doesn’t keep flat/0% browse rows after deploy. */
-const TRADE_BROWSE_CLIENT_CACHE_VER = 'v2-snap-spark'
+const TRADE_BROWSE_CLIENT_CACHE_VER = 'v3-session-bars'
 const inflight = new Set<string>()
 
 function browsePopularUrl(gameSlug: string): string {
@@ -40,10 +40,40 @@ export function prefetchTradeBrowsePopular(gameSlug: string): void {
       const body = await r.json().catch(() => null)
       if (r.ok && body && Array.isArray(body.rows)) {
         writeSimvestJsonCache(key, body, TRADE_BROWSE_CACHE_MS)
+        warmBrowseRowDetailCaches(body.rows as TradeBrowsePayload['rows'])
       }
     })
     .catch(() => {})
     .finally(() => inflight.delete(key))
+}
+
+/** Prefetch real 1D bars (+ detail seed) for browse rows so stock detail paints a real chart. */
+export function warmBrowseRowDetailCaches(
+  rows: Array<{
+    symbol: string
+    companyName: string
+    price: string
+    changeLabel: string
+    logoUrl: string
+    sparkline?: number[]
+  }>,
+): void {
+  if (!rows?.length) return
+  void import('../stocks/stockDetailPrefetch').then((m) => {
+    rows.slice(0, 12).forEach((row, i) => {
+      window.setTimeout(() => {
+        m.seedStockDetailFromBrowse({
+          symbol: row.symbol,
+          companyName: row.companyName,
+          price: row.price,
+          changeLabel: row.changeLabel,
+          logoUrl: row.logoUrl,
+          sparkline: row.sparkline,
+        })
+        m.prefetchStockDetail(row.symbol, '1D')
+      }, i * 80)
+    })
+  })
 }
 
 /** True when we already have a (possibly stale) popular list for instant Trade paint. */
