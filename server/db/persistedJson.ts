@@ -129,7 +129,7 @@ export async function writeDataJsonText(filePath: string, text: string): Promise
 }
 
 export async function writeDataJsonObject(filePath: string, data: unknown): Promise<void> {
-  await writeDataJsonText(filePath, JSON.stringify(data, null, 2))
+  await writeDataJsonText(filePath, JSON.stringify(data))
 }
 
 export async function readDataJsonObject<T>(filePath: string): Promise<T | null> {

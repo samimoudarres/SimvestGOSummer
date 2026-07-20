@@ -4,8 +4,8 @@ import { simvestFetch } from '../api/simvestFetch'
 import { challengeAssets as a } from '../challenge/challengeAssets'
 import { ApiImage } from '../components/ApiImage'
 import { StockBrandingImage } from '../components/StockBrandingImage'
-import { getSimvestUserId } from '../user/simvestUserId'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
+import { postTradeComplete } from './completeGameTrade'
 import type { CompletedTradeSnapshot } from './tradeOrderTypes'
 import './stockOrderReceived.css'
 
@@ -72,35 +72,9 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
         window.dispatchEvent(new CustomEvent('simvest:holdings-refresh', { detail: { gameSlug: slug } }))
         window.dispatchEvent(new CustomEvent('simvest:activity-refresh', { detail: { gameSlug: slug } }))
       } else {
-        const clientTradeId =
-          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-            ? crypto.randomUUID()
-            : `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
-        const res = await simvestFetch(`/api/games/${encodeURIComponent(slug)}/trades/complete`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Idempotency-Key': clientTradeId,
-          },
-          body: JSON.stringify({
-            clientUserId: getSimvestUserId(),
-            clientTradeId,
-            ticker: trade.apiTicker,
-            displayTicker: trade.displayTicker,
-            action: trade.draft.action,
-            quantityMode: trade.draft.quantityMode,
-            shares: trade.shares,
-            fillPrice: trade.fillPrice,
-            orderTotal: trade.orderTotal,
-            changePctLabel: trade.changePctLabel,
-            marketCapLabel: trade.marketCapLabel,
-            revenueLabel: trade.revenueLabel,
-            rationale: rationale.trim(),
-          }),
-        })
-        const body = await res.json().catch(() => ({}))
-        if (!res.ok) {
-          console.error(body?.error ?? res.status)
+        const result = await postTradeComplete(trade, rationale.trim())
+        if (!result.ok) {
+          console.error(result.error)
         } else {
           rememberActiveGameSlug(slug)
           window.dispatchEvent(new CustomEvent('simvest:holdings-refresh', { detail: { gameSlug: slug } }))

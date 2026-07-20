@@ -6,6 +6,25 @@
 type Entry = { exp: number; value: unknown }
 
 const store = new Map<string, Entry>()
+/** Hard cap so unique keys cannot grow without bound (Render OOM amplifier). */
+const MAX_TTL_CACHE_ENTRIES = 400
+
+function sweepExpired(now = Date.now()): void {
+  for (const [k, v] of store) {
+    if (v.exp <= now) store.delete(k)
+  }
+}
+
+function evictOldestIfNeeded(): void {
+  if (store.size <= MAX_TTL_CACHE_ENTRIES) return
+  const overflow = store.size - MAX_TTL_CACHE_ENTRIES
+  let i = 0
+  for (const k of store.keys()) {
+    store.delete(k)
+    i += 1
+    if (i >= overflow) break
+  }
+}
 
 export function readTtlCache<T>(key: string): T | undefined {
   const hit = store.get(key)
@@ -19,7 +38,10 @@ export function readTtlCache<T>(key: string): T | undefined {
 
 export function writeTtlCache(key: string, value: unknown, ttlMs: number): void {
   if (ttlMs <= 0) return
-  store.set(key, { exp: Date.now() + ttlMs, value })
+  const now = Date.now()
+  if (store.size > MAX_TTL_CACHE_ENTRIES * 0.9) sweepExpired(now)
+  store.set(key, { exp: now + ttlMs, value })
+  evictOldestIfNeeded()
 }
 
 export function clearTtlCachePrefix(prefix: string): void {

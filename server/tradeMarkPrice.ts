@@ -28,10 +28,18 @@ function unwrapCryptoInner(raw: unknown): SnapshotTickerLike | undefined {
 }
 
 /** Live mark/last for one symbol via Massive snapshot (same sources as portfolio). */
+const MARK_PRICE_CACHE_MS = 8_000
+const markPriceCache = new Map<string, { exp: number; mark: number }>()
+const MAX_MARK_CACHE = 200
+
 export async function fetchServerMarkPrice(tickerRaw: string): Promise<number | null> {
   const raw = String(tickerRaw ?? '').trim()
   const sym = normalizeCryptoCompositeTicker(raw) ?? normalizeTicker(raw)
   if (!sym) return null
+
+  const now = Date.now()
+  const hit = markPriceCache.get(sym)
+  if (hit && hit.exp > now) return hit.mark
 
   const snapPath = sym.startsWith('X:')
     ? `/v2/snapshot/locale/global/markets/crypto/tickers/${encodeURIComponent(sym)}`
@@ -47,7 +55,15 @@ export async function fetchServerMarkPrice(tickerRaw: string): Promise<number | 
       pickStockMarkPrice(sym, tickerObj) ??
       pickTickerSnapshotPrice(tickerObj as never) ??
       null
-    return mark != null && Number.isFinite(mark) && mark > 0 ? mark : null
+    if (mark != null && Number.isFinite(mark) && mark > 0) {
+      if (markPriceCache.size >= MAX_MARK_CACHE) {
+        const first = markPriceCache.keys().next().value
+        if (first != null) markPriceCache.delete(first)
+      }
+      markPriceCache.set(sym, { exp: now + MARK_PRICE_CACHE_MS, mark })
+      return mark
+    }
+    return null
   } catch {
     return null
   }

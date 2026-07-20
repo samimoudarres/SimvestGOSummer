@@ -33,6 +33,15 @@ type StableUsQuote = {
 }
 
 const stableQuoteCache = new Map<string, { exp: number; quote: StableUsQuote }>()
+const MAX_STABLE_QUOTE_CACHE = 300
+
+function putStableQuote(sym: string, quote: StableUsQuote, exp: number): void {
+  if (stableQuoteCache.size >= MAX_STABLE_QUOTE_CACHE) {
+    const first = stableQuoteCache.keys().next().value
+    if (first != null) stableQuoteCache.delete(first)
+  }
+  stableQuoteCache.set(sym, { exp, quote })
+}
 
 function numFromObj(o: unknown, ...keys: string[]): number | null {
   if (!o || typeof o !== 'object') return null
@@ -205,7 +214,7 @@ function getStableUsEquityQuote(
   const computed = computeStableUsQuote(s, atMs)
   if (!computed) return null
 
-  stableQuoteCache.set(cacheKey, { exp: atMs + STABLE_QUOTE_CACHE_MS, quote: computed })
+  putStableQuote(cacheKey, computed, atMs + STABLE_QUOTE_CACHE_MS)
   return computed
 }
 

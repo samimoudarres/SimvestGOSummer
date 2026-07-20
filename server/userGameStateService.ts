@@ -46,6 +46,10 @@ const STATE_PATH = dataFilePath('user-game-state.json')
 const IDEM_PATH = dataFilePath('trade-idempotency.json')
 const LEGACY_HOLDINGS_PATH = dataFilePath('holdings.json')
 
+function ledgerJsonMirrorEnabled(): boolean {
+  return process.env.SIMVEST_LEDGER_JSON_MIRROR === '1'
+}
+
 /** Process + cross-instance lock for portfolio JSON RMW (clears, merges, legacy). */
 function withPortfolioLock<T>(fn: () => Promise<T>): Promise<T> {
   return withDataJsonDocumentLock(STATE_PATH, fn)
@@ -584,14 +588,16 @@ export async function applyTradeToUserLedger(
 
       if (client) {
         await upsertUserGameLedgerSql(input.userId, input.gameSlug, persisted, client)
-        queueMicrotask(() => {
-          void mirrorLedgerIntoJsonBlobFromSql(input.userId, input.gameSlug).catch((err) => {
-            console.warn(
-              '[simvest] deferred ledger JSON mirror failed:',
-              err instanceof Error ? err.message : err,
-            )
+        if (ledgerJsonMirrorEnabled()) {
+          queueMicrotask(() => {
+            void mirrorLedgerIntoJsonBlobFromSql(input.userId, input.gameSlug).catch((err) => {
+              console.warn(
+                '[simvest] deferred ledger JSON mirror failed:',
+                err instanceof Error ? err.message : err,
+              )
+            })
           })
-        })
+        }
         return result.unwoundCostBasis != null
           ? { ok: true, unwoundCostBasis: result.unwoundCostBasis }
           : { ok: true }
@@ -636,8 +642,9 @@ export async function applyTradeToUserLedger(
   }
 }
 
-/** Mirror latest SQL ledger into JSON — always re-read SQL so out-of-order mirrors cannot clobber. */
+/** Mirror latest SQL ledger into JSON — opt-in only (SIMVEST_LEDGER_JSON_MIRROR=1). */
 async function mirrorLedgerIntoJsonBlobFromSql(userId: string, gameSlug: string): Promise<void> {
+  if (!ledgerJsonMirrorEnabled()) return
   const sqlLed = await getUserGameLedgerSql(userId, gameSlug)
   if (!sqlLed) return
   const ledger: UserGameLedger = {

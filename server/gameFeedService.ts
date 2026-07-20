@@ -6,9 +6,14 @@ import {
   withDataJsonDocumentLock,
 } from './db/persistedJson.ts'
 import {
+  countFeedPostsSql,
   deleteFeedPostSql,
   deleteFeedPostsForGameSql,
+  deleteFeedPostsForUserInGameSql,
+  getFeedPostByIdSql,
+  listFeedAuthorMembershipPairsSql,
   listFeedPostsForGameSql,
+  listGameSlugsForUserFeedPostsSql,
   listRecentFeedPostsSql,
   upsertFeedPostSql,
 } from './db/normalizedHotPath.ts'
@@ -280,12 +285,14 @@ export async function appendGameFeedPost(post: Omit<GameFeedPost, 'id'> & { id?:
         payload: full as unknown as Record<string, unknown>,
       })
       queueMicrotask(() => {
-        void mirrorFeedPostIntoJsonBlob(full).catch((err) => {
-          console.warn(
-            '[simvest] deferred feed JSON mirror failed:',
-            err instanceof Error ? err.message : err,
-          )
-        })
+        if (feedJsonMirrorEnabled()) {
+          void mirrorFeedPostIntoJsonBlob(full).catch((err) => {
+            console.warn(
+              '[simvest] deferred feed JSON mirror failed:',
+              err instanceof Error ? err.message : err,
+            )
+          })
+        }
         void import('./activityPostFanout')
           .then((m) => m.onNewFeedPost(full))
           .catch(() => {})
@@ -315,10 +322,19 @@ export async function appendGameFeedPost(post: Omit<GameFeedPost, 'id'> & { id?:
   })
 }
 
-/** Background mirror so legacy JSON readers / admin exports stay in sync. Cap size so the blob cannot grow forever. */
+/**
+ * When Postgres is configured, SQL is the source of truth for feed lists.
+ * JSON mirroring of the whole blob caused Render OOMs (~5MB RMW per trade).
+ * Opt back in with SIMVEST_FEED_JSON_MIRROR=1 (dev/admin only).
+ */
+function feedJsonMirrorEnabled(): boolean {
+  return process.env.SIMVEST_FEED_JSON_MIRROR === '1'
+}
+
 const FEED_JSON_MIRROR_MAX_POSTS = 800
 
 async function mirrorFeedPostIntoJsonBlob(full: GameFeedPost): Promise<void> {
+  if (!feedJsonMirrorEnabled()) return
   await runFeedMutation(async () => {
     const file = await readFeedFileUnlocked()
     let dirty = false
@@ -334,8 +350,25 @@ async function mirrorFeedPostIntoJsonBlob(full: GameFeedPost): Promise<void> {
   })
 }
 
-/** One-shot / boot: shrink oversized legacy feed JSON mirror (SQL remains source of truth for lists). */
+/**
+ * Drop the fat legacy feed JSON document without reading it into memory.
+ * Safe when SQL already holds posts (lists prefer SQL). No-op if mirrors are enabled.
+ */
+export async function stubFeedJsonMirrorIfSqlPrimary(): Promise<boolean> {
+  if (feedJsonMirrorEnabled()) return false
+  if (!getDatabaseUrl() || !getPgPool()) return false
+  const n = await countFeedPostsSql()
+  if (n == null || n < 1) return false
+  await writeDataJsonObject(FEED_PATH, { posts: [] })
+  return true
+}
+
+/** One-shot / boot: shrink oversized legacy feed JSON mirror (loads full blob — prefer stub when SQL-primary). */
 export async function pruneFeedJsonMirrorIfOversized(): Promise<number> {
+  if (!feedJsonMirrorEnabled()) {
+    /* Avoid loading a multi-MB blob just to prune when mirrors are off. */
+    return 0
+  }
   return runFeedMutation(async () => {
     const file = await readFeedFileUnlocked()
     const before = file.posts.length
@@ -350,6 +383,12 @@ export async function pruneFeedJsonMirrorIfOversized(): Promise<number> {
 export async function listGameSlugsWhereUserHasFeedPosts(userId: string): Promise<string[]> {
   if (!userId || userId.length < 8) return []
   const want = normalizeUserId(userId.trim()) ?? userId.trim()
+  const sqlSlugs = await listGameSlugsForUserFeedPostsSql(want)
+  if (sqlSlugs && sqlSlugs.length > 0) {
+    return [...new Set(sqlSlugs.map((s) => canonicalGameSlugKey(s) || s).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b),
+    )
+  }
   const { posts } = await readFeedStore()
   const slugs = new Set<string>()
   for (const p of posts) {
@@ -415,6 +454,21 @@ export async function mergeFeedPostsViewerId(fromUserId: string, toUserId: strin
  * traded visibility before acquiring a setup-profile key.
  */
 export async function allFeedAuthorMembershipKeys(): Promise<Set<string>> {
+  const sqlPairs = await listFeedAuthorMembershipPairsSql()
+  if (sqlPairs && sqlPairs.length > 0) {
+    const out = new Set<string>()
+    for (const p of sqlPairs) {
+      const raw = p.userId.trim()
+      if (raw.length < 8) continue
+      const uid = normalizeUserId(raw) ?? raw
+      const rawSlug = p.gameSlug.trim()
+      const canon = canonicalGameSlugKey(p.gameSlug)
+      for (const s of new Set([rawSlug, canon].filter((x): x is string => Boolean(x)))) {
+        out.add(`${uid}:::${s}`)
+      }
+    }
+    return out
+  }
   const { posts } = await readFeedStore()
   const out = new Set<string>()
   for (const p of posts) {
@@ -432,6 +486,11 @@ export async function allFeedAuthorMembershipKeys(): Promise<Set<string>> {
 
 export async function getFeedPostById(postId: string): Promise<GameFeedPost | null> {
   if (!postId) return null
+  const sqlRow = await getFeedPostByIdSql(postId)
+  if (sqlRow) {
+    const fromSql = postFromSqlPayload(sqlRow.payload, sqlRow.id)
+    if (fromSql) return fromSql
+  }
   const { posts } = await readFeedStore()
   return posts.find((p) => p.id === postId) ?? null
 }
@@ -450,7 +509,10 @@ export async function deleteFeedPostsByUserInGame(userId: string, gameSlug: stri
   if (!userId || !gameSlug) return 0
   const want = canonicalGameSlugKey(gameSlug)
   if (!want) return 0
-  const wantUidNorm = normalizeUserId(userId.trim())
+  const wantUidNorm = normalizeUserId(userId.trim()) ?? userId.trim()
+  const sqlRemoved = await deleteFeedPostsForUserInGameSql(wantUidNorm, want)
+  if (!feedJsonMirrorEnabled()) return sqlRemoved
+
   return runFeedMutation(async () => {
     const file = await readFeedFileUnlocked()
     const before = file.posts.length
@@ -469,7 +531,7 @@ export async function deleteFeedPostsByUserInGame(userId: string, gameSlug: stri
       await writeDataJsonObject(FEED_PATH, file)
       for (const id of removedIds) await removeFeedPostSql(id)
     }
-    return removed
+    return Math.max(removed, sqlRemoved)
   })
 }
 
@@ -480,12 +542,41 @@ export async function updateFeedPostRationale(
   rationale: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!postId || !userId) return { ok: false, error: 'Invalid post or user' }
+  const nextRationale = rationale.slice(0, 2000)
+
+  const sqlRow = await getFeedPostByIdSql(postId)
+  if (sqlRow) {
+    const post = postFromSqlPayload(sqlRow.payload, sqlRow.id)
+    if (!post) return { ok: false, error: 'Post not found' }
+    if (!feedAuthorMatches(post.userId, userId)) return { ok: false, error: 'Not your post' }
+    const updated: GameFeedPost = { ...post, rationale: nextRationale }
+    await upsertFeedPostSql({
+      id: updated.id,
+      userId: updated.userId ?? null,
+      gameSlug: canonicalGameSlugKey(updated.gameSlug) || updated.gameSlug || null,
+      postKind: updated.postKind ?? 'trade',
+      postedAtIso: updated.timestampIso ?? null,
+      payload: updated as unknown as Record<string, unknown>,
+    })
+    if (feedJsonMirrorEnabled()) {
+      await runFeedMutation(async () => {
+        const file = await readFeedFileUnlocked()
+        const i = file.posts.findIndex((p) => p.id === postId)
+        if (i >= 0) {
+          file.posts[i] = updated
+          await writeDataJsonObject(FEED_PATH, file)
+        }
+      })
+    }
+    return { ok: true }
+  }
+
   return runFeedMutation(async () => {
     const file = await readFeedFileUnlocked()
     const i = file.posts.findIndex((p) => p.id === postId)
     if (i < 0) return { ok: false, error: 'Post not found' }
     if (!feedAuthorMatches(file.posts[i]!.userId, userId)) return { ok: false, error: 'Not your post' }
-    file.posts[i] = { ...file.posts[i]!, rationale: rationale.slice(0, 2000) }
+    file.posts[i] = { ...file.posts[i]!, rationale: nextRationale }
     await writeDataJsonObject(FEED_PATH, file)
     await syncFeedPostSql(file.posts[i]!)
     return { ok: true }
@@ -501,6 +592,40 @@ export async function updateFeedPostRichBody(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!postId || !userId) return { ok: false, error: 'Invalid post or user' }
   const rationaleTrim = rationale.trim().slice(0, 2000)
+
+  const sqlRow = await getFeedPostByIdSql(postId)
+  if (sqlRow) {
+    const post = postFromSqlPayload(sqlRow.payload, sqlRow.id)
+    if (!post) return { ok: false, error: 'Post not found' }
+    if (!feedAuthorMatches(post.userId, userId)) return { ok: false, error: 'Not your post' }
+    const kind = post.postKind ?? 'trade'
+    if (kind !== 'text') return { ok: false, error: 'Only text posts can be edited here' }
+    const updated: GameFeedPost = {
+      ...post,
+      richSegments: segments,
+      rationale: rationaleTrim.length > 0 ? rationaleTrim : ' ',
+    }
+    await upsertFeedPostSql({
+      id: updated.id,
+      userId: updated.userId ?? null,
+      gameSlug: canonicalGameSlugKey(updated.gameSlug) || updated.gameSlug || null,
+      postKind: updated.postKind ?? 'text',
+      postedAtIso: updated.timestampIso ?? null,
+      payload: updated as unknown as Record<string, unknown>,
+    })
+    if (feedJsonMirrorEnabled()) {
+      await runFeedMutation(async () => {
+        const file = await readFeedFileUnlocked()
+        const i = file.posts.findIndex((p) => p.id === postId)
+        if (i >= 0) {
+          file.posts[i] = updated
+          await writeDataJsonObject(FEED_PATH, file)
+        }
+      })
+    }
+    return { ok: true }
+  }
+
   return runFeedMutation(async () => {
     const file = await readFeedFileUnlocked()
     const i = file.posts.findIndex((p) => p.id === postId)

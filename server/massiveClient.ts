@@ -115,6 +115,18 @@ function cacheKey(url: URL): string {
 type CacheEntry = { exp: number; text: string; storedAt?: number }
 const responseCache = new Map<string, CacheEntry>()
 const inflight = new Map<string, Promise<string>>()
+const MAX_RESPONSE_CACHE_ENTRIES = 250
+
+function pruneResponseCache(now = Date.now()): void {
+  for (const [k, v] of responseCache) {
+    if (v.exp <= now) responseCache.delete(k)
+  }
+  while (responseCache.size > MAX_RESPONSE_CACHE_ENTRIES) {
+    const oldest = responseCache.keys().next().value
+    if (oldest == null) break
+    responseCache.delete(oldest)
+  }
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
@@ -221,7 +233,9 @@ export async function massiveGet<T>(path: string, params?: Record<string, string
         } else {
           const ttl = responseCacheTtlMs(url.pathname)
           if (ttl > 0) {
+            pruneResponseCache(Date.now())
             responseCache.set(ck, { exp: Date.now() + ttl, text, storedAt: Date.now() })
+            pruneResponseCache(Date.now())
           }
           if (massiveLiveTraceEnabled() && isLivePricingPathname(url.pathname)) {
             logMassiveNetworkResponse(url.pathname, url.toString(), text, 'network', null)

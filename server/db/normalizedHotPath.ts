@@ -287,6 +287,109 @@ export async function deleteFeedPostSql(postId: string): Promise<void> {
   })
 }
 
+export async function getFeedPostByIdSql(postId: string): Promise<NormalizedFeedPostRow | null> {
+  if (!pgReady() || !postId) return null
+  try {
+    const res = await getPgPool()!.query<{
+      id: string
+      user_id: string | null
+      game_slug: string | null
+      post_kind: string | null
+      posted_at: Date | string | null
+      payload: Record<string, unknown>
+    }>(
+      `select id, user_id, game_slug, post_kind, posted_at, payload
+       from game_feed_posts where id = $1`,
+      [postId],
+    )
+    const r = res.rows[0]
+    if (!r) return null
+    return {
+      id: r.id,
+      userId: r.user_id,
+      gameSlug: r.game_slug,
+      postKind: r.post_kind,
+      postedAtIso:
+        r.posted_at instanceof Date
+          ? r.posted_at.toISOString()
+          : r.posted_at
+            ? String(r.posted_at)
+            : null,
+      payload: r.payload ?? {},
+    }
+  } catch (err) {
+    console.warn(
+      '[simvest] feed SQL get-by-id failed:',
+      err instanceof Error ? err.message : err,
+    )
+    return null
+  }
+}
+
+export async function listGameSlugsForUserFeedPostsSql(userId: string): Promise<string[] | null> {
+  if (!pgReady() || !userId) return null
+  try {
+    const res = await getPgPool()!.query<{ game_slug: string | null }>(
+      `select distinct game_slug from game_feed_posts
+       where user_id = $1 and game_slug is not null and length(trim(game_slug)) > 0`,
+      [userId],
+    )
+    return res.rows
+      .map((r) => String(r.game_slug ?? '').trim().toLowerCase())
+      .filter(Boolean)
+  } catch (err) {
+    console.warn(
+      '[simvest] feed SQL user-slugs failed:',
+      err instanceof Error ? err.message : err,
+    )
+    return null
+  }
+}
+
+export async function listFeedAuthorMembershipPairsSql(): Promise<
+  Array<{ userId: string; gameSlug: string }> | null
+> {
+  if (!pgReady()) return null
+  try {
+    const res = await getPgPool()!.query<{ user_id: string; game_slug: string }>(
+      `select distinct user_id, game_slug from game_feed_posts
+       where user_id is not null and length(user_id) >= 8
+         and game_slug is not null and length(trim(game_slug)) > 0`,
+    )
+    return res.rows.map((r) => ({
+      userId: String(r.user_id),
+      gameSlug: String(r.game_slug).trim(),
+    }))
+  } catch (err) {
+    console.warn(
+      '[simvest] feed SQL membership pairs failed:',
+      err instanceof Error ? err.message : err,
+    )
+    return null
+  }
+}
+
+export async function deleteFeedPostsForUserInGameSql(
+  userId: string,
+  gameSlug: string,
+): Promise<number> {
+  if (!pgReady() || !userId || !gameSlug) return 0
+  try {
+    const res = await getPgPool()!.query(
+      `delete from game_feed_posts
+       where user_id = $1 and lower(game_slug) = lower($2)`,
+      [userId, gameSlug],
+    )
+    return res.rowCount ?? 0
+  } catch (err) {
+    console.warn(
+      '[simvest] feed SQL delete-user-in-game failed:',
+      err instanceof Error ? err.message : err,
+    )
+    return 0
+  }
+}
+
 export async function deleteFeedPostsForGameSql(gameSlug: string): Promise<void> {
   if (!pgReady() || !gameSlug) return
   await withPgClient(async (c) => {
@@ -491,8 +594,9 @@ export async function backfillNormalizedHotPathFromJsonDocs(): Promise<{
       }
     }
 
-    /* Always upsert feed from JSON so listPostsForGame SQL path cannot miss history. */
-    {
+    /* Only backfill feed from JSON when SQL is empty — re-loading multi-MB feed on every
+     * boot caused Render OOM after Phase 2 (SQL already holds history). */
+    if (feedWasEmpty) {
       const feedDoc = await c.query<{ payload: unknown }>(
         `select payload from json_documents where name = 'game-feed.json'`,
       )

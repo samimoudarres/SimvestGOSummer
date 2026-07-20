@@ -11,6 +11,8 @@ const PROFILE_PATH = dataFilePath('user-profiles.json')
 const DEFAULT_AVATAR = '/figma-assets/blank-avatar.svg'
 /** Matches join-profile setup payloads (base64 uploads — large string bodies). */
 const MAX_AVATAR_URL_LEN = 9_500_000
+/** Prefer media URLs; reject huge new data: URLs so profiles JSON cannot balloon again. */
+const MAX_NEW_DATA_AVATAR_LEN = 120_000
 
 export type UserPublicProfile = {
   userId: string
@@ -85,6 +87,22 @@ export async function upsertProfileFromTradeContext(
     joinedSeedDaysAgo?: number
   },
 ): Promise<UserPublicProfile> {
+  const hasDisplay =
+    typeof opts.displayName === 'string' &&
+    opts.displayName.trim().length >= 2 &&
+    opts.displayName.trim().toLowerCase() !== 'you'
+  const hasAvatar = typeof opts.avatarUrl === 'string' && opts.avatarUrl.trim().length >= 3
+  const hasSeed =
+    typeof opts.joinedSeedDaysAgo === 'number' &&
+    Number.isFinite(opts.joinedSeedDaysAgo) &&
+    opts.joinedSeedDaysAgo > 0
+
+  /* Empty opts used to rewrite the whole profiles blob on every trade — skip when unchanged. */
+  if (!hasDisplay && !hasAvatar && !hasSeed) {
+    const existing = await getUserPublicProfile(userId)
+    if (existing) return existing
+  }
+
   return withDataJsonDocumentLock(PROFILE_PATH, async () => {
     const cached = await readFile()
     // Cached file is shared across callers — clone before mutating so concurrent reads stay clean.
@@ -110,7 +128,10 @@ export async function upsertProfileFromTradeContext(
     let avatarUrl = prev?.avatarUrl ?? DEFAULT_AVATAR
     if (typeof opts.avatarUrl === 'string' && opts.avatarUrl.trim().length >= 3) {
       const u = opts.avatarUrl.trim()
+      const tooLargeData =
+        u.startsWith('data:image/') && u.length > MAX_NEW_DATA_AVATAR_LEN
       if (
+        !tooLargeData &&
         u.length <= MAX_AVATAR_URL_LEN &&
         !isPlaceholderProfileAvatarUrl(u) &&
         (u.startsWith('/') ||

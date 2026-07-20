@@ -536,6 +536,15 @@ async function fetchCryptoDetailPayload(sym: string): Promise<StockDetailPayload
 
 const stockDetailCache = new Map<string, { exp: number; payload: StockDetailPayload }>()
 const STOCK_DETAIL_CACHE_MS = 30_000
+const MAX_STOCK_DETAIL_CACHE = 80
+
+function putStockDetailCache(sym: string, payload: StockDetailPayload, now: number): void {
+  if (stockDetailCache.size >= MAX_STOCK_DETAIL_CACHE) {
+    const first = stockDetailCache.keys().next().value
+    if (first != null) stockDetailCache.delete(first)
+  }
+  stockDetailCache.set(sym, { exp: now + STOCK_DETAIL_CACHE_MS, payload })
+}
 
 export async function fetchStockDetail(ticker: string): Promise<StockDetailPayload> {
   const sym = resolveMassiveTicker(ticker)
@@ -549,7 +558,7 @@ export async function fetchStockDetail(ticker: string): Promise<StockDetailPaylo
 
   if (sym.startsWith('X:')) {
     const payload = await fetchCryptoDetailPayload(sym)
-    stockDetailCache.set(sym, { exp: now + STOCK_DETAIL_CACHE_MS, payload })
+    putStockDetailCache(sym, payload, now)
     return payload
   }
 
@@ -828,7 +837,7 @@ export async function fetchStockDetail(ticker: string): Promise<StockDetailPaylo
     financialsEpsQuarterly,
     updatedAt: new Date().toISOString(),
   }
-  stockDetailCache.set(sym, { exp: Date.now() + STOCK_DETAIL_CACHE_MS, payload })
+  putStockDetailCache(sym, payload, Date.now())
   return payload
 }
 
@@ -852,6 +861,15 @@ export function normalizeAggTimestampMs(t: number): number {
 const stockBarsCache = new Map<string, { at: number; bars: StockDetailBar[] }>()
 const stockBarsInflight = new Map<string, Promise<StockDetailBar[]>>()
 const STOCK_BARS_CACHE_MS = 45_000
+const MAX_STOCK_BARS_CACHE = 120
+
+function putStockBarsCache(key: string, bars: StockDetailBar[]): void {
+  if (stockBarsCache.size >= MAX_STOCK_BARS_CACHE) {
+    const first = stockBarsCache.keys().next().value
+    if (first != null) stockBarsCache.delete(first)
+  }
+  stockBarsCache.set(key, { at: Date.now(), bars: bars.map((b) => ({ ...b })) })
+}
 
 function stockBarsCacheKey(sym: string, range: ChartRange, window?: FetchStockBarsWindow | null): string {
   if (window && Number.isFinite(window.windowStartMs) && Number.isFinite(window.windowEndMs)) {
@@ -1026,7 +1044,7 @@ async function fetchStockBarsUncached(
 
   const out =
     !window && range === '1D' && sym.startsWith('X:') ? clipCryptoRolling24hBars(bars) : bars
-  stockBarsCache.set(cacheKey, { at: Date.now(), bars: out.map((b) => ({ ...b })) })
+  putStockBarsCache(cacheKey, out)
   return out
 }
 

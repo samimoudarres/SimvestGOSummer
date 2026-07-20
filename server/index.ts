@@ -83,6 +83,7 @@ import {
   listPostsForGame,
   listRecentActivityPosts,
   pruneFeedJsonMirrorIfOversized,
+  stubFeedJsonMirrorIfSqlPrimary,
   updateFeedPostRichBody,
   updateFeedPostRationale,
 } from './gameFeedService'
@@ -2512,16 +2513,27 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
   }
 
   const nowIso = new Date().toISOString()
-  const led = await applyTradeToUserLedger({
-    userId: uid,
-    gameSlug: slug,
-    ticker: t,
-    side: action,
-    shares,
-    fillPrice,
-    orderTotal,
-    boughtAtIso: nowIso,
-  })
+  let led: Awaited<ReturnType<typeof applyTradeToUserLedger>>
+  try {
+    led = await applyTradeToUserLedger({
+      userId: uid,
+      gameSlug: slug,
+      ticker: t,
+      side: action,
+      shares,
+      fillPrice,
+      orderTotal,
+      boughtAtIso: nowIso,
+    })
+  } catch (err) {
+    console.error('[simvest] applyTradeToUserLedger failed:', err instanceof Error ? err.message : err)
+    if (!res.headersSent) {
+      res.status(503).json({
+        error: 'Trade temporarily unavailable. Please try again in a moment.',
+      })
+    }
+    return
+  }
   if (!led.ok) {
     res.status(400).json({ error: led.error })
     return
@@ -2530,34 +2542,58 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
   const symLabel = String(b.displayTicker ?? t).toUpperCase()
   const tradeTitle = action === 'buy' ? `I'm buying ${symLabel}` : `I'm selling ${symLabel}`
   const rationale = typeof b.rationale === 'string' ? b.rationale.trim().slice(0, 2000) : ''
-  /** Do not trust client `authorAvatar` / `authorName` — they were Figma placeholders and could overwrite real account data. */
-  await upsertProfileFromTradeContext(uid, {})
-  const liveProfile = await fetchPlayerGameProfile(slug, uid)
+  /* Lightweight author fields only — fetchPlayerGameProfile rebuilds portfolio/Massive and caused ~10s trades + OOM. */
+  let authorName = 'You'
+  let authorAvatar = resolveProfileAvatarUrl('')
+  try {
+    const setupProfile = await getSetupProfileForUserGame(uid, slug)
+    const publicProfile = await getUserPublicProfile(uid)
+    authorName = setupProfile
+      ? `${setupProfile.firstName} ${setupProfile.lastName}`.trim()
+      : publicProfile?.displayName?.trim() || 'You'
+    authorAvatar = resolveProfileAvatarUrl(
+      setupProfile?.avatarUrl ?? publicProfile?.avatarUrl ?? '',
+    )
+  } catch {
+    /* non-fatal — post still goes through */
+  }
 
   const unwoundCostBasis = action === 'sell' && 'unwoundCostBasis' in led ? led.unwoundCostBasis : undefined
 
-  const post = await appendGameFeedPost({
-    postKind: 'trade',
-    userId: uid,
-    gameSlug: slug,
-    author: liveProfile?.profile.displayName ?? 'You',
-    avatar: resolveProfileAvatarUrl(liveProfile?.profile.avatarUrl),
-    timestampIso: nowIso,
-    tradeTitle,
-    tickerSymbol: symLabel,
-    tickerImage: `/api/stocks/${encodeURIComponent(t)}/branding-icon`,
-    changePct: typeof b.changePctLabel === 'string' && b.changePctLabel.trim() ? b.changePctLabel.trim() : '—',
-    sharesBought: shares.toLocaleString('en-US', { maximumFractionDigits: 6 }),
-    orderTotal: `$${orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    marketCap: typeof b.marketCapLabel === 'string' && b.marketCapLabel.trim() ? b.marketCapLabel.trim() : '—',
-    revenue: typeof b.revenueLabel === 'string' && b.revenueLabel.trim() ? b.revenueLabel.trim() : '—',
-    rationale,
-    purchasePrice: fillPrice,
-    side: action,
-    ...(typeof unwoundCostBasis === 'number' && Number.isFinite(unwoundCostBasis)
-      ? { costBasis: unwoundCostBasis }
-      : {}),
-  })
+  let post: Awaited<ReturnType<typeof appendGameFeedPost>>
+  try {
+    post = await appendGameFeedPost({
+      postKind: 'trade',
+      userId: uid,
+      gameSlug: slug,
+      author: authorName || 'You',
+      avatar: authorAvatar,
+      timestampIso: nowIso,
+      tradeTitle,
+      tickerSymbol: symLabel,
+      tickerImage: `/api/stocks/${encodeURIComponent(t)}/branding-icon`,
+      changePct: typeof b.changePctLabel === 'string' && b.changePctLabel.trim() ? b.changePctLabel.trim() : '—',
+      sharesBought: shares.toLocaleString('en-US', { maximumFractionDigits: 6 }),
+      orderTotal: `$${orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      marketCap: typeof b.marketCapLabel === 'string' && b.marketCapLabel.trim() ? b.marketCapLabel.trim() : '—',
+      revenue: typeof b.revenueLabel === 'string' && b.revenueLabel.trim() ? b.revenueLabel.trim() : '—',
+      rationale,
+      purchasePrice: fillPrice,
+      side: action,
+      ...(typeof unwoundCostBasis === 'number' && Number.isFinite(unwoundCostBasis)
+        ? { costBasis: unwoundCostBasis }
+        : {}),
+    })
+  } catch (err) {
+    console.error('[simvest] appendGameFeedPost after trade failed:', err instanceof Error ? err.message : err)
+    if (!res.headersSent) {
+      res.status(503).json({
+        error:
+          'Trade may have completed but activity post failed. Check Portfolio, then retry only if shares did not update.',
+      })
+    }
+    return
+  }
 
   queueMicrotask(() => {
     void import('./leaderboardRankNotifyService')
@@ -2598,6 +2634,7 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
   clearTtlCachePrefix(`lb-metrics:${slug}`)
   clearTtlCachePrefix(`perform:${slug}:`)
   clearTtlCachePrefix(`portfolio:${slug}:`)
+  if (req.aborted || res.writableEnded) return
   res.json(successBody)
 })
 
@@ -3102,13 +3139,18 @@ async function runStartupReconciles(): Promise<void> {
   }
 
   try {
-    const dropped = await pruneFeedJsonMirrorIfOversized()
-    if (dropped > 0) {
-      console.log(`[startup] pruned ${dropped} old post(s) from game-feed.json mirror (cap 800).`)
+    const stubbed = await stubFeedJsonMirrorIfSqlPrimary()
+    if (stubbed) {
+      console.log('[startup] stubbed game-feed.json mirror (SQL is source of truth; mirrors off).')
+    } else {
+      const dropped = await pruneFeedJsonMirrorIfOversized()
+      if (dropped > 0) {
+        console.log(`[startup] pruned ${dropped} old post(s) from game-feed.json mirror (cap 800).`)
+      }
     }
   } catch (err) {
     console.warn(
-      '[startup] feed JSON mirror prune skipped:',
+      '[startup] feed JSON mirror stub/prune skipped:',
       err instanceof Error ? err.message : err,
     )
   }

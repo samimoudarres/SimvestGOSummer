@@ -101,7 +101,16 @@ export async function postTradeComplete(
     realizedPnlPct?: number
   }
   if (!res.ok) {
-    return { ok: false, error: typeof body.error === 'string' ? body.error : 'Trade failed' }
+    if (typeof body.error === 'string' && body.error.trim()) {
+      return { ok: false, error: body.error }
+    }
+    if (res.status === 503) {
+      return {
+        ok: false,
+        error: 'Service temporarily unavailable. Please retry in a moment.',
+      }
+    }
+    return { ok: false, error: 'Trade failed' }
   }
   if (typeof body.postId !== 'string' || body.postId.length < 1) {
     return { ok: false, error: 'Missing post id' }
