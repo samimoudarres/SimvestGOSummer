@@ -44,6 +44,10 @@ export function writeTtlCache(key: string, value: unknown, ttlMs: number): void 
   evictOldestIfNeeded()
 }
 
+export function deleteTtlCache(key: string): void {
+  store.delete(key)
+}
+
 export function clearTtlCachePrefix(prefix: string): void {
   for (const k of store.keys()) {
     if (k.startsWith(prefix)) store.delete(k)

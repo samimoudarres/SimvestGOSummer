@@ -9,6 +9,7 @@ import {
   pickLastCloseFromRecentAggs,
   resolveMassiveTicker,
   unwrapCryptoSnapshotBody,
+  LIST_SPARK_SYNC_MAX,
 } from './stockService'
 import {
   isSnapshotDaySessionEmpty,
@@ -294,6 +295,7 @@ function sparkFromSnapshot(sym: string, snap: SnapTicker | undefined): number[] 
 
 /** Paced 1D/last-session bars so list mini-sparks are real session curves (cached ~45s).
  * Snapshot open→last is always a straight diagonal — bars are required for usable previews.
+ * Callers sync-enrich only the first `maxSymbols` rows, then backfill the rest in background.
  */
 async function enrichBrowseRowsFromLastSessionBars(
   rows: TradeBrowseRow[],
@@ -331,6 +333,10 @@ async function enrichBrowseRowsFromLastSessionBars(
       }),
     )
   }
+}
+
+function cloneBrowseRows(rows: TradeBrowseRow[]): TradeBrowseRow[] {
+  return rows.map((r) => ({ ...r, sparkline: r.sparkline.slice() }))
 }
 
 const POPULAR: readonly string[] = [
@@ -916,7 +922,12 @@ async function cryptoTickers(limit = 24): Promise<string[]> {
 async function buildRowsForSymbols(
   orderedSymbols: string[],
   maxRows = 28,
-  opts?: { enrichLastSession?: boolean; enrichLastSessionMax?: number },
+  opts?: {
+    enrichLastSession?: boolean
+    enrichLastSessionMax?: number
+    /** Cap how many rows wait on bars before respond (default LIST_SPARK_SYNC_MAX). */
+    enrichSyncMax?: number
+  },
 ): Promise<TradeBrowseRow[]> {
   const syms = orderedSymbols.slice(0, maxRows)
   const enrichLastSession = opts?.enrichLastSession !== false
@@ -924,6 +935,11 @@ async function buildRowsForSymbols(
     typeof opts?.enrichLastSessionMax === 'number' && Number.isFinite(opts.enrichLastSessionMax)
       ? Math.max(0, Math.floor(opts.enrichLastSessionMax))
       : Infinity
+  const syncCap =
+    typeof opts?.enrichSyncMax === 'number' && Number.isFinite(opts.enrichSyncMax)
+      ? Math.max(0, Math.floor(opts.enrichSyncMax))
+      : LIST_SPARK_SYNC_MAX
+  const syncCount = Math.min(enrichMax, syncCap)
 
   const [snapMap, names] = await Promise.all([
     (async () => {
@@ -958,8 +974,7 @@ async function buildRowsForSymbols(
     }
   }
 
-  /* Live browse prices from batched snapshot. Sparklines start snapshot-derived, then
-   * paced 1D bars replace diagonals with real session curves (TTL-cached). */
+  /* Prices from snapshot immediately. Sync-enrich only the first N sparks; callers backfill the rest. */
 
   const rows: TradeBrowseRow[] = []
   for (const sym of syms) {
@@ -984,8 +999,8 @@ async function buildRowsForSymbols(
       sparkline: spark,
     })
   }
-  if (enrichLastSession && enrichMax > 0) {
-    await enrichBrowseRowsFromLastSessionBars(rows, enrichMax)
+  if (enrichLastSession && syncCount > 0) {
+    await enrichBrowseRowsFromLastSessionBars(rows, syncCount)
   }
   return rows
 }
@@ -1057,7 +1072,50 @@ const tradeSearchRowsCache = new Map<string, { exp: number; rows: TradeBrowseRow
 const TRADE_SEARCH_CACHE_MS = 60_000
 
 /** Bump when browse row shape / spark / % math changes so stale 0% caches are not sticky after deploy. */
-const TRADE_BROWSE_CACHE_VER = 'v4-intraday-sparks'
+const TRADE_BROWSE_CACHE_VER = 'v5-fast-list-sparks'
+
+const browseSparkBackfillInflight = new Set<string>()
+
+function scheduleBrowseSparkBackfill(cacheKey: string, payload: TradeBrowsePayload): void {
+  if (payload.rows.length <= LIST_SPARK_SYNC_MAX) return
+  if (browseSparkBackfillInflight.has(cacheKey)) return
+  browseSparkBackfillInflight.add(cacheKey)
+  const startedAt = Date.now()
+  void (async () => {
+    try {
+      const copy = cloneBrowseRows(payload.rows)
+      await enrichBrowseRowsFromLastSessionBars(copy, Infinity)
+      const t = Date.now()
+      const cur = tradeBrowsePayloadCache.get(cacheKey)
+      const sparkBySym = new Map(copy.map((r) => [r.symbol, r.sparkline] as const))
+      if (cur && cur.freshUntil > startedAt + 500) {
+        /* Newer refresh already cached — merge sparks onto current prices/%. */
+        const merged = cur.payload.rows.map((r) => {
+          const sp = sparkBySym.get(r.symbol)
+          return sp && sp.length >= 2 ? { ...r, sparkline: sp } : r
+        })
+        tradeBrowsePayloadCache.set(cacheKey, {
+          ...cur,
+          payload: { ...cur.payload, rows: merged },
+        })
+        return
+      }
+      tradeBrowsePayloadCache.set(cacheKey, {
+        freshUntil: t + TRADE_BROWSE_CACHE_MS,
+        staleUntil: t + TRADE_BROWSE_STALE_MS,
+        payload: {
+          category: payload.category,
+          categories: payload.categories,
+          rows: copy,
+        },
+      })
+    } catch {
+      /* leave sync-enriched payload */
+    } finally {
+      browseSparkBackfillInflight.delete(cacheKey)
+    }
+  })()
+}
 
 function tradeBrowseInflightKey(gameSlug: string, viewerUserId: string | null, category: TradeCategoryId): string {
   /* Shared Massive lists are identical across games/users — only Following is viewer-specific. */
@@ -1091,6 +1149,7 @@ async function refreshTradeBrowse(
 
   const work = (async (): Promise<TradeBrowsePayload> => {
     const syms = await symbolsForCategory(category, { gameSlug, userId: viewerUserId })
+    /* Sync top-N real sparks only — full list backfills into cache in background. */
     const rows = await buildRowsForSymbols(syms, 30)
     const payload = {
       category,
@@ -1103,6 +1162,7 @@ async function refreshTradeBrowse(
       staleUntil: t + TRADE_BROWSE_STALE_MS,
       payload,
     })
+    scheduleBrowseSparkBackfill(k, payload)
     return payload
   })()
   tradeBrowseInflight.set(k, work)
@@ -1246,6 +1306,17 @@ async function refreshTradeSearch(cacheKey: string, q: string): Promise<TradeBro
       enrichLastSessionMax: TRADE_SEARCH_MAX_ROWS,
     })
     tradeSearchRowsCache.set(cacheKey, { exp: Date.now() + TRADE_SEARCH_CACHE_MS, rows })
+    if (rows.length > LIST_SPARK_SYNC_MAX) {
+      void (async () => {
+        try {
+          const copy = cloneBrowseRows(rows)
+          await enrichBrowseRowsFromLastSessionBars(copy, TRADE_SEARCH_MAX_ROWS)
+          tradeSearchRowsCache.set(cacheKey, { exp: Date.now() + TRADE_SEARCH_CACHE_MS, rows: copy })
+        } catch {
+          /* keep sync-enriched rows */
+        }
+      })()
+    }
     return rows
   })()
   tradeSearchInflight.set(cacheKey, work)
@@ -1282,5 +1353,16 @@ export async function fetchTradeRecentRows(orderSymbols: string[]): Promise<Trad
   if (hit && hit.exp > now) return hit.rows
   const rows = await buildRowsForSymbols(ordered.slice(0, 24), 24)
   tradeRecentsRowsCache.set(key, { exp: now + TRADE_RECENTS_CACHE_MS, rows })
+  if (rows.length > LIST_SPARK_SYNC_MAX) {
+    void (async () => {
+      try {
+        const copy = cloneBrowseRows(rows)
+        await enrichBrowseRowsFromLastSessionBars(copy, Infinity)
+        tradeRecentsRowsCache.set(key, { exp: Date.now() + TRADE_RECENTS_CACHE_MS, rows: copy })
+      } catch {
+        /* keep sync-enriched */
+      }
+    })()
+  }
   return rows
 }

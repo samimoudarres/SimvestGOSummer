@@ -3,6 +3,7 @@ import { simvestFetch } from '../api/simvestFetch'
 import { networkErrorMessage } from '../api/networkErrorMessage'
 import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
+import { scheduleSparkFollowUp } from '../lib/scheduleSparkFollowUp'
 import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import type { PortfolioApiRow, PortfolioTotals } from './portfolioTypes'
 import { readCachedPortfolio, writeCachedPortfolio } from './portfolioSessionCache'
@@ -77,6 +78,7 @@ export function usePortfolio(gameSlug: string | undefined) {
 
     pull(skipInitialLoadingUiRef.current)
     const refresh = () => pull(true)
+    const stopSparkFollowUp = scheduleSparkFollowUp(refresh)
     const stopPoll = visibilityAwareInterval(refresh, {
       visibleMs: LIVE_MARKETS_POLL_MS,
       hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
@@ -92,6 +94,7 @@ export function usePortfolio(gameSlug: string | undefined) {
 
     return () => {
       cancelled = true
+      stopSparkFollowUp()
       stopPoll()
       offVisible()
       window.removeEventListener('simvest:holdings-refresh', onHoldingsRefresh)

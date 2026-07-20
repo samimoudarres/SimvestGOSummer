@@ -15,6 +15,7 @@ export function clearViewerScopedCaches(): void {
   clearCachedMyGames()
   clearSessionJsonPrefix('simvest-portfolio-v1:')
   clearSessionJsonPrefix('simvest-portfolio-v2-intraday-sparks:')
+  clearSessionJsonPrefix('simvest-portfolio-v3-fast-list-sparks:')
   clearSessionJsonPrefix('simvest-game-feed-v1:')
   clearSessionJsonPrefix('simvest-perform-v1:')
   clearSessionJsonPrefix('simvest-perform-v2-intraday-sparks:')

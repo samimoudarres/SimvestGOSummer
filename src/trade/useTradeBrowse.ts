@@ -8,6 +8,7 @@ import {
 import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { isSimvestPollDebugEnabled } from '../lib/debugPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
+import { scheduleSparkFollowUp } from '../lib/scheduleSparkFollowUp'
 import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import { TRADE_BROWSE_CACHE_MS, tradeBrowseClientCacheKey, warmBrowseRowDetailCaches } from './tradePrefetch'
 import type { TradeBrowsePayload, TradeCategoryId } from './tradeTypes'
@@ -96,6 +97,7 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
     }
 
     load(false)
+    const stopSparkFollowUp = scheduleSparkFollowUp(() => load(true))
     const stopPoll = visibilityAwareInterval(() => load(true), {
       visibleMs: LIVE_MARKETS_POLL_MS,
       hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
@@ -104,6 +106,7 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
     const offVisible = onDocumentVisible(() => load(true))
     return () => {
       cancelled = true
+      stopSparkFollowUp()
       stopPoll()
       offVisible()
     }

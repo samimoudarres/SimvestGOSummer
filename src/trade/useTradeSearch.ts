@@ -7,6 +7,7 @@ import {
 } from '../api/simvestJsonCache'
 import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
+import { scheduleSparkFollowUp } from '../lib/scheduleSparkFollowUp'
 import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import { isMassiveCryptoSymbol } from '../stocks/displayTicker'
 import { TRADE_BROWSE_CACHE_MS, tradeBrowseClientCacheKey } from './tradePrefetch'
@@ -118,6 +119,7 @@ export function useTradeSearchResults(
     }
 
     void run(false)
+    const stopSparkFollowUp = scheduleSparkFollowUp(() => void run(true))
     const stopPoll = visibilityAwareInterval(() => void run(true), {
       visibleMs: LIVE_MARKETS_POLL_MS,
       hiddenMs: LIVE_MARKETS_POLL_HIDDEN_MS,
@@ -126,6 +128,7 @@ export function useTradeSearchResults(
     const offVisible = onDocumentVisible(() => void run(true))
     return () => {
       cancelled = true
+      stopSparkFollowUp()
       stopPoll()
       offVisible()
     }

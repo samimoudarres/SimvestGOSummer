@@ -43,8 +43,9 @@ Free / spun-down Render web services sleep after idle traffic. The first request
 
 **Keep-alive options (ops, not required in app code):**
 
-1. External ping: cron / UptimeRobot / GitHub Action hitting `GET https://simvest-api.onrender.com/api/health` every ~5–10 minutes.
-2. Render paid plan with always-on (no sleep).
+1. **GitHub Action (shipped):** `.github/workflows/keep-api-warm.yml` pings `/api/health` every ~7 minutes. Enable Actions on the repo; optional repo variable `SIMVEST_API_HEALTH_URL` overrides the default `https://simvest-api.onrender.com/api/health`.
+2. External ping: cron / UptimeRobot hitting the same health URL every ~5–10 minutes.
+3. Render paid plan with always-on (no sleep).
 
 Do **not** add an in-process self-ping loop on the free tier — it does not stop platform sleep and can confuse health metrics. Prefer an external lightweight health ping.
 

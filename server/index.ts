@@ -39,7 +39,7 @@ import { sendBrandingIcon } from './branding'
 import { isPrivacyPolicyReady, registerLegalPages } from './legalPages.ts'
 import { registerAppLinksWellKnown } from './appLinksWellKnown.ts'
 import { readMediaFile, compactImageUrlForApi } from './mediaDataUrlStore.ts'
-import { readTtlCache, writeTtlCache, clearTtlCachePrefix } from './ttlCache.ts'
+import { readTtlCache, writeTtlCache, clearTtlCachePrefix, deleteTtlCache } from './ttlCache.ts'
 import {
   storageBackendLabel,
   hasSupabaseServiceRole,
@@ -210,6 +210,7 @@ import {
   fetchStockBars,
   fetchStockBars1DayOrLastTwoSessions,
   fetchStockDetail,
+  LIST_SPARK_SYNC_MAX,
   normalizeCryptoCompositeTicker,
   normalizeTicker,
   resolveMassiveTicker,
@@ -2906,6 +2907,22 @@ app.get('/api/games/:slug/portfolio', async (req, res) => {
     const payload = await fetchPortfolioPayload(slugResolved, uid)
     writeTtlCache(cacheKey, payload, 8_000)
     res.json(payload)
+    /* Sync path only waits on top-N sparks; rebuild into TTL once background spark cache fills. */
+    const rowCount = Array.isArray((payload as { rows?: unknown[] })?.rows)
+      ? (payload as { rows: unknown[] }).rows.length
+      : 0
+    if (rowCount > LIST_SPARK_SYNC_MAX) {
+      void (async () => {
+        await new Promise((r) => setTimeout(r, 1100))
+        try {
+          deleteTtlCache(cacheKey)
+          const full = await fetchPortfolioPayload(slugResolved, uid)
+          writeTtlCache(cacheKey, full, 8_000)
+        } catch {
+          /* keep prior payload */
+        }
+      })()
+    }
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Portfolio failed' })
   }

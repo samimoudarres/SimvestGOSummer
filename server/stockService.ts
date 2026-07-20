@@ -1128,6 +1128,30 @@ export function lastSessionMetricsFromBars(bars: StockDetailBar[]): {
   return { spark: downsampleBarCloses(closes), changePct, lastClose }
 }
 
+/** Visible list rows get real sparks before respond; remainder warms in background. */
+export const LIST_SPARK_SYNC_MAX = 6
+
+/**
+ * Prefetch 1D/last-session bars into the TTL cache without blocking the response.
+ * Used so a quick client follow-up refresh can enrich remaining list sparks from cache.
+ */
+export async function warmSessionBarsForSymbols(symbols: string[], concurrency = 4): Promise<void> {
+  const uniq = [...new Set(symbols.map((s) => resolveMassiveTicker(s) ?? s.trim().toUpperCase()).filter(Boolean))]
+  const conc = Math.max(1, Math.min(8, Math.floor(concurrency)))
+  for (let i = 0; i < uniq.length; i += conc) {
+    const chunk = uniq.slice(i, i + conc)
+    await Promise.all(
+      chunk.map(async (sym) => {
+        try {
+          await fetchStockBars1DayOrLastTwoSessions(sym)
+        } catch {
+          /* ignore — best-effort warm */
+        }
+      }),
+    )
+  }
+}
+
 /**
  * Prefer true 1D intraday. If data is empty or too sparse (weekends, holidays), use the last two ET market days from 5D aggs.
  */

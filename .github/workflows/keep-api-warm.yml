@@ -1,0 +1,29 @@
+# Keep the Render free-tier API from sleeping (see docs/LAUNCH_TOPOLOGY.md).
+# Pings /api/health every ~7 minutes so cold-start lag stays rare.
+name: Keep API warm
+
+on:
+  schedule:
+    - cron: '*/7 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping production health
+        run: |
+          set -e
+          URL="${API_HEALTH_URL:-https://simvest-api.onrender.com/api/health}"
+          echo "GET $URL"
+          # Free-tier wake can be slow — allow up to 90s; do not fail the workflow on a single miss.
+          if curl -fsS -m 90 "$URL"; then
+            echo
+            echo "ok"
+          else
+            echo "health ping failed (instance may still be waking); will retry next schedule"
+            exit 0
+          fi
+        env:
+          API_HEALTH_URL: ${{ vars.SIMVEST_API_HEALTH_URL }}

@@ -8,7 +8,7 @@ type CachedPortfolio = { rows: PortfolioApiRow[]; totals: PortfolioTotals }
 
 /** Bump when sparkline shape / row payload semantics change so stale diagonals aren’t painted. */
 function key(slug: string): string {
-  return viewerScopedCacheKey('simvest-portfolio-v2-intraday-sparks', slug.trim().toLowerCase())
+  return viewerScopedCacheKey('simvest-portfolio-v3-fast-list-sparks', slug.trim().toLowerCase())
 }
 
 export function readCachedPortfolio(slug: string): CachedPortfolio | null {

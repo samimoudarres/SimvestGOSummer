@@ -10,7 +10,7 @@ import type { TradeBrowsePayload } from './tradeTypes'
 /** Align with server browse fresh TTL — keep lists painted across tab switches. */
 export const TRADE_BROWSE_CACHE_MS = 45_000
 /** Bump with server `TRADE_BROWSE_CACHE_VER` so client doesn’t keep flat/0% browse rows after deploy. */
-const TRADE_BROWSE_CLIENT_CACHE_VER = 'v4-intraday-sparks'
+const TRADE_BROWSE_CLIENT_CACHE_VER = 'v5-fast-list-sparks'
 const inflight = new Set<string>()
 
 function browsePopularUrl(gameSlug: string): string {

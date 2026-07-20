@@ -10,6 +10,8 @@ import {
   unwrapCryptoSnapshotBody,
   fetchStockBars1DayOrLastTwoSessions,
   lastSessionMetricsFromBars,
+  LIST_SPARK_SYNC_MAX,
+  warmSessionBarsForSymbols,
 } from './stockService'
 import {
   isUsEquitySymbol,
@@ -213,8 +215,8 @@ type PortfolioMassiveBundle = {
 
 /**
  * One paged batch fetch for snapshots + names — avoids the previous O(N) per-holding fan-out
- * that dominated portfolio load time. Sparklines are snapshot-derived (prev→last) so holdings
- * lists stay fast under Massive concurrency limits; full charts still use `/bars`.
+ * that dominated portfolio load time. Sparklines: sync-enrich the first LIST_SPARK_SYNC_MAX
+ * holdings from session bars; warm remaining bars in background for a fast follow-up refresh.
  *
  * Pass `skipSparks: true` for net-worth / leaderboard aggregates when even mini-sparks are unused.
  */
@@ -293,9 +295,14 @@ async function loadPortfolioMassiveData(
   })()
   const sparksTask = (async () => {
     if (opts?.skipSparks) return
-    /* Snapshot diagonals first, then paced 1D bars for real mini-curves (TTL-cached). */
+    /* Prefer cached real sparks, else snapshot diagonals; then sync-enrich top-N. */
     await Promise.all([snapStock, snapCrypto])
     for (const sym of symbols) {
+      const cached = readPortfolioSparkCache(sym)
+      if (cached) {
+        sparks.set(sym, cached)
+        continue
+      }
       const snap = snapshots.get(sym)
       const lastPx = pickTickerSnapshotPrice(snap) ?? pickStockMarkPrice(sym, snap)
       const sp = sparkFromCryptoSnapshot(snap, lastPx)
@@ -346,7 +353,7 @@ async function loadPortfolioMassiveData(
       const sp = sparkFromCryptoSnapshot(snap, lastPx)
       sparks.set(sym, sp.length >= 2 ? sp : lastPx != null ? [lastPx, lastPx] : [])
     }
-    await enrichSparksFromSessionBars(sparks, symbols)
+    await enrichSparksFromSessionBars(sparks, symbols, { syncMax: LIST_SPARK_SYNC_MAX })
   }
 
   const missingName = opts?.skipNames ? [] : stockSyms.filter((s) => !names.has(s))
@@ -419,27 +426,81 @@ function sparkHasMovement(spark: number[]): boolean {
   return false
 }
 
-/** Replace snapshot diagonals with real last-session curves (bars TTL-cached ~45s). */
+const portfolioSparkCache = new Map<string, { at: number; spark: number[] }>()
+const PORTFOLIO_SPARK_CACHE_MS = 45_000
+const MAX_PORTFOLIO_SPARK_CACHE = 80
+
+function readPortfolioSparkCache(sym: string): number[] | null {
+  const hit = portfolioSparkCache.get(sym)
+  if (!hit) return null
+  if (Date.now() - hit.at > PORTFOLIO_SPARK_CACHE_MS) {
+    portfolioSparkCache.delete(sym)
+    return null
+  }
+  return hit.spark.length >= 2 ? hit.spark.slice() : null
+}
+
+function writePortfolioSparkCache(sym: string, spark: number[]): void {
+  if (spark.length < 2 || !sparkHasMovement(spark)) return
+  if (portfolioSparkCache.size >= MAX_PORTFOLIO_SPARK_CACHE) {
+    const first = portfolioSparkCache.keys().next().value
+    if (first != null) portfolioSparkCache.delete(first)
+  }
+  portfolioSparkCache.set(sym, { at: Date.now(), spark: spark.slice() })
+}
+
+/** Replace snapshot diagonals with real last-session curves (bars TTL-cached ~45s).
+ * Only the first `syncMax` symbols block the response; the rest warm bars + spark cache. */
 async function enrichSparksFromSessionBars(
   sparks: Map<string, number[]>,
   symbols: string[],
+  opts?: { syncMax?: number },
 ): Promise<void> {
+  const syncMax =
+    typeof opts?.syncMax === 'number' && Number.isFinite(opts.syncMax)
+      ? Math.max(0, Math.floor(opts.syncMax))
+      : symbols.length
+  const head = symbols.slice(0, syncMax)
+  const rest = symbols.slice(syncMax)
   const CONCURRENCY = 4
-  for (let i = 0; i < symbols.length; i += CONCURRENCY) {
-    const chunk = symbols.slice(i, i + CONCURRENCY)
-    await Promise.all(
-      chunk.map(async (sym) => {
-        try {
-          const bars = await fetchStockBars1DayOrLastTwoSessions(sym)
-          const m = lastSessionMetricsFromBars(bars)
-          if (m.spark.length >= 2 && sparkHasMovement(m.spark)) {
-            sparks.set(sym, m.spark)
-          }
-        } catch {
-          /* keep snapshot spark */
-        }
-      }),
-    )
+
+  const enrichOne = async (sym: string) => {
+    try {
+      const bars = await fetchStockBars1DayOrLastTwoSessions(sym)
+      const m = lastSessionMetricsFromBars(bars)
+      if (m.spark.length >= 2 && sparkHasMovement(m.spark)) {
+        sparks.set(sym, m.spark)
+        writePortfolioSparkCache(sym, m.spark)
+      }
+    } catch {
+      /* keep snapshot spark */
+    }
+  }
+
+  for (let i = 0; i < head.length; i += CONCURRENCY) {
+    const chunk = head.slice(i, i + CONCURRENCY)
+    await Promise.all(chunk.map((sym) => enrichOne(sym)))
+  }
+  if (rest.length) {
+    void (async () => {
+      for (let i = 0; i < rest.length; i += CONCURRENCY) {
+        const chunk = rest.slice(i, i + CONCURRENCY)
+        await Promise.all(
+          chunk.map(async (sym) => {
+            try {
+              const bars = await fetchStockBars1DayOrLastTwoSessions(sym)
+              const m = lastSessionMetricsFromBars(bars)
+              if (m.spark.length >= 2 && sparkHasMovement(m.spark)) {
+                writePortfolioSparkCache(sym, m.spark)
+              }
+            } catch {
+              /* ignore */
+            }
+          }),
+        )
+      }
+    })()
+    void warmSessionBarsForSymbols(rest, CONCURRENCY)
   }
 }
 

@@ -133,13 +133,14 @@ export function prefetchGameTabData(slug: string): void {
   if (!k || tabDataWarmStarted.has(k)) return
   tabDataWarmStarted.add(k)
 
-  /* Staggered warm: trade → perform light → portfolio → LB — avoid Massive stampede. */
-  window.setTimeout(() => prefetchTradeBrowsePopular(slug), 100)
-  window.setTimeout(() => prefetchPerformDashboardLight(slug), 220)
-  window.setTimeout(() => prefetchPortfolio(slug), 320)
-  window.setTimeout(() => prefetchLeaderboardSort(slug, 'overall_return'), 420)
-  window.setTimeout(() => prefetchLeaderboardSort(slug, 'today'), 560)
-  window.setTimeout(() => prefetchLeaderboardAllSorts(slug), 820)
+  /* Staggered warm: trade first (user often lands there), then light perform, portfolio,
+   * then leaderboard — leave Massive slots free for the visible tab’s sync sparks. */
+  window.setTimeout(() => prefetchTradeBrowsePopular(slug), 120)
+  window.setTimeout(() => prefetchPerformDashboardLight(slug), 450)
+  window.setTimeout(() => prefetchPortfolio(slug), 700)
+  window.setTimeout(() => prefetchLeaderboardSort(slug, 'overall_return'), 1100)
+  window.setTimeout(() => prefetchLeaderboardSort(slug, 'today'), 1400)
+  window.setTimeout(() => prefetchLeaderboardAllSorts(slug), 1900)
 }
 
 /** Warm chrome + header + feed cache + JS chunks + staggered tab data. */
