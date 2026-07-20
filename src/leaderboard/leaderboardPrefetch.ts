@@ -1,11 +1,15 @@
 import { simvestFetch } from '../api/simvestFetch'
 import { LEADERBOARD_SORT_OPTIONS, type LeaderboardPayload, type LeaderboardSortKey } from './leaderboardTypes'
-import { readCachedLeaderboard, writeCachedLeaderboard } from './leaderboardSessionCache'
+import {
+  readCachedLeaderboard,
+  writeCachedLeaderboard,
+} from './leaderboardSessionCache'
 
 const inflight = new Set<string>()
 
 async function warmOne(slug: string, sort: LeaderboardSortKey): Promise<void> {
   const key = `${slug}:${sort}`
+  /* Any last-good is enough for instant paint; live screens refresh silently. */
   if (readCachedLeaderboard(slug, sort)) return
   if (inflight.has(key)) return
   inflight.add(key)
@@ -23,14 +27,29 @@ async function warmOne(slug: string, sort: LeaderboardSortKey): Promise<void> {
   }
 }
 
+/** Warm a single sort into the session cache (Activity top-gains / nav pointerdown). */
+export function prefetchLeaderboardSort(slug: string, sort: LeaderboardSortKey): void {
+  const s = slug.trim()
+  if (!s) return
+  void warmOne(s, sort)
+}
+
 /** Warm every sort so switching Overall / Today / 7D / Month never flashes Loading.
  * Stagger enough that the first request can populate the shared server metrics cache
  * before the others arrive (avoids four parallel Massive rebuilds on a cold game).
+ * Default sort (overall_return) and today (top gains) run first.
  */
 export function prefetchLeaderboardAllSorts(slug: string): void {
   const s = slug.trim()
   if (!s) return
-  LEADERBOARD_SORT_OPTIONS.forEach((opt, i) => {
-    window.setTimeout(() => void warmOne(s, opt.key), i * 350)
+  const order: LeaderboardSortKey[] = [
+    'overall_return',
+    'today',
+    ...LEADERBOARD_SORT_OPTIONS.map((o) => o.key).filter(
+      (k) => k !== 'overall_return' && k !== 'today',
+    ),
+  ]
+  order.forEach((sort, i) => {
+    window.setTimeout(() => void warmOne(s, sort), i * 280)
   })
 }

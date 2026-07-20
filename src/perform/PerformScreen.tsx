@@ -221,7 +221,7 @@ export function PerformScreen() {
 
   const chartSeries = useMemo((): PerformCompareSeries[] => {
     if (compareData?.series?.length) return compareData.series
-    if (compareStatus === 'loading') {
+    if (compareStatus === 'loading' || compareStatus === 'idle') {
       return [
         {
           id: 'you',
@@ -477,12 +477,12 @@ export function PerformScreen() {
               visible={visibleSeries}
               selected={selectedSeries}
               onSelectLine={setSelectedSeries}
-              interactive={(compareStatus !== 'loading' || chartSeries.length > 0) && chartSeries.length > 0}
+              interactive={Boolean(compareData?.series?.length)}
               sampledAtMs={compareData?.sampledAtMs}
               chartRange={compareData?.range ?? chartRange}
             />
 
-            {compareStatus === 'loading' && !compareData?.series?.length ? (
+            {(compareStatus === 'loading' || compareStatus === 'idle') && !compareData?.series?.length ? (
               <p className="pf-compareLoading">Updating chart…</p>
             ) : null}
           </section>

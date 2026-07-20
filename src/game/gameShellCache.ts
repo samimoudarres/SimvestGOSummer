@@ -3,8 +3,12 @@ import { fetchCreateGameSettings, type CreateSettingsGetResponse } from '../crea
 import { simvestFetch } from '../api/simvestFetch'
 import { writeCachedGameFeed } from '../challenge/gameFeedSessionCache'
 import type { GameFeedPostRow } from '../challenge/useGameFeed'
-import { prefetchLeaderboardAllSorts } from '../leaderboard/leaderboardPrefetch'
-import { prefetchPerformCharts } from '../perform/performChartPrefetch'
+import {
+  prefetchLeaderboardAllSorts,
+  prefetchLeaderboardSort,
+} from '../leaderboard/leaderboardPrefetch'
+import { prefetchPerformDashboardLight } from '../perform/performChartPrefetch'
+import { prefetchTradeBrowsePopular } from '../trade/tradePrefetch'
 import { fetchGameChrome } from './gameChromeApi'
 import { warmAllGameTabChunksIdle, warmGameTabChunk } from './warmGameTabChunks'
 
@@ -119,20 +123,30 @@ function prefetchGameFeedIntoCache(slug: string): void {
     .catch(() => {})
 }
 
-/** Warm chrome + header + feed cache + JS chunks (no Massive-heavy fan-out). */
+/**
+ * Staggered warm of tab session caches (NOT unbound Massive fan-out).
+ * Writes the same caches hooks read so first visit to each tab is last-good ready.
+ */
+export function prefetchGameTabData(slug: string): void {
+  const k = cacheKey(slug)
+  if (!k || tabDataWarmStarted.has(k)) return
+  tabDataWarmStarted.add(k)
+
+  /* 100–350ms stagger: trade → perform light → LB default → today/top-gains → remaining sorts */
+  window.setTimeout(() => prefetchTradeBrowsePopular(slug), 100)
+  window.setTimeout(() => prefetchPerformDashboardLight(slug), 220)
+  window.setTimeout(() => prefetchLeaderboardSort(slug, 'overall_return'), 350)
+  window.setTimeout(() => prefetchLeaderboardSort(slug, 'today'), 520)
+  window.setTimeout(() => prefetchLeaderboardAllSorts(slug), 780)
+}
+
+/** Warm chrome + header + feed cache + JS chunks + staggered tab data. */
 export function prefetchGameShell(slug: string): void {
   const k = cacheKey(slug)
   if (!k) return
   warmGameTabChunk('activity')
   warmAllGameTabChunksIdle()
-  if (!tabDataWarmStarted.has(k)) {
-    tabDataWarmStarted.add(k)
-    /* Delayed: perform charts + leaderboard sorts only (staggered inside those helpers). */
-    window.setTimeout(() => {
-      prefetchPerformCharts(slug)
-      window.setTimeout(() => prefetchLeaderboardAllSorts(slug), 400)
-    }, 900)
-  }
+  prefetchGameTabData(slug)
   if (prefetchInflight.has(k)) return
   prefetchGameFeedIntoCache(slug)
   const job = Promise.all([

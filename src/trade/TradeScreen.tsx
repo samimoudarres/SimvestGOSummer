@@ -316,7 +316,7 @@ export function TradeScreen() {
             </div>
 
             <div className="tr-listArea">
-              {status === 'loading' && rows.length === 0 ? (
+              {(status === 'loading' || status === 'idle') && rows.length === 0 ? (
                 <ul className="tr-skel" aria-hidden>
                   {Array.from({ length: 8 }).map((_, i) => (
                     <li key={i} className="tr-skelRow" />
@@ -324,11 +324,13 @@ export function TradeScreen() {
                 </ul>
               ) : null}
               {status === 'loading' && rows.length > 0 ? <p className="tr-load tr-load--inline">Updating…</p> : null}
-              {status === 'error' ? <p className="tr-err">{error ?? 'Something went wrong.'}</p> : null}
+              {status === 'error' && rows.length === 0 ? (
+                <p className="tr-err">{error ?? 'Something went wrong.'}</p>
+              ) : null}
               {status === 'ready' && !rows.length ? (
                 <p className="tr-hint">No symbols in this category right now. Try another tab.</p>
               ) : null}
-              {status === 'ready'
+              {rows.length > 0
                 ? rows.map((row) => (
                     <TradeRow
                       key={row.symbol}

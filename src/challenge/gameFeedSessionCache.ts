@@ -1,5 +1,5 @@
 import type { GameFeedPostRow } from './useGameFeed'
-import { readSessionJson, writeSessionJson } from '../lib/sessionJsonCache'
+import { readSessionJson, readSessionJsonStale, writeSessionJson } from '../lib/sessionJsonCache'
 import { viewerScopedCacheKey } from '../lib/viewerScopedCacheKey'
 
 const MAX_AGE_MS = 5 * 60_000
@@ -9,8 +9,13 @@ function key(slug: string): string {
 }
 
 export function readCachedGameFeed(slug: string): GameFeedPostRow[] | null {
-  const data = readSessionJson<GameFeedPostRow[]>(key(slug), MAX_AGE_MS)
+  const data = readSessionJsonStale<GameFeedPostRow[]>(key(slug))
   return data && Array.isArray(data) ? data : null
+}
+
+export function isGameFeedCacheFresh(slug: string): boolean {
+  const data = readSessionJson<GameFeedPostRow[]>(key(slug), MAX_AGE_MS)
+  return !!(data && Array.isArray(data))
 }
 
 export function writeCachedGameFeed(slug: string, posts: GameFeedPostRow[]): void {

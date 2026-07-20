@@ -345,9 +345,9 @@ export function PerformCompareChart({
           </>
         ) : selected ? (
           `${series.find((x) => x.id === selected)?.legendLabel ?? ''} — tap chart to clear.`
-        ) : interactive ? null : (
+        ) : interactive ? null : series.length === 0 ? (
           'Loading chart…'
-        )}
+        ) : null}
       </p>
     </div>
   )

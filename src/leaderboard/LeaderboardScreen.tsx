@@ -150,9 +150,9 @@ export function LeaderboardScreen() {
             {!data && (status === 'loading' || status === 'idle') ? (
               <p className="lb-loading">Loading leaderboard…</p>
             ) : null}
-            {error ? <p className="lb-error">{error}</p> : null}
+            {error && !data ? <p className="lb-error">{error}</p> : null}
 
-            {data && data.rows.length === 0 ? (
+            {data && data.rows.length === 0 && status === 'ok' ? (
               <p className="lb-loading">No players in this game yet.</p>
             ) : null}
 

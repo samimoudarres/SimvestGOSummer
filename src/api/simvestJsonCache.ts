@@ -15,10 +15,8 @@ export function simvestJsonCacheKey(url: string): string {
 export function readSimvestJsonCache<T>(key: string): T | undefined {
   const hit = store.get(key)
   if (!hit) return undefined
-  if (hit.exp <= Date.now()) {
-    store.delete(key)
-    return undefined
-  }
+  /* Expired: miss for freshness checks, but keep the entry for stale paint. */
+  if (hit.exp <= Date.now()) return undefined
   return hit.data as T
 }
 

@@ -1,5 +1,5 @@
 import type { LeaderboardPayload, LeaderboardSortKey } from './leaderboardTypes'
-import { readSessionJson, writeSessionJson } from '../lib/sessionJsonCache'
+import { readSessionJson, readSessionJsonStale, writeSessionJson } from '../lib/sessionJsonCache'
 import { viewerScopedCacheKey } from '../lib/viewerScopedCacheKey'
 
 const MAX_AGE_MS = 3 * 60_000
@@ -8,9 +8,16 @@ function cacheKey(slug: string, sort: LeaderboardSortKey): string {
   return viewerScopedCacheKey('simvest-lb-v1', `${slug.trim().toLowerCase()}:${sort}`)
 }
 
+/** Last-good (may be stale) — use for instant tab paint. */
 export function readCachedLeaderboard(slug: string, sort: LeaderboardSortKey): LeaderboardPayload | null {
-  const data = readSessionJson<LeaderboardPayload>(cacheKey(slug, sort), MAX_AGE_MS)
+  const data = readSessionJsonStale<LeaderboardPayload>(cacheKey(slug, sort))
   return data && Array.isArray(data.rows) ? data : null
+}
+
+/** True when cache is within TTL — prefetch can skip. */
+export function isLeaderboardCacheFresh(slug: string, sort: LeaderboardSortKey): boolean {
+  const data = readSessionJson<LeaderboardPayload>(cacheKey(slug, sort), MAX_AGE_MS)
+  return !!(data && Array.isArray(data.rows))
 }
 
 export function writeCachedLeaderboard(slug: string, sort: LeaderboardSortKey, payload: LeaderboardPayload): void {

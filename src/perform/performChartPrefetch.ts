@@ -135,6 +135,27 @@ export function prefetchPerformDashboard(gameSlug: string): void {
     .catch(() => {})
 }
 
+/** Light shell warm: dashboard + optional 1D net-worth only (no full chart fan-out). */
+export function prefetchPerformDashboardLight(gameSlug: string): void {
+  const slug = gameSlug.trim()
+  if (!slug) return
+  prefetchPerformDashboard(slug)
+  const uid = getSimvestUserId().trim()
+  if (uid.length < 8) return
+  const range: ChartRange = '1D'
+  const key = performNetWorthChartCacheKey(slug, uid, range)
+  if (readSimvestJsonCacheStale<PlayerNetWorthChartPayload>(key)?.bars?.length) return
+  window.setTimeout(() => {
+    void dedupeSimvestJsonFetch(key, async () => {
+      const r = await simvestFetch(performNetWorthChartUrl(slug, uid, range))
+      const body = await r.json().catch(() => null)
+      const p = normalizeNetWorthChartPayload(body)
+      if (r.ok && p) writeSimvestJsonCache(key, p, PERFORM_NW_CACHE_MS)
+      return body
+    }).catch(() => {})
+  }, 120)
+}
+
 function readCompareTokensFromStorage(slug: string): string[] {
   try {
     const raw = localStorage.getItem(performCompareStorageKey(slug))

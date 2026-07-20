@@ -1,16 +1,34 @@
 /** Small sessionStorage JSON cache with TTL — instant paint, background refresh. */
 
-export function readSessionJson<T>(key: string, maxAgeMs: number): T | null {
+type Wrapped<T> = { savedAt?: number; data?: T }
+
+function readWrapped<T>(key: string): Wrapped<T> | null {
   try {
     const raw = sessionStorage.getItem(key)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as { savedAt?: number; data?: T }
+    const parsed = JSON.parse(raw) as Wrapped<T>
     if (typeof parsed?.savedAt !== 'number' || parsed.data === undefined) return null
-    if (Date.now() - parsed.savedAt > maxAgeMs) return null
-    return parsed.data as T
+    return parsed
   } catch {
     return null
   }
+}
+
+/** Fresh-only read — used to skip redundant warm requests. */
+export function readSessionJson<T>(key: string, maxAgeMs: number): T | null {
+  const parsed = readWrapped<T>(key)
+  if (!parsed) return null
+  if (Date.now() - parsed.savedAt! > maxAgeMs) return null
+  return parsed.data as T
+}
+
+/**
+ * Last-good read for tab remounts — ignore TTL so switching tabs never flashes
+ * empty/loading shells while a silent refresh runs.
+ */
+export function readSessionJsonStale<T>(key: string): T | null {
+  const parsed = readWrapped<T>(key)
+  return parsed ? (parsed.data as T) : null
 }
 
 export function writeSessionJson<T>(key: string, data: T): void {

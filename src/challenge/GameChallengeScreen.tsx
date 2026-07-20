@@ -27,13 +27,13 @@ import { useGameChallengeHeader } from './useGameChallengeHeader'
 import { InviteGameSheet } from '../join/InviteGameSheet'
 import { fetchCreateGameSettings } from '../createGame/createGameSettingsApi'
 import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
+import { prefetchGameTabData } from '../game/gameShellCache'
 import { warmAllGameTabChunksIdle } from '../game/warmGameTabChunks'
 import { LIVE_MARKETS_POLL_HIDDEN_MS } from '../config/liveMarketsPoll'
 import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import { simvestFetch } from '../api/simvestFetch'
 import { StockBrandingImage } from '../components/StockBrandingImage'
 import { ProfileAvatar } from '../components/ProfileAvatar'
-import { prefetchTradeBrowsePopular } from '../trade/tradePrefetch'
 import './gameChallenge.css'
 
 const GAIN_CARD_W = 111
@@ -378,7 +378,7 @@ export function GameChallengeScreen() {
     rememberActiveGameSlug(slug)
     if (slug) {
       warmAllGameTabChunksIdle()
-      prefetchTradeBrowsePopular(slug)
+      prefetchGameTabData(slug)
     }
   }, [slug])
 

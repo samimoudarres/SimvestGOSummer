@@ -1,4 +1,4 @@
-import { readSessionJson, writeSessionJson } from '../lib/sessionJsonCache'
+import { readSessionJson, readSessionJsonStale, writeSessionJson } from '../lib/sessionJsonCache'
 import { viewerScopedCacheKey } from '../lib/viewerScopedCacheKey'
 import type { GameMemberPreview } from './useGameMembersPreview'
 
@@ -14,9 +14,14 @@ function key(slug: string): string {
 }
 
 export function readCachedMembersPreview(slug: string): CachedMembersPreview | null {
-  const data = readSessionJson<CachedMembersPreview>(key(slug), MAX_AGE_MS)
+  const data = readSessionJsonStale<CachedMembersPreview>(key(slug))
   if (!data || !Array.isArray(data.members) || typeof data.totalPlayers !== 'number') return null
   return data
+}
+
+export function isMembersPreviewCacheFresh(slug: string): boolean {
+  const data = readSessionJson<CachedMembersPreview>(key(slug), MAX_AGE_MS)
+  return !!(data && Array.isArray(data.members) && typeof data.totalPlayers === 'number')
 }
 
 export function writeCachedMembersPreview(

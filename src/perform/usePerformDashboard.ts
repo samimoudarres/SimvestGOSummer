@@ -14,7 +14,9 @@ export function usePerformDashboard(gameSlug: string | undefined) {
   const [data, setData] = useState<PerformDashboardPayload | null>(() =>
     cachedInitial ?? (gameSlug ? emptyPerformDashboard(gameSlug) : null),
   )
-  const [status, setStatus] = useState<Status>(() => (cachedInitial || gameSlug ? 'ready' : 'idle'))
+  const [status, setStatus] = useState<Status>(() =>
+    cachedInitial ? 'ready' : gameSlug ? 'loading' : 'idle',
+  )
   const [fromApi, setFromApi] = useState(!!cachedInitial)
   const [error, setError] = useState<string | null>(null)
   const hasDataRef = useRef(!!cachedInitial)
@@ -35,8 +37,8 @@ export function usePerformDashboard(gameSlug: string | undefined) {
     } else {
       setData(fallback)
       setFromApi(false)
-      /* Paint empty/dummy shell immediately — never full-page block on Massive. */
-      setStatus('ready')
+      /* Keep shell painted; status loading until first API so UI can tell cache miss. */
+      setStatus('loading')
       hasDataRef.current = false
     }
     let cancelled = false
