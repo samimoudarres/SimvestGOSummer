@@ -87,8 +87,10 @@ export function setSimvestUserId(nextId: string): boolean {
     try {
       const prefixes = [
         'simvest-portfolio-v1:',
+        'simvest-portfolio-v2-intraday-sparks:',
         'simvest-game-feed-v1:',
         'simvest-perform-v1:',
+        'simvest-perform-v2-intraday-sparks:',
         'simvest-lb-v1:',
         'simvest-members-preview-v1:',
         'simvest-my-games-cache-v1',

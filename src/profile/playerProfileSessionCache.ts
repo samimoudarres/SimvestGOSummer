@@ -6,7 +6,7 @@ const MAX_AGE_MS = 90_000
 
 function key(slug: string, userId: string): string {
   return viewerScopedCacheKey(
-    'simvest-player-profile-v1',
+    'simvest-player-profile-v2-intraday-sparks',
     `${slug.trim().toLowerCase()}:${userId.trim().toLowerCase()}`,
   )
 }

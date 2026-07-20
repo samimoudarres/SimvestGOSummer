@@ -5,7 +5,7 @@ import { viewerScopedCacheKey } from '../lib/viewerScopedCacheKey'
 const MAX_AGE_MS = 2 * 60_000
 
 function key(slug: string): string {
-  return viewerScopedCacheKey('simvest-perform-v1', slug.trim().toLowerCase())
+  return viewerScopedCacheKey('simvest-perform-v2-intraday-sparks', slug.trim().toLowerCase())
 }
 
 /** Last-good (may be stale) — use for instant Perform tab paint. */

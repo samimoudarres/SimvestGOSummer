@@ -292,24 +292,17 @@ function sparkFromSnapshot(sym: string, snap: SnapTicker | undefined): number[] 
   return [1, 1]
 }
 
-/** One paced batch of 1D/last-session bars for weekend-empty snapshots (cached ~45s inside stockService).
- * When `maxSymbols` is finite (search), enrich top N US equities even if the session isn't empty —
- * snapshot sparks are linear diagonals; bars give real curves without enriching the whole list.
+/** Paced 1D/last-session bars so list mini-sparks are real session curves (cached ~45s).
+ * Snapshot open→last is always a straight diagonal — bars are required for usable previews.
  */
 async function enrichBrowseRowsFromLastSessionBars(
   rows: TradeBrowseRow[],
-  snapMap: Map<string, SnapTicker>,
   maxSymbols = Infinity,
 ): Promise<void> {
-  const capped = Number.isFinite(maxSymbols)
   const need = rows
-    .map((r, i) => ({ row: r, i, snap: snapMap.get(r.symbol) }))
-    .filter(({ row, snap }) => {
-      if (!isUsEquitySymbol(row.symbol)) return false
-      if (capped) return true
-      return isSnapshotDaySessionEmpty(snap as never)
-    })
-    .slice(0, capped ? Math.max(0, Math.floor(maxSymbols)) : undefined)
+    .map((r, i) => ({ row: r, i }))
+    .filter(({ row }) => !!row.symbol?.trim())
+    .slice(0, Number.isFinite(maxSymbols) ? Math.max(0, Math.floor(maxSymbols)) : undefined)
   if (!need.length) return
 
   const CONCURRENCY = 4
@@ -323,7 +316,12 @@ async function enrichBrowseRowsFromLastSessionBars(
           if (m.spark.length >= 2 && sparkHasMovement(m.spark)) {
             rows[idx]!.sparkline = m.spark
           }
-          if (m.changePct != null && Number.isFinite(m.changePct)) {
+          /* Keep snapshot % when present — only fill from bars when the label is missing. */
+          if (
+            (rows[idx]!.changeLabel === '—' || !rows[idx]!.changeLabel) &&
+            m.changePct != null &&
+            Number.isFinite(m.changePct)
+          ) {
             rows[idx]!.changeLabel = fmtPctSigned(m.changePct)
             rows[idx]!.positive = m.changePct >= 0
           }
@@ -334,12 +332,6 @@ async function enrichBrowseRowsFromLastSessionBars(
     )
   }
 }
-
-/**
- * Browse/search list sparklines are snapshot-derived (prev→last), not per-row 1D aggs.
- * Fetching bars for every list row was the dominant browse latency (dozens of paced Massive
- * calls under concurrency limits). Real charts still use `/api/stocks/:t/bars`.
- */
 
 const POPULAR: readonly string[] = [
   'AAPL',
@@ -966,8 +958,8 @@ async function buildRowsForSymbols(
     }
   }
 
-  /* Live browse prices come from the batched snapshot (+ limited fills above). Sparklines start
-   * snapshot-derived; weekend-empty day bars get one paced 1D batch (cached) for real sparks/% . */
+  /* Live browse prices from batched snapshot. Sparklines start snapshot-derived, then
+   * paced 1D bars replace diagonals with real session curves (TTL-cached). */
 
   const rows: TradeBrowseRow[] = []
   for (const sym of syms) {
@@ -992,9 +984,8 @@ async function buildRowsForSymbols(
       sparkline: spark,
     })
   }
-  /* Search caps enrich (top hits only) so sparks aren't flat diagonals without a 20s stall. */
   if (enrichLastSession && enrichMax > 0) {
-    await enrichBrowseRowsFromLastSessionBars(rows, snapMap, enrichMax)
+    await enrichBrowseRowsFromLastSessionBars(rows, enrichMax)
   }
   return rows
 }
@@ -1066,7 +1057,7 @@ const tradeSearchRowsCache = new Map<string, { exp: number; rows: TradeBrowseRow
 const TRADE_SEARCH_CACHE_MS = 60_000
 
 /** Bump when browse row shape / spark / % math changes so stale 0% caches are not sticky after deploy. */
-const TRADE_BROWSE_CACHE_VER = 'v3-session-bars'
+const TRADE_BROWSE_CACHE_VER = 'v4-intraday-sparks'
 
 function tradeBrowseInflightKey(gameSlug: string, viewerUserId: string | null, category: TradeCategoryId): string {
   /* Shared Massive lists are identical across games/users — only Following is viewer-specific. */
@@ -1252,7 +1243,7 @@ async function refreshTradeSearch(cacheKey: string, q: string): Promise<TradeBro
 
     const rows = await buildRowsForSymbols(symbols, TRADE_SEARCH_MAX_ROWS, {
       enrichLastSession: true,
-      enrichLastSessionMax: 5,
+      enrichLastSessionMax: TRADE_SEARCH_MAX_ROWS,
     })
     tradeSearchRowsCache.set(cacheKey, { exp: Date.now() + TRADE_SEARCH_CACHE_MS, rows })
     return rows

@@ -8,6 +8,8 @@ import {
   pickTickerSnapshotPrice,
   resolveMassiveTicker,
   unwrapCryptoSnapshotBody,
+  fetchStockBars1DayOrLastTwoSessions,
+  lastSessionMetricsFromBars,
 } from './stockService'
 import {
   isUsEquitySymbol,
@@ -291,7 +293,7 @@ async function loadPortfolioMassiveData(
   })()
   const sparksTask = (async () => {
     if (opts?.skipSparks) return
-    /* Snapshot-derived sparks (same as trade browse) — O(N) 1D aggs dominated portfolio latency. */
+    /* Snapshot diagonals first, then paced 1D bars for real mini-curves (TTL-cached). */
     await Promise.all([snapStock, snapCrypto])
     for (const sym of symbols) {
       const snap = snapshots.get(sym)
@@ -344,6 +346,7 @@ async function loadPortfolioMassiveData(
       const sp = sparkFromCryptoSnapshot(snap, lastPx)
       sparks.set(sym, sp.length >= 2 ? sp : lastPx != null ? [lastPx, lastPx] : [])
     }
+    await enrichSparksFromSessionBars(sparks, symbols)
   }
 
   const missingName = opts?.skipNames ? [] : stockSyms.filter((s) => !names.has(s))
@@ -405,6 +408,39 @@ function sparkFromCryptoSnapshot(s: NonNullable<Snapshot['ticker']> | undefined,
   if (lastPx != null && prev != null && prev > 0) return [prev, lastPx]
   if (lastPx != null) return [lastPx, lastPx]
   return []
+}
+
+function sparkHasMovement(spark: number[]): boolean {
+  if (spark.length < 2) return false
+  const a = spark[0]!
+  for (let i = 1; i < spark.length; i++) {
+    if (Math.abs(spark[i]! - a) > 1e-6) return true
+  }
+  return false
+}
+
+/** Replace snapshot diagonals with real last-session curves (bars TTL-cached ~45s). */
+async function enrichSparksFromSessionBars(
+  sparks: Map<string, number[]>,
+  symbols: string[],
+): Promise<void> {
+  const CONCURRENCY = 4
+  for (let i = 0; i < symbols.length; i += CONCURRENCY) {
+    const chunk = symbols.slice(i, i + CONCURRENCY)
+    await Promise.all(
+      chunk.map(async (sym) => {
+        try {
+          const bars = await fetchStockBars1DayOrLastTwoSessions(sym)
+          const m = lastSessionMetricsFromBars(bars)
+          if (m.spark.length >= 2 && sparkHasMovement(m.spark)) {
+            sparks.set(sym, m.spark)
+          }
+        } catch {
+          /* keep snapshot spark */
+        }
+      }),
+    )
+  }
 }
 
 function lotCanonicalTicker(lot: PositionLot): string | null {
