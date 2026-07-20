@@ -1,5 +1,4 @@
 import { getRuntimeRules } from './gameRuntimeRulesService'
-import { fetchPlayerGameProfile } from './profilePerformService'
 import { normalizeGameSlugParam } from './gameSlugNormalize'
 import { listParticipationSlugsForUser } from './userParticipationSlugs'
 import { getSetupProfileForUserGame } from './userSetupProfileService'
@@ -47,15 +46,7 @@ export async function getComposerContextForUser(
 ): Promise<ComposerContextDto | null> {
   const slug = await resolvePostingGameSlugForUser(userId, gameSlugHint)
   if (!slug) return null
-  const live = await fetchPlayerGameProfile(slug, userId)
-  if (live) {
-    return {
-      userId: live.profile.userId,
-      displayName: live.profile.displayName,
-      avatarUrl: resolveProfileAvatarUrl(live.profile.avatarUrl),
-      gameSlug: slug,
-    }
-  }
+  /* Light identity only — full fetchPlayerGameProfile rebuilds portfolio/Massive. */
   const setup = await getSetupProfileForUserGame(userId, slug)
   const base = await ensureUserProfileRecord(userId)
   const displayName = setup ? `${setup.firstName} ${setup.lastName}`.trim() : base.displayName

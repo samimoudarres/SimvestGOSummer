@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom'
 import { warmGameTabChunk, type GameTabId } from '../game/warmGameTabChunks'
 import { prefetchLeaderboardAllSorts, prefetchLeaderboardSort } from '../leaderboard/leaderboardPrefetch'
-import { prefetchPerformDashboardLight } from '../perform/performChartPrefetch'
+import { prefetchPerformCharts } from '../perform/performChartPrefetch'
+import { prefetchPortfolio } from '../portfolio/portfolioPrefetch'
 import { prefetchTradeBrowsePopular } from '../trade/tradePrefetch'
 import { challengeAssets as a } from './challengeAssets'
 
@@ -29,7 +30,8 @@ export function ChallengeBottomNav({ gameSlug, active, tradeLocked }: Props) {
     warmGameTabChunk(tab)
     if (tab === 'activity') prefetchLeaderboardSort(gameSlug, 'today')
     if (tab === 'trade') prefetchTradeBrowsePopular(gameSlug)
-    if (tab === 'perform') prefetchPerformDashboardLight(gameSlug)
+    if (tab === 'perform') prefetchPerformCharts(gameSlug)
+    if (tab === 'portfolio') prefetchPortfolio(gameSlug)
     if (tab === 'leaderboard') prefetchLeaderboardAllSorts(gameSlug)
   }
 

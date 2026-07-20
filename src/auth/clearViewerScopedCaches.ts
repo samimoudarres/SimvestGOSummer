@@ -18,6 +18,7 @@ export function clearViewerScopedCaches(): void {
   clearSessionJsonPrefix('simvest-perform-v1:')
   clearSessionJsonPrefix('simvest-lb-v1:')
   clearSessionJsonPrefix('simvest-members-preview-v1:')
+  clearSessionJsonPrefix('simvest-player-profile-v1:')
   clearSessionJsonPrefix('simvest-home-feed-cache-v1')
   clearAllSimvestJsonCache()
   clearGameShellCaches()

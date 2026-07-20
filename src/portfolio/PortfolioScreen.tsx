@@ -20,6 +20,7 @@ import {
 } from './portfolioTypes'
 import { DetailedPortfolioTable } from './DetailedPortfolioTable'
 import { usePortfolio } from './usePortfolio'
+import { prefetchPlayerGameProfile, warmPlayerProfileChunk } from '../profile/playerProfilePrefetch'
 import './portfolioScreen.css'
 
 export function PortfolioScreen() {
@@ -59,6 +60,8 @@ export function PortfolioScreen() {
 
   const openProfile = useCallback(
     (userId: string) => {
+      warmPlayerProfileChunk()
+      prefetchPlayerGameProfile(slug, userId)
       navigate(`/g/${slug}/profile/${encodeURIComponent(userId)}`)
     },
     [navigate, slug],
@@ -208,9 +211,13 @@ export function PortfolioScreen() {
             </div>
 
             {!sortedRows.length ? (
-              <p className="pf-port-empty">
-                Start trading to build your portfolio! Tap the gold Trade button at the bottom center of the screen to browse stocks and open positions.
-              </p>
+              status === 'loading' || status === 'idle' ? (
+                <p className="pf-port-empty pf-port-empty--soft">Loading investments…</p>
+              ) : (
+                <p className="pf-port-empty">
+                  Start trading to build your portfolio! Tap the gold Trade button at the bottom center of the screen to browse stocks and open positions.
+                </p>
+              )
             ) : viewMode === 'overview' ? (
               sortedRows.map((row) => (
                 <PortfolioRow key={row.ticker} row={row} onPick={() => onStock(row.ticker)} />

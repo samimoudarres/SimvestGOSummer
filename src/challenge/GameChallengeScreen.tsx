@@ -20,6 +20,7 @@ import { useComposerContext } from '../hooks/useComposerContext'
 import { resolveProfileAvatarUrl } from '../user/resolveProfileAvatarUrl'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import { getSimvestUserId } from '../user/simvestUserId'
+import { prefetchPlayerGameProfile, warmPlayerProfileChunk } from '../profile/playerProfilePrefetch'
 import { useGameFeed } from './useGameFeed'
 import { useGameTopGainsToday } from './useGameTopGainsToday'
 import { GameShellRosterBlock } from './GameShellRosterBlock'
@@ -124,9 +125,19 @@ export function GameChallengeScreen() {
 
   const openProfile = useCallback(
     (userId: string) => {
+      warmPlayerProfileChunk()
+      prefetchPlayerGameProfile(slug, userId)
       navigate(`/g/${slug}/profile/${encodeURIComponent(userId)}`)
     },
     [navigate, slug],
+  )
+
+  const warmProfile = useCallback(
+    (userId: string) => {
+      warmPlayerProfileChunk()
+      prefetchPlayerGameProfile(slug, userId)
+    },
+    [slug],
   )
 
   const isTemplate = headerCtl.isTemplate
@@ -824,6 +835,7 @@ export function GameChallengeScreen() {
                       type="button"
                       className="gc-gainCard"
                       aria-label={`View ${g.displayName} profile, today ${g.pctLabel}`}
+                      onPointerDown={() => warmProfile(g.userId)}
                       onClick={() => openProfile(g.userId)}
                     >
                       <ProfileAvatar url={g.avatarUrl} alt="" />
@@ -913,9 +925,9 @@ export function GameChallengeScreen() {
               Game feed will show here once players join and start posting trades.
             </p>
           </div>
-        ) : feedStatus === 'loading' || feedStatus === 'idle' ? (
+        ) : (feedStatus === 'loading' || feedStatus === 'idle') && feedPosts.length === 0 ? (
           <p className="gc-feedLoad">Loading activity…</p>
-        ) : feedStatus === 'error' ? (
+        ) : feedStatus === 'error' && feedPosts.length === 0 ? (
           <div className="gc-placeholderCard gc-placeholderCard--error">
             <p>{feedErr ?? 'Could not load activity.'}</p>
             <button type="button" className="gc-feedRetry" onClick={() => reloadFeed()}>
@@ -947,6 +959,7 @@ export function GameChallengeScreen() {
                       type="button"
                       className="gc-feedAvatarWrap gc-feedProfileHit"
                       aria-label={`View ${post.author}'s profile`}
+                      onPointerDown={() => warmProfile(post.userId)}
                       onClick={() => openProfile(post.userId)}
                     >
                       <ProfileAvatar className="gc-feedAvatar" url={post.avatar} alt="" />
@@ -956,6 +969,7 @@ export function GameChallengeScreen() {
                         <button
                           type="button"
                           className="gc-feedNameBtn"
+                          onPointerDown={() => warmProfile(post.userId)}
                           onClick={() => openProfile(post.userId)}
                         >
                           {post.author}

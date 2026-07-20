@@ -2634,6 +2634,7 @@ app.post('/api/games/:slug/trades/complete', async (req, res) => {
   clearTtlCachePrefix(`lb-metrics:${slug}`)
   clearTtlCachePrefix(`perform:${slug}:`)
   clearTtlCachePrefix(`portfolio:${slug}:`)
+  clearTtlCachePrefix(`profile:${slug}:`)
   if (req.aborted || res.writableEnded) return
   res.json(successBody)
 })
@@ -2754,12 +2755,21 @@ app.get('/api/games/:slug/users/:userId/profile', async (req, res) => {
   if (!slug) return
   if (!(await requireGameAccessForResponse(res, slug, userIdFromReq(req)))) return
   const rawId = decodeURIComponent(String(req.params.userId ?? ''))
+  const cacheKey = `profile:${slug}:${rawId.trim().toLowerCase()}`
   try {
+    const cached = readTtlCache<unknown>(cacheKey)
+    if (cached) {
+      res.setHeader('Cache-Control', 'private, no-store')
+      res.json(cached)
+      return
+    }
     const payload = await fetchPlayerGameProfile(slug, rawId)
     if (!payload) {
       res.status(404).json({ error: 'Could not build profile' })
       return
     }
+    writeTtlCache(cacheKey, payload, 12_000)
+    res.setHeader('Cache-Control', 'private, no-store')
     res.json(payload)
   } catch (err) {
     res.status(500).json({

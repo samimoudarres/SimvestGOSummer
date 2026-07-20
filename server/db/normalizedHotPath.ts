@@ -507,6 +507,24 @@ export async function listRecentFeedPostsSql(
   }
 }
 
+export async function listUserIdsWithLedgerForGameSql(gameSlug: string): Promise<string[] | null> {
+  if (!pgReady() || !gameSlug) return null
+  try {
+    const res = await getPgPool()!.query<{ user_id: string }>(
+      `select distinct user_id from user_game_cash
+       where lower(game_slug) = lower($1) and length(user_id) >= 8`,
+      [gameSlug],
+    )
+    return res.rows.map((r) => String(r.user_id)).filter((id) => id.length >= 8)
+  } catch (err) {
+    console.warn(
+      '[simvest] ledger SQL list-user-ids failed:',
+      err instanceof Error ? err.message : err,
+    )
+    return null
+  }
+}
+
 export async function countFeedPostsSql(): Promise<number | null> {
   if (!pgReady()) return null
   try {

@@ -144,45 +144,47 @@ export async function fetchPlayerGameProfile(slug: string, rawUserId: string): P
   if (!userId || userId.length < 8) return null
 
   const slugKey = String(slug ?? '').trim()
-  const agg = await getPlayerPerformAggregate(slugKey, userId)
-  if (!agg) return null
 
-  let records
-  try {
-    records = await getLedgerHoldingsForGame(userId, slugKey)
-  } catch {
-    records = []
-  }
+  const [agg, records, profHydrated, setupProfile, lotsEarly, joinedGameIsoSeed] = await Promise.all([
+    getPlayerPerformAggregate(slugKey, userId),
+    getLedgerHoldingsForGame(userId, slugKey).catch(() => [] as Awaited<ReturnType<typeof getLedgerHoldingsForGame>>),
+    hydrateProfileBasics(userId),
+    getSetupProfileForUserGame(userId, slugKey),
+    getUserLots(userId, slugKey).catch(() => [] as PositionLot[]),
+    getGameJoinedAtIso(userId, slugKey),
+  ])
+  if (!agg) return null
 
   let rows: PortfolioApiRow[] = []
   if (records.length > 0) {
     const endSnap = await ensureGameFinalSnapshot(slugKey)
     const frozenTickerPx = endSnap ? new Map(Object.entries(endSnap.tickerLastPx)) : undefined
-    const lots = await getUserLots(userId, slugKey).catch(() => [] as PositionLot[])
-    rows = await buildPortfolioRows(records, { frozenTickerPx, lots: lots.length ? lots : null })
+    rows = await buildPortfolioRows(records, {
+      frozenTickerPx,
+      lots: lotsEarly.length ? lotsEarly : null,
+    })
   }
-  const totals = await buildPortfolioTotals(slugKey, userId, rows)
+  const [totals, standing] = await Promise.all([
+    buildPortfolioTotals(slugKey, userId, rows),
+    getGameLeaderboardStanding(slugKey, userId, {
+      subjectNetWorthHint: agg.netWorth,
+    }),
+  ])
 
   const { gainers: gRows, losers: lRows } = slicePerformTopMovers(rows, 8)
   const topGainers = gRows.map(portfolioApiRowToPerform)
   const topLosers = lRows.map(portfolioApiRowToPerform)
 
-  const profHydrated = await hydrateProfileBasics(userId)
-  const setupProfile = await getSetupProfileForUserGame(userId, slugKey)
   const displayName = setupProfile
     ? `${setupProfile.firstName} ${setupProfile.lastName}`.trim()
     : profHydrated.displayName
   const rawAvatarUrl = setupProfile?.avatarUrl ?? profHydrated.avatarUrl
 
-  let joinedGameIso = await getGameJoinedAtIso(userId, slugKey)
+  let joinedGameIso = joinedGameIsoSeed
   if (!joinedGameIso && DEMO_DISPLAY_PRESETS[userId]) {
     const back = 11 + (hashUint(`${userId}|${slugKey}|game`) % 220)
     joinedGameIso = await seedGameJoinedDaysAgo(userId, slugKey, back)
   }
-
-  const standing = await getGameLeaderboardStanding(slugKey, userId, {
-    subjectNetWorthHint: agg.netWorth,
-  })
 
   return {
     gameSlug: slugKey,

@@ -8,6 +8,7 @@ import {
   deleteAllLedgersForGameSql,
   deleteUserGameLedgerSql,
   getUserGameLedgerSql,
+  listUserIdsWithLedgerForGameSql,
   renameGameSlugInLedgerSql,
   upsertUserGameLedgerSql,
 } from './db/normalizedHotPath.ts'
@@ -200,6 +201,10 @@ export async function listGameSlugsWithUserLedger(userId: string): Promise<strin
 export async function listUserIdsWithLedgerForGame(gameSlug: string): Promise<string[]> {
   const slug = String(gameSlug ?? '').trim()
   if (!slug) return []
+  const sqlIds = await listUserIdsWithLedgerForGameSql(slug)
+  if (sqlIds && sqlIds.length > 0) {
+    return [...new Set(sqlIds)].sort((a, b) => a.localeCompare(b))
+  }
   const state = await readPortfolioState()
   const out: string[] = []
   for (const uid of Object.keys(state.users ?? {})) {

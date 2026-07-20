@@ -156,20 +156,7 @@ export function UserProfileScreen() {
     return <Navigate to="/" replace />
   }
 
-  if (status === 'loading' || status === 'idle') {
-    return (
-      <div className="pf-root" style={chromeStyle}>
-        <div className="pf-phone pf-phone--profile">
-          <div className="pf-scroll">
-            <p className="pf-loading">Loading profile…</p>
-          </div>
-          <ChallengeBottomNav gameSlug={slug} active="profile" tradeLocked={headerCtl.gameHasEnded} />
-        </div>
-      </div>
-    )
-  }
-
-  if (status === 'error' || !data) {
+  if (status === 'error' && !data) {
     return (
       <div className="pf-root" style={chromeStyle}>
         <div className="pf-phone pf-phone--profile">
@@ -180,6 +167,19 @@ export function UserProfileScreen() {
               </button>
             </header>
             <p className="pp-err">{error ?? 'Profile unavailable.'}</p>
+          </div>
+          <ChallengeBottomNav gameSlug={slug} active="profile" tradeLocked={headerCtl.gameHasEnded} />
+        </div>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="pf-root" style={chromeStyle}>
+        <div className="pf-phone pf-phone--profile">
+          <div className="pf-scroll">
+            <p className="pf-loading">Loading profile…</p>
           </div>
           <ChallengeBottomNav gameSlug={slug} active="profile" tradeLocked={headerCtl.gameHasEnded} />
         </div>

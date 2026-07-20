@@ -190,6 +190,20 @@ export function validateSetupProfileInput(
 }
 
 export async function saveSetupProfile(input: SaveSetupProfileInput): Promise<UserSetupProfileRecord> {
+  let avatarUrl = input.avatarUrl.trim()
+  if (avatarUrl.startsWith('data:image/')) {
+    try {
+      const { materializeDataUrlImage } = await import('./mediaDataUrlStore')
+      const mediaPath = await materializeDataUrlImage(avatarUrl)
+      if (mediaPath) avatarUrl = mediaPath
+    } catch (err) {
+      console.warn(
+        '[simvest] avatar media persist failed, keeping data URL:',
+        err instanceof Error ? err.message : err,
+      )
+    }
+  }
+
   return withDataJsonDocumentLock(SETUP_PROFILE_PATH, async () => {
     const cached = await loadSetupProfileFile()
     // Cached map is shared; clone before mutation so concurrent reads do not see partial writes.
@@ -200,7 +214,6 @@ export async function saveSetupProfile(input: SaveSetupProfileInput): Promise<Us
     const username = normalizeUsername(input.username)
     const phone = input.phone ? normalizePhone(input.phone) : null
     const email = input.email ? normalizeEmail(input.email) : null
-    const avatarUrl = input.avatarUrl.trim()
 
     /* Password hash resolution:
      *   1. If caller supplied a plaintext password, hash it (the historic behavior).

@@ -8,6 +8,7 @@ import { useGameChallengeHeader } from '../challenge/useGameChallengeHeader'
 import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import { apiAssetSrc } from '../config/apiAssetSrc'
+import { prefetchPlayerGameProfile, warmPlayerProfileChunk } from '../profile/playerProfilePrefetch'
 import {
   LEADERBOARD_SORT_OPTIONS,
   type LeaderboardSortKey,
@@ -55,9 +56,19 @@ export function LeaderboardScreen() {
 
   const openProfile = useCallback(
     (userId: string) => {
+      warmPlayerProfileChunk()
+      prefetchPlayerGameProfile(slug, userId)
       navigate(`/g/${slug}/profile/${encodeURIComponent(userId)}`)
     },
     [navigate, slug],
+  )
+
+  const warmProfile = useCallback(
+    (userId: string) => {
+      warmPlayerProfileChunk()
+      prefetchPlayerGameProfile(slug, userId)
+    },
+    [slug],
   )
 
   const onInviteFromTab = useCallback(() => {
@@ -170,6 +181,7 @@ export function LeaderboardScreen() {
                     key={row.userId}
                     type="button"
                     className="lb-row"
+                    onPointerDown={() => warmProfile(row.userId)}
                     onClick={() => openProfile(row.userId)}
                   >
                     <div className={ring}>

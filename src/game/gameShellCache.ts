@@ -8,6 +8,7 @@ import {
   prefetchLeaderboardSort,
 } from '../leaderboard/leaderboardPrefetch'
 import { prefetchPerformDashboardLight } from '../perform/performChartPrefetch'
+import { prefetchPortfolio } from '../portfolio/portfolioPrefetch'
 import { prefetchTradeBrowsePopular } from '../trade/tradePrefetch'
 import { fetchGameChrome } from './gameChromeApi'
 import { warmAllGameTabChunksIdle, warmGameTabChunk } from './warmGameTabChunks'
@@ -132,12 +133,13 @@ export function prefetchGameTabData(slug: string): void {
   if (!k || tabDataWarmStarted.has(k)) return
   tabDataWarmStarted.add(k)
 
-  /* 100–350ms stagger: trade → perform light → LB default → today/top-gains → remaining sorts */
+  /* Staggered warm: trade → perform light → portfolio → LB — avoid Massive stampede. */
   window.setTimeout(() => prefetchTradeBrowsePopular(slug), 100)
   window.setTimeout(() => prefetchPerformDashboardLight(slug), 220)
-  window.setTimeout(() => prefetchLeaderboardSort(slug, 'overall_return'), 350)
-  window.setTimeout(() => prefetchLeaderboardSort(slug, 'today'), 520)
-  window.setTimeout(() => prefetchLeaderboardAllSorts(slug), 780)
+  window.setTimeout(() => prefetchPortfolio(slug), 320)
+  window.setTimeout(() => prefetchLeaderboardSort(slug, 'overall_return'), 420)
+  window.setTimeout(() => prefetchLeaderboardSort(slug, 'today'), 560)
+  window.setTimeout(() => prefetchLeaderboardAllSorts(slug), 820)
 }
 
 /** Warm chrome + header + feed cache + JS chunks + staggered tab data. */

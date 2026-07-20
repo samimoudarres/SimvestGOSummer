@@ -20,6 +20,7 @@ import { StockBrandingImage } from '../components/StockBrandingImage'
 import { apiAssetSrc } from '../config/apiAssetSrc'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import { getSimvestUserId } from '../user/simvestUserId'
+import { prefetchPlayerGameProfile, warmPlayerProfileChunk } from '../profile/playerProfilePrefetch'
 import './performScreen.css'
 
 const CHART_RANGES: ChartRange[] = ['1D', '5D', '1M', '3M', '1Y', '5Y']
@@ -176,6 +177,8 @@ export function PerformScreen() {
 
   const openProfile = useCallback(
     (userId: string) => {
+      warmPlayerProfileChunk()
+      prefetchPlayerGameProfile(slug, userId)
       navigate(`/g/${slug}/profile/${encodeURIComponent(userId)}`)
     },
     [navigate, slug],
