@@ -143,6 +143,9 @@ export function SimvestHome() {
 
   useEffect(() => {
     let cancelled = false
+    const seed = readCachedMyGames()
+    if (seed && seed.length > 0) setMyGames(seed)
+
     const loadHostJoinInbox = async () => {
       try {
         const res = await simvestFetch('/api/me/host/join-requests')
@@ -170,7 +173,7 @@ export function SimvestHome() {
           setHostJoinPendingTotal((cur) => Math.max(cur, fromCards))
         }
       } catch {
-        if (!cancelled) setMyGames([])
+        /* Keep last-known joined games (seed / prior success) — never flash empty on lag. */
       }
       await loadHostJoinInbox()
     }

@@ -1777,79 +1777,81 @@ app.get('/api/me/games', async (req, res) => {
   res.setHeader('Cache-Control', 'private, no-store')
   try {
     const slugs = await listParticipationSlugsForUser(uid)
-    const games: {
+    type GameRow = {
       slug: string
       title: string
       subtitle: string
       cardTheme: Awaited<ReturnType<typeof getHomeCardThemeForSlug>>
-      /** Host’s load-screen decor (one grapheme); from runtime rules per slug. */
       loadScreenEmoji: string
       status: 'live' | 'finished'
       endsAtIso: string | null
       isHost: boolean
       pendingJoinRequestCount: number
       sortRecencyMs: number
-    }[] = []
-    for (const slug of slugs) {
-      const rules = await getRuntimeRules(slug)
-      const joinedAtIso = await getGameJoinedAtIso(uid, slug)
-      let sortRecencyMs = 0
-      for (const iso of [rules?.startsAtIso, rules?.updatedAtIso, joinedAtIso]) {
-        if (typeof iso !== 'string' || iso.length < 10) continue
-        const t = Date.parse(iso)
-        if (Number.isFinite(t) && t > sortRecencyMs) sortRecencyMs = t
-      }
-      const def = await getGameDefinitionBySlug(slug)
-      const variant = slugToVariant(slug)
-      const title =
-        (rules?.gameDisplayName && rules.gameDisplayName.trim()) ||
-        (def?.displayTitle && def.displayTitle.trim()) ||
-        (slug === 'nov-2024-stock-challenge'
-          ? gameTitle('nov2024')
-          : slug === 'new'
-            ? gameTitle('template')
-            : slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
-      const resolvedHostName = rules ? await resolveHostDisplayNameForGame(slug, rules.hostUserId) : ''
-      const subtitle =
-        ((resolvedHostName || rules?.hostDisplayName?.trim())
-          ? `Hosted by ${(resolvedHostName || rules?.hostDisplayName?.trim())}`
-          : null) ||
-        (def?.welcomeTagline && def.welcomeTagline.trim()) ||
-        (slug === 'nov-2024-stock-challenge' || slug === 'new' ? gameHostLine(variant) : 'Tap to open')
-      const cardTheme = await getHomeCardThemeForSlug(slug)
-      const endsAtIso =
-        typeof rules?.endsAtIso === 'string' && rules.endsAtIso.length >= 10 ? rules.endsAtIso : null
-      const endMs = endsAtIso ? new Date(endsAtIso).getTime() : NaN
-      const status: 'live' | 'finished' =
-        Number.isFinite(endMs) && Date.now() > endMs ? 'finished' : 'live'
-      const loadScreenEmoji = sanitizeLoadScreenEmoji(rules?.loadScreenEmoji ?? '🍁')
-      const isHost = viewerIdsMatch(rules?.hostUserId, uid)
-      const pendingJoinRequestCount =
-        isHost && rules?.visibility === 'private' ? await countPendingForGame(slug) : 0
-
-      if (status === 'finished') {
-        let viewCount = await getFinishedGameHomeViewCount(uid, slug)
-        if (recordFinishedReopens) {
-          viewCount = await bumpFinishedGameHomeView(uid, slug)
-        }
-        if (!shouldShowFinishedGameOnHome(viewCount)) {
-          continue
-        }
-      }
-
-      games.push({
-        slug,
-        title,
-        subtitle,
-        cardTheme,
-        loadScreenEmoji,
-        status,
-        endsAtIso,
-        isHost,
-        pendingJoinRequestCount,
-        sortRecencyMs,
-      })
     }
+    const rows = await Promise.all(
+      slugs.map(async (slug): Promise<GameRow | null> => {
+        const rules = await getRuntimeRules(slug)
+        const joinedAtIso = await getGameJoinedAtIso(uid, slug)
+        let sortRecencyMs = 0
+        for (const iso of [rules?.startsAtIso, rules?.updatedAtIso, joinedAtIso]) {
+          if (typeof iso !== 'string' || iso.length < 10) continue
+          const t = Date.parse(iso)
+          if (Number.isFinite(t) && t > sortRecencyMs) sortRecencyMs = t
+        }
+        const def = await getGameDefinitionBySlug(slug)
+        const variant = slugToVariant(slug)
+        const title =
+          (rules?.gameDisplayName && rules.gameDisplayName.trim()) ||
+          (def?.displayTitle && def.displayTitle.trim()) ||
+          (slug === 'nov-2024-stock-challenge'
+            ? gameTitle('nov2024')
+            : slug === 'new'
+              ? gameTitle('template')
+              : slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
+        const resolvedHostName = rules ? await resolveHostDisplayNameForGame(slug, rules.hostUserId) : ''
+        const subtitle =
+          ((resolvedHostName || rules?.hostDisplayName?.trim())
+            ? `Hosted by ${(resolvedHostName || rules?.hostDisplayName?.trim())}`
+            : null) ||
+          (def?.welcomeTagline && def.welcomeTagline.trim()) ||
+          (slug === 'nov-2024-stock-challenge' || slug === 'new' ? gameHostLine(variant) : 'Tap to open')
+        const cardTheme = await getHomeCardThemeForSlug(slug)
+        const endsAtIso =
+          typeof rules?.endsAtIso === 'string' && rules.endsAtIso.length >= 10 ? rules.endsAtIso : null
+        const endMs = endsAtIso ? new Date(endsAtIso).getTime() : NaN
+        const status: 'live' | 'finished' =
+          Number.isFinite(endMs) && Date.now() > endMs ? 'finished' : 'live'
+        const loadScreenEmoji = sanitizeLoadScreenEmoji(rules?.loadScreenEmoji ?? '🍁')
+        const isHost = viewerIdsMatch(rules?.hostUserId, uid)
+        const pendingJoinRequestCount =
+          isHost && rules?.visibility === 'private' ? await countPendingForGame(slug) : 0
+
+        if (status === 'finished') {
+          let viewCount = await getFinishedGameHomeViewCount(uid, slug)
+          if (recordFinishedReopens) {
+            viewCount = await bumpFinishedGameHomeView(uid, slug)
+          }
+          if (!shouldShowFinishedGameOnHome(viewCount)) {
+            return null
+          }
+        }
+
+        return {
+          slug,
+          title,
+          subtitle,
+          cardTheme,
+          loadScreenEmoji,
+          status,
+          endsAtIso,
+          isHost,
+          pendingJoinRequestCount,
+          sortRecencyMs,
+        }
+      }),
+    )
+    const games = rows.filter((r): r is GameRow => r != null)
     games.sort((a, b) => {
       if (b.sortRecencyMs !== a.sortRecencyMs) return b.sortRecencyMs - a.sortRecencyMs
       return a.slug.localeCompare(b.slug)

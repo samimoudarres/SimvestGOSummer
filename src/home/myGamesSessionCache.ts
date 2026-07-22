@@ -1,15 +1,14 @@
 import type { MyGameSummary } from '../api/myGamesApi'
-import { readSessionJson, writeSessionJson, clearSessionJsonPrefix } from '../lib/sessionJsonCache'
+import { readSessionJsonStale, writeSessionJson, clearSessionJsonPrefix } from '../lib/sessionJsonCache'
 import { viewerScopedCacheKey } from '../lib/viewerScopedCacheKey'
-
-const MAX_AGE_MS = 5 * 60_000
 
 function key(): string {
   return viewerScopedCacheKey('simvest-my-games-cache-v1', 'list')
 }
 
+/** Last-known joined games — ignore TTL so home never flashes empty while refreshing. */
 export function readCachedMyGames(): MyGameSummary[] | null {
-  const data = readSessionJson<MyGameSummary[]>(key(), MAX_AGE_MS)
+  const data = readSessionJsonStale<MyGameSummary[]>(key())
   return data && Array.isArray(data) ? data : null
 }
 

@@ -9,11 +9,26 @@ import { getSimvestUserId, setSimvestUserId } from '../user/simvestUserId'
 import { registerSimvestPushIfPossible } from '../push/registerSimvestPush'
 import { initialRequireAuthGate, type AuthGate } from './initialAuthGate'
 import { getSessionToken } from './sessionToken'
+import { fetchMyJoinedGames } from '../api/myGamesApi'
+import { writeCachedMyGames } from '../home/myGamesSessionCache'
 
 function deferPushRegistration(): void {
   const run = () => void registerSimvestPushIfPossible()
   if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 4000 })
   else window.setTimeout(run, 1500)
+}
+
+/** Warm joined-games cache so home paints instantly after deep links / long in-game sessions. */
+function deferWarmMyGames(): void {
+  const run = () => {
+    void fetchMyJoinedGames()
+      .then((list) => writeCachedMyGames(list))
+      .catch(() => {
+        /* keep last-known */
+      })
+  }
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 3500 })
+  else window.setTimeout(run, 1200)
 }
 
 /**
@@ -50,6 +65,7 @@ export function RequireAuth() {
       if (!storedId) setSimvestUserId(knownUserId)
       finish('authed')
       deferPushRegistration()
+      deferWarmMyGames()
     }
 
     void (async () => {
@@ -68,6 +84,7 @@ export function RequireAuth() {
           writeCachedAccount(result.account)
           finish('authed')
           deferPushRegistration()
+          deferWarmMyGames()
           return
         }
         if (result.error.status === 401 || result.error.status === 404) {
