@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { networkErrorMessage } from '../api/networkErrorMessage'
 import {
   dedupeSimvestJsonFetch,
   readSimvestJsonCacheStale,
@@ -83,9 +84,9 @@ export function useStockDetail(ticker: string | undefined) {
             }
           }
         })
-        .catch(() => {
+        .catch((e) => {
           if (!cancelled && !isPoll && !readSimvestJsonCacheStale<StockDetailPayload>(key) && !hasDataRef.current) {
-            setError('Network error')
+            setError(networkErrorMessage(e))
             setStatus('error')
           }
         })

@@ -4,6 +4,7 @@ import type { JoinedGameForTrade } from './useJoinedGamesForTrade'
 import type { TradeOrderDraft } from './tradeOrderTypes'
 import { sanitizeTradeQtyInput } from './tradeQtyInput'
 import { useStockPosition } from './useStockPosition'
+import { pushSheetBackHandler } from '../lib/sheetBackStack'
 import './stockBuySheet.css'
 
 /** Matches server `DEFAULT_STARTING_CASH` before the first trade persists a ledger row. */
@@ -127,6 +128,11 @@ export function StockBuySheet({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  useEffect(() => {
+    if (!open) return
+    return pushSheetBackHandler(onClose)
   }, [open, onClose])
 
   useEffect(() => {

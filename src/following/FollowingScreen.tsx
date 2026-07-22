@@ -8,6 +8,7 @@ import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
 import '../perform/performScreen.css'
 import { MiniSparkLine } from '../components/MiniSparkLine'
 import { simvestFetch } from '../api/simvestFetch'
+import { networkErrorMessage } from '../api/networkErrorMessage'
 import { navigateToStock } from '../stocks/navigateToStock'
 import { StockBrandingImage } from '../components/StockBrandingImage'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
@@ -77,9 +78,9 @@ export function FollowingScreen() {
           setError(typeof b2.error === 'string' ? b2.error : 'Could not load symbols')
           setStatus('error')
         }
-      } catch {
+      } catch (e) {
         if (!cancelled && !isPoll) {
-          setError('Network error')
+          setError(networkErrorMessage(e))
           setStatus('error')
         }
       }

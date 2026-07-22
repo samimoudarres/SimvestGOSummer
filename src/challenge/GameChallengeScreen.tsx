@@ -1,4 +1,4 @@
-import { useNavigate, useParams, Navigate } from 'react-router-dom'
+import { useNavigate, useParams, Navigate, useLocation } from 'react-router-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChallengeBottomNav } from './ChallengeBottomNav'
 import { challengeAssets as a } from './challengeAssets'
@@ -26,6 +26,7 @@ import { useGameTopGainsToday } from './useGameTopGainsToday'
 import { GameShellRosterBlock } from './GameShellRosterBlock'
 import { useGameChallengeHeader } from './useGameChallengeHeader'
 import { InviteGameSheet } from '../join/InviteGameSheet'
+import { pushSheetBackHandler } from '../lib/sheetBackStack'
 import { fetchCreateGameSettings } from '../createGame/createGameSettingsApi'
 import { useGameChromeCssVars } from '../game/useGameChromeCssVars'
 import { prefetchGameTabData } from '../game/gameShellCache'
@@ -78,6 +79,7 @@ function gainsTrackWidthPx(cardCount: number): number {
 
 export function GameChallengeScreen() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { gameSlug } = useParams<{ gameSlug: string }>()
   const slug = gameSlug ?? ''
   const headerCtl = useGameChallengeHeader(slug)
@@ -227,6 +229,11 @@ export function GameChallengeScreen() {
     setDurationErr(null)
   }, [])
 
+  useEffect(() => {
+    if (!settingsOpen) return
+    return pushSheetBackHandler(closeSettings)
+  }, [settingsOpen, closeSettings])
+
   const loadRoster = useCallback(async () => {
     setKickListStatus('loading')
     setRosterErr(null)
@@ -252,6 +259,14 @@ export function GameChallengeScreen() {
     setSettingsView('menu')
     setActionFlash(null)
   }, [])
+
+  /* Other tabs' ⋯ menu navigates here with openGameSettings. */
+  useEffect(() => {
+    const st = location.state as { openGameSettings?: boolean } | null
+    if (!st?.openGameSettings) return
+    openSettings()
+    navigate(location.pathname, { replace: true, state: {} })
+  }, [location.state, location.pathname, navigate, openSettings])
 
   const openKickList = useCallback(() => {
     setSettingsView('kick')

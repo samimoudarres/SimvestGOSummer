@@ -21,6 +21,8 @@ import { apiAssetSrc } from '../config/apiAssetSrc'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import { getSimvestUserId } from '../user/simvestUserId'
 import { prefetchPlayerGameProfile, warmPlayerProfileChunk } from '../profile/playerProfilePrefetch'
+import { InviteGameSheet } from '../join/InviteGameSheet'
+import { navigateToGameSettings } from '../challenge/navigateToGameSettings'
 import './performScreen.css'
 
 const CHART_RANGES: ChartRange[] = ['1D', '5D', '1M', '3M', '1Y', '5Y']
@@ -184,8 +186,14 @@ export function PerformScreen() {
     [navigate, slug],
   )
 
+  const [inviteOpen, setInviteOpen] = useState(false)
+
   const onInviteFromTab = useCallback(() => {
-    navigate(`/g/${encodeURIComponent(slug)}`)
+    setInviteOpen(true)
+  }, [])
+
+  const openGameSettings = useCallback(() => {
+    navigateToGameSettings(navigate, slug)
   }, [navigate, slug])
 
   const onAddCompareToken = useCallback(
@@ -281,7 +289,12 @@ export function PerformScreen() {
             <button type="button" className="gc-back" aria-label="Back to game" onClick={goBack}>
               <img src={a.back} alt="" />
             </button>
-            <button type="button" className="gc-headerMenu" aria-label="More options">
+            <button
+              type="button"
+              className="gc-headerMenu"
+              aria-label="Game settings"
+              onClick={openGameSettings}
+            >
               <img src={a.ellipsisHeader} alt="" />
             </button>
             <div className="gc-headerCopy">
@@ -493,6 +506,7 @@ export function PerformScreen() {
 
         <ChallengeBottomNav gameSlug={slug} active="perform" tradeLocked={headerCtl.gameHasEnded} />
       </div>
+      <InviteGameSheet open={inviteOpen} onClose={() => setInviteOpen(false)} gameSlug={slug} />
     </div>
   )
 }

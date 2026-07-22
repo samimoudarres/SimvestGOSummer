@@ -80,10 +80,7 @@ export function TradeScreen() {
 
   const [category, setCategory] = useState<TradeCategoryId>('popular')
   const categoryStripOrder = useMemo(
-    () => [
-      ...TRADE_CATEGORY_OPTIONS.filter((c) => c.id !== 'crypto'),
-      ...TRADE_CATEGORY_OPTIONS.filter((c) => c.id === 'crypto'),
-    ],
+    () => TRADE_CATEGORY_OPTIONS.filter((c) => c.id !== 'crypto'),
     [],
   )
   const { payload, status, error } = useTradeBrowse(slug, category)
@@ -278,25 +275,7 @@ export function TradeScreen() {
                       '--tr-catColor': visual.borderColor,
                       '--tr-catGlow': visual.glowColor,
                     } as CSSProperties
-                    const isCryptoCard = c.id === 'crypto'
-                    return isCryptoCard ? (
-                      <div
-                        key={c.id}
-                        role="tab"
-                        aria-selected={false}
-                        aria-disabled="true"
-                        tabIndex={-1}
-                        aria-label="Crypto, coming soon"
-                        className="tr-catBtn tr-catBtn--comingSoon"
-                        style={style}
-                      >
-                        <span className="tr-catBtnLabel">{c.label}</span>
-                        <TradeCategoryIconStrip icons={visual.icons} />
-                        <span className="tr-catComingSoonRibbon" aria-hidden="true">
-                          coming soon
-                        </span>
-                      </div>
-                    ) : (
+                    return (
                       <button
                         key={c.id}
                         type="button"

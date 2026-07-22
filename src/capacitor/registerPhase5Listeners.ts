@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
+import { tryCloseTopSheet } from '../lib/sheetBackStack'
 
 let registered = false
 
@@ -47,6 +48,7 @@ export function registerCapacitorNativeChromeListeners(): void {
   registered = true
 
   void CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+    if (tryCloseTopSheet()) return
     if (canGoBack) {
       window.history.back()
     } else {

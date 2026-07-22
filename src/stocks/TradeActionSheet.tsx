@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { pushSheetBackHandler } from '../lib/sheetBackStack'
 import './tradeActionSheet.css'
 
 export type TradeActionSheetProps = {
@@ -21,6 +22,11 @@ export function TradeActionSheet({ open, onClose, onSell, onBuy }: TradeActionSh
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  useEffect(() => {
+    if (!open) return
+    return pushSheetBackHandler(onClose)
   }, [open, onClose])
 
   useEffect(() => {

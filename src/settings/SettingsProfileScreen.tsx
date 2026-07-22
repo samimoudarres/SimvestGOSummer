@@ -16,6 +16,7 @@ import {
 } from './settingsClient'
 import { MAX_PROFILE_AVATAR_FILE_BYTES } from '../profile/maxProfileAvatarUpload'
 import { apiAssetSrc } from '../config/apiAssetSrc'
+import { networkErrorMessage } from '../api/networkErrorMessage'
 import './settingsScreens.css'
 
 const DEFAULT_AVATAR = '/figma-assets/blank-avatar.svg'
@@ -116,29 +117,34 @@ export function SettingsProfileScreen() {
       setFieldErrors(new Map())
       setSuccess(false)
 
-      const result = await updateProfile({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        displayName: displayName.trim(),
-        avatarUrl,
-      })
+      try {
+        const result = await updateProfile({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          displayName: displayName.trim(),
+          avatarUrl,
+        })
 
-      if (result.ok) {
-        setAccount(result.account)
-        setFirstName(result.account.firstName)
-        setLastName(result.account.lastName)
-        setDisplayName(result.account.displayName)
-        setAvatarUrl(result.account.avatarUrl)
-        setSuccess(true)
-      } else {
-        const map = new Map<string, string>()
-        for (const fe of result.error.fields as AccountFieldError[]) {
-          map.set(fe.field, fe.message)
+        if (result.ok) {
+          setAccount(result.account)
+          setFirstName(result.account.firstName)
+          setLastName(result.account.lastName)
+          setDisplayName(result.account.displayName)
+          setAvatarUrl(result.account.avatarUrl)
+          setSuccess(true)
+        } else {
+          const map = new Map<string, string>()
+          for (const fe of result.error.fields as AccountFieldError[]) {
+            map.set(fe.field, fe.message)
+          }
+          setFieldErrors(map)
+          setErrorText(result.error.fields.length === 0 ? result.error.message : null)
         }
-        setFieldErrors(map)
-        setErrorText(result.error.fields.length === 0 ? result.error.message : null)
+      } catch (e) {
+        setErrorText(networkErrorMessage(e))
+      } finally {
+        setBusy(false)
       }
-      setBusy(false)
     },
     [account, avatarUrl, busy, displayName, firstName, lastName],
   )

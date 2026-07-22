@@ -38,7 +38,7 @@ export function BrowsePublicGamesScreen() {
   return (
     <div className="bpg-root">
       <div className="bpg-phone">
-        <button type="button" className="bpg-back" onClick={() => navigate(-1)} aria-label="Back">
+        <button type="button" className="bpg-back" onClick={() => navigate(gamePaths.join)} aria-label="Back">
           <BackArrowIcon />
         </button>
         <h1 className="bpg-logo">SIMVEST</h1>

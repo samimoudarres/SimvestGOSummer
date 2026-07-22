@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { networkErrorMessage } from '../api/networkErrorMessage'
 import {
   dedupeSimvestJsonFetch,
   readSimvestJsonCacheStale,
@@ -88,9 +89,9 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
             }
           }
         })
-        .catch(() => {
+        .catch((e) => {
           if (!cancelled && !silent) {
-            setError('Network error')
+            setError(networkErrorMessage(e))
             setStatus('error')
           }
         })

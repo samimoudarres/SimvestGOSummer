@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { simvestFetch } from '../api/simvestFetch'
+import { networkErrorMessage } from '../api/networkErrorMessage'
 import { GAME_SLUG, gameTitle, slugToVariant } from '../challenge/gameMeta'
 import { buildJoinGameUrl } from './joinLinks'
+import { pushSheetBackHandler } from '../lib/sheetBackStack'
 import './inviteGameSheet.css'
 
 type InvitePayload = { slug: string; joinCode: string; displayTitle: string }
@@ -93,9 +95,9 @@ export function InviteGameSheet({ open, onClose, gameSlug }: Props) {
         }
         setPayload({ slug: body.slug, joinCode, displayTitle: body.displayTitle ?? '' })
         setStatus('ready')
-      } catch {
+      } catch (e) {
         if (!cancelled) {
-          setErr('Network error')
+          setErr(networkErrorMessage(e))
           setStatus('error')
         }
       }
@@ -104,6 +106,11 @@ export function InviteGameSheet({ open, onClose, gameSlug }: Props) {
       cancelled = true
     }
   }, [open, gameSlug, reloadNonce])
+
+  useEffect(() => {
+    if (!open) return
+    return pushSheetBackHandler(onClose)
+  }, [open, onClose])
 
   useEffect(() => {
     if (!open || !joinUrl) return

@@ -14,6 +14,7 @@ import {
   type AccountFieldError,
 } from './settingsClient'
 import { setSessionToken } from '../auth/sessionToken'
+import { networkErrorMessage } from '../api/networkErrorMessage'
 import './settingsScreens.css'
 
 export function SettingsPasswordScreen() {
@@ -90,23 +91,28 @@ export function SettingsPasswordScreen() {
       setSuccess(false)
       setShowRules(false)
 
-      const result = await updatePassword({ currentPassword, newPassword })
-      if (result.ok) {
-        if (result.token) setSessionToken(result.token)
-        setSuccess(true)
-        setCurrentPassword('')
-        setNewPassword('')
-        setConfirmPassword('')
-      } else {
-        const next = new Map<string, string>()
-        for (const fe of result.error.fields as AccountFieldError[]) {
-          next.set(fe.field, fe.message)
+      try {
+        const result = await updatePassword({ currentPassword, newPassword })
+        if (result.ok) {
+          if (result.token) setSessionToken(result.token)
+          setSuccess(true)
+          setCurrentPassword('')
+          setNewPassword('')
+          setConfirmPassword('')
+        } else {
+          const next = new Map<string, string>()
+          for (const fe of result.error.fields as AccountFieldError[]) {
+            next.set(fe.field, fe.message)
+          }
+          setFieldErrors(next)
+          if (next.has('newPassword')) setShowRules(true)
+          setErrorText(result.error.fields.length === 0 ? result.error.message : null)
         }
-        setFieldErrors(next)
-        if (next.has('newPassword')) setShowRules(true)
-        setErrorText(result.error.fields.length === 0 ? result.error.message : null)
+      } catch (e) {
+        setErrorText(networkErrorMessage(e))
+      } finally {
+        setBusy(false)
       }
-      setBusy(false)
     },
     [busy, confirmPassword, currentPassword, newPassword],
   )

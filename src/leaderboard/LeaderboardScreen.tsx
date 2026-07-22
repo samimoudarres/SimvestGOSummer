@@ -14,6 +14,8 @@ import {
   type LeaderboardSortKey,
 } from './leaderboardTypes'
 import { useGameLeaderboard } from './useGameLeaderboard'
+import { InviteGameSheet } from '../join/InviteGameSheet'
+import { navigateToGameSettings } from '../challenge/navigateToGameSettings'
 import './leaderboardScreen.css'
 
 function avatarRingClass(rank: number): string {
@@ -71,8 +73,14 @@ export function LeaderboardScreen() {
     [slug],
   )
 
+  const [inviteOpen, setInviteOpen] = useState(false)
+
   const onInviteFromTab = useCallback(() => {
-    navigate(`/g/${encodeURIComponent(slug)}`)
+    setInviteOpen(true)
+  }, [])
+
+  const openGameSettings = useCallback(() => {
+    navigateToGameSettings(navigate, slug)
   }, [navigate, slug])
 
   const sortLabel =
@@ -90,7 +98,12 @@ export function LeaderboardScreen() {
             <button type="button" className="gc-back" aria-label="Back to activity" onClick={goBack}>
               <img src={a.back} alt="" />
             </button>
-            <button type="button" className="gc-headerMenu" aria-label="More options">
+            <button
+              type="button"
+              className="gc-headerMenu"
+              aria-label="Game settings"
+              onClick={openGameSettings}
+            >
               <img src={a.ellipsisHeader} alt="" />
             </button>
             <div className="gc-headerCopy">
@@ -203,6 +216,7 @@ export function LeaderboardScreen() {
 
         <ChallengeBottomNav gameSlug={slug} active="leaderboard" tradeLocked={headerCtl.gameHasEnded} />
       </div>
+      <InviteGameSheet open={inviteOpen} onClose={() => setInviteOpen(false)} gameSlug={slug} />
     </div>
   )
 }

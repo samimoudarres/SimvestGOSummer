@@ -3,6 +3,7 @@ import { challengeAssets as a } from '../challenge/challengeAssets'
 import { StockBrandingImage } from '../components/StockBrandingImage'
 import type { JoinedGameForTrade } from './useJoinedGamesForTrade'
 import type { TradeOrderDraft } from './tradeOrderTypes'
+import { pushSheetBackHandler } from '../lib/sheetBackStack'
 import './stockReviewOrder.css'
 
 export type StockReviewOrderProps = {
@@ -107,6 +108,11 @@ export function StockReviewOrder({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  useEffect(() => {
+    if (!open) return
+    return pushSheetBackHandler(onClose)
   }, [open, onClose])
 
   useEffect(() => {

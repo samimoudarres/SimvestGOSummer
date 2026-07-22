@@ -4,9 +4,11 @@ import { simvestFetch } from '../api/simvestFetch'
 import { challengeAssets as a } from '../challenge/challengeAssets'
 import { ApiImage } from '../components/ApiImage'
 import { StockBrandingImage } from '../components/StockBrandingImage'
+import { networkErrorMessage } from '../api/networkErrorMessage'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import { postTradeComplete } from './completeGameTrade'
 import type { CompletedTradeSnapshot } from './tradeOrderTypes'
+import { pushSheetBackHandler } from '../lib/sheetBackStack'
 import './stockOrderReceived.css'
 
 export type StockOrderReceivedSheetProps = {
@@ -39,6 +41,12 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
+
+  useEffect(() => {
+    if (!open || !trade) return
+    const slug = trade.draft.gameSlug
+    return pushSheetBackHandler(() => onFinished(slug))
+  }, [open, trade, onFinished])
 
   useEffect(() => {
     if (!open) return
@@ -90,7 +98,7 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
         onFinished(slug)
       }
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : 'Network error. Try again.')
+      setSubmitError(networkErrorMessage(e))
     } finally {
       setSubmitting(false)
     }

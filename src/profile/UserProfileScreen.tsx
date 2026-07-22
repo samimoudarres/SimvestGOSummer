@@ -23,6 +23,7 @@ import { resolveProfileAvatarUrl } from '../user/resolveProfileAvatarUrl'
 import { DetailedPortfolioTable } from '../portfolio/DetailedPortfolioTable'
 import { NetWorthInGameChart } from '../perform/NetWorthInGameChart'
 import { usePlayerGameProfile } from './usePlayerGameProfile'
+import { navigateToGameSettings } from '../challenge/navigateToGameSettings'
 import './playerProfile.css'
 
 function FireIcon() {
@@ -135,6 +136,10 @@ export function UserProfileScreen() {
     navigate(`/g/${slug}`)
   }, [navigate, slug])
 
+  const openGameSettings = useCallback(() => {
+    navigateToGameSettings(navigate, slug)
+  }, [navigate, slug])
+
   const returnPath = useMemo(
     () => `/g/${slug}/profile/${encodeURIComponent(profileUserId)}`,
     [slug, profileUserId],
@@ -213,7 +218,12 @@ export function UserProfileScreen() {
             <button type="button" className="gc-back" aria-label="Back to game" onClick={goBack}>
               <img src={a.back} alt="" />
             </button>
-            <button type="button" className="gc-headerMenu" aria-label="More options">
+            <button
+              type="button"
+              className="gc-headerMenu"
+              aria-label="Game settings"
+              onClick={openGameSettings}
+            >
               <img src={a.ellipsisHeader} alt="" />
             </button>
 

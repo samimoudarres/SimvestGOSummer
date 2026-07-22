@@ -19,6 +19,7 @@ import {
   type AccountFieldError,
   type AccountPublicView,
 } from './settingsClient'
+import { networkErrorMessage } from '../api/networkErrorMessage'
 import './settingsScreens.css'
 
 export function SettingsContactScreen() {
@@ -98,26 +99,31 @@ export function SettingsContactScreen() {
       setFieldErrors(new Map())
       setSuccess(false)
 
-      const result = await updateContact({
-        contactKind,
-        contact: trimmed,
-        currentPassword,
-      })
+      try {
+        const result = await updateContact({
+          contactKind,
+          contact: trimmed,
+          currentPassword,
+        })
 
-      if (result.ok) {
-        setAccount(result.account)
-        setContact(result.account.contact)
-        setCurrentPassword('')
-        setSuccess(true)
-      } else {
-        const next = new Map<string, string>()
-        for (const fe of result.error.fields as AccountFieldError[]) {
-          next.set(fe.field, fe.message)
+        if (result.ok) {
+          setAccount(result.account)
+          setContact(result.account.contact)
+          setCurrentPassword('')
+          setSuccess(true)
+        } else {
+          const next = new Map<string, string>()
+          for (const fe of result.error.fields as AccountFieldError[]) {
+            next.set(fe.field, fe.message)
+          }
+          setFieldErrors(next)
+          setErrorText(result.error.fields.length === 0 ? result.error.message : null)
         }
-        setFieldErrors(next)
-        setErrorText(result.error.fields.length === 0 ? result.error.message : null)
+      } catch (e) {
+        setErrorText(networkErrorMessage(e))
+      } finally {
+        setBusy(false)
       }
-      setBusy(false)
     },
     [account, busy, contact, contactKind, currentPassword],
   )

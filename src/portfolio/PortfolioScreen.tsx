@@ -10,6 +10,7 @@ import { MiniSparkLine } from '../components/MiniSparkLine'
 import { navigateToStock } from '../stocks/navigateToStock'
 import { StockBrandingImage } from '../components/StockBrandingImage'
 import { rememberActiveGameSlug } from '../user/activeGameSlug'
+import { prefetchPlayerGameProfile, warmPlayerProfileChunk } from '../profile/playerProfilePrefetch'
 import '../perform/performScreen.css'
 import {
   PORTFOLIO_SORT_OPTIONS,
@@ -20,8 +21,8 @@ import {
 } from './portfolioTypes'
 import { DetailedPortfolioTable } from './DetailedPortfolioTable'
 import { usePortfolio } from './usePortfolio'
-import { prefetchPlayerGameProfile, warmPlayerProfileChunk } from '../profile/playerProfilePrefetch'
-import './portfolioScreen.css'
+import { InviteGameSheet } from '../join/InviteGameSheet'
+import { navigateToGameSettings } from '../challenge/navigateToGameSettings'
 
 export function PortfolioScreen() {
   const navigate = useNavigate()
@@ -38,6 +39,7 @@ export function PortfolioScreen() {
   const [sortMode, setSortMode] = useState<PortfolioSortMode>('total_pct')
   const [sortOpen, setSortOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'overview' | 'detailed'>('overview')
+  const [inviteOpen, setInviteOpen] = useState(false)
   const sortRef = useRef<HTMLDivElement>(null)
 
   const sortedRows = useMemo(() => sortPortfolioRows(rows, sortMode), [rows, sortMode])
@@ -68,7 +70,11 @@ export function PortfolioScreen() {
   )
 
   const onInviteFromTab = useCallback(() => {
-    navigate(`/g/${encodeURIComponent(slug)}`)
+    setInviteOpen(true)
+  }, [])
+
+  const openGameSettings = useCallback(() => {
+    navigateToGameSettings(navigate, slug)
   }, [navigate, slug])
 
   const onStock = useCallback(
@@ -123,7 +129,12 @@ export function PortfolioScreen() {
             <button type="button" className="gc-back" aria-label="Back to game" onClick={goBack}>
               <img src={a.back} alt="" />
             </button>
-            <button type="button" className="gc-headerMenu" aria-label="More options">
+            <button
+              type="button"
+              className="gc-headerMenu"
+              aria-label="Game settings"
+              onClick={openGameSettings}
+            >
               <img src={a.ellipsisHeader} alt="" />
             </button>
             <div className="gc-headerCopy">
@@ -230,6 +241,7 @@ export function PortfolioScreen() {
 
         <ChallengeBottomNav gameSlug={slug} active="portfolio" tradeLocked={headerCtl.gameHasEnded} />
       </div>
+      <InviteGameSheet open={inviteOpen} onClose={() => setInviteOpen(false)} gameSlug={slug} />
     </div>
   )
 }

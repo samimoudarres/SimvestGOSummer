@@ -3,6 +3,7 @@ import { challengeAssets as a } from '../challenge/challengeAssets'
 import type { JoinedGameForTrade } from './useJoinedGamesForTrade'
 import type { TradeOrderDraft } from './tradeOrderTypes'
 import { sanitizeTradeQtyInput } from './tradeQtyInput'
+import { pushSheetBackHandler } from '../lib/sheetBackStack'
 import './stockBuySheet.css'
 import './stockSellSheet.css'
 
@@ -115,6 +116,11 @@ export function StockSellSheet({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  useEffect(() => {
+    if (!open) return
+    return pushSheetBackHandler(onClose)
   }, [open, onClose])
 
   useEffect(() => {

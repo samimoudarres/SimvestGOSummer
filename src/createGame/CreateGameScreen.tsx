@@ -113,7 +113,7 @@ export function CreateGameScreen() {
   }, [])
 
   const onBack = useCallback(() => {
-    navigate(-1)
+    navigate('/')
   }, [navigate])
 
   const onCreate = useCallback(() => {

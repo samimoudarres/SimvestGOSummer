@@ -54,6 +54,7 @@ export function JoinGameScreen() {
   const inputsRef = useRef<(HTMLInputElement | null)[]>([])
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const stoppingRef = useRef(false)
+  const onJoinRef = useRef<(codeOverride?: string) => Promise<void>>(async () => {})
 
   const fullCode = useMemo(() => digits.join(''), [digits])
 
@@ -173,9 +174,10 @@ export function JoinGameScreen() {
             if (code) {
               const arr = code.split('')
               setDigits([arr[0]!, arr[1]!, arr[2]!, arr[3]!, arr[4]!, arr[5]!])
-              setFeedback(`Code ${code} scanned. Tap Join to continue.`)
+              setFeedback(`Joining with code ${code}…`)
               await stopScanner()
               setScannerOpen(false)
+              await onJoinRef.current(code)
             }
           },
           () => {
@@ -215,20 +217,21 @@ export function JoinGameScreen() {
     }
   }, [scannerOpen, stopScanner])
 
-  const onJoin = useCallback(async () => {
-    if (!/^\d{6}$/.test(fullCode)) {
+  const onJoin = useCallback(async (codeOverride?: string) => {
+    const code = (codeOverride ?? fullCode).replace(/\D/g, '')
+    if (!/^\d{6}$/.test(code)) {
       setFeedback('Enter all 6 digits to join.')
       return
     }
     setJoinSubmitting(true)
     try {
-      const payload = await fetchJoinWelcome(fullCode)
+      const payload = await fetchJoinWelcome(code)
       if (!payload) {
         setFeedback('We could not find a live game that matches this code.')
         return
       }
       /* Replace join screen so post-join history resolves to home, not this form. */
-      navigate(gamePaths.joinWelcome(fullCode), { replace: true })
+      navigate(gamePaths.joinWelcome(code), { replace: true })
     } catch (e) {
       setFeedback(e instanceof Error ? e.message : 'Could not verify this code. Try again.')
     } finally {
@@ -247,10 +250,13 @@ export function JoinGameScreen() {
     setScannerError(null)
   }, [stopScanner])
 
+  /* Keep latest onJoin for QR callback without restarting the scanner. */
+  onJoinRef.current = onJoin
+
   return (
     <div className="jg-root">
       <div className="jg-phone" data-node-id="284:7146">
-        <button type="button" className="jg-back" onClick={() => navigate(-1)} aria-label="Back">
+        <button type="button" className="jg-back" onClick={() => navigate('/')} aria-label="Back">
           <BackArrowIcon />
         </button>
         <h1 className="jg-logo">SIMVEST</h1>

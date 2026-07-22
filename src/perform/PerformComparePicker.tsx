@@ -3,6 +3,7 @@ import { simvestFetch } from '../api/simvestFetch'
 import { StockBrandingImage } from '../components/StockBrandingImage'
 import { apiAssetSrc } from '../config/apiAssetSrc'
 import type { PerformCompareCandidatePlayer } from './performTypes'
+import { pushSheetBackHandler } from '../lib/sheetBackStack'
 
 const MAX_COMPARISONS = 5
 
@@ -65,6 +66,11 @@ export function PerformComparePicker({
 
   const existingUsers = useMemo(() => parseExistingUserIds(existingTokens), [existingTokens])
   const existingStocks = useMemo(() => parseExistingStocks(existingTokens), [existingTokens])
+
+  useEffect(() => {
+    if (!open) return
+    return pushSheetBackHandler(onClose)
+  }, [open, onClose])
 
   useEffect(() => {
     if (!open) return
