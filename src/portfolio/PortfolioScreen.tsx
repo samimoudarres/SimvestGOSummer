@@ -23,6 +23,7 @@ import { DetailedPortfolioTable } from './DetailedPortfolioTable'
 import { usePortfolio } from './usePortfolio'
 import { InviteGameSheet } from '../join/InviteGameSheet'
 import { navigateToGameSettings } from '../challenge/navigateToGameSettings'
+import './portfolioScreen.css'
 
 export function PortfolioScreen() {
   const navigate = useNavigate()
