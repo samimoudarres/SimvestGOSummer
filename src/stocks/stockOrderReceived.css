@@ -39,6 +39,15 @@
   font-weight: 900;
 }
 
+.ou-error {
+  margin: 0 22px 8px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #d93025;
+  text-align: center;
+}
+
 .ou-sellSummaryLab {
   color: #555;
 }

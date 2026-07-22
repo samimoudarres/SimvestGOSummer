@@ -18,12 +18,14 @@ export type StockOrderReceivedSheetProps = {
 export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderReceivedSheetProps) {
   const [rationale, setRationale] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (!open) {
       setRationale('')
       setSubmitting(false)
+      setSubmitError(null)
     }
   }, [open])
 
@@ -50,6 +52,7 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
   const submit = useCallback(async () => {
     if (!trade || submitting) return
     setSubmitting(true)
+    setSubmitError(null)
     try {
       const slug = trade.draft.gameSlug
       if (trade.postId) {
@@ -65,27 +68,31 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
           )
           if (!res.ok) {
             const body = await res.json().catch(() => ({}))
-            console.error(body?.error ?? res.status)
+            setSubmitError(
+              typeof body?.error === 'string' ? body.error : 'Could not save your rationale. Try again.',
+            )
+            return
           }
         }
         rememberActiveGameSlug(slug)
         window.dispatchEvent(new CustomEvent('simvest:holdings-refresh', { detail: { gameSlug: slug } }))
         window.dispatchEvent(new CustomEvent('simvest:activity-refresh', { detail: { gameSlug: slug } }))
+        onFinished(slug)
       } else {
         const result = await postTradeComplete(trade, rationale.trim())
         if (!result.ok) {
-          console.error(result.error)
-        } else {
-          rememberActiveGameSlug(slug)
-          window.dispatchEvent(new CustomEvent('simvest:holdings-refresh', { detail: { gameSlug: slug } }))
-          window.dispatchEvent(new CustomEvent('simvest:activity-refresh', { detail: { gameSlug: slug } }))
+          setSubmitError(result.error || 'Could not finish this order. Try again.')
+          return
         }
+        rememberActiveGameSlug(slug)
+        window.dispatchEvent(new CustomEvent('simvest:holdings-refresh', { detail: { gameSlug: slug } }))
+        window.dispatchEvent(new CustomEvent('simvest:activity-refresh', { detail: { gameSlug: slug } }))
+        onFinished(slug)
       }
     } catch (e) {
-      console.error(e)
+      setSubmitError(e instanceof Error ? e.message : 'Network error. Try again.')
     } finally {
       setSubmitting(false)
-      onFinished(trade.draft.gameSlug)
     }
   }, [trade, rationale, submitting, onFinished])
 
@@ -195,6 +202,11 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
         </div>
 
         <div className="ou-footer">
+          {submitError ? (
+            <p className="ou-error" role="alert">
+              {submitError}
+            </p>
+          ) : null}
           <div className="ou-pillGhost" aria-hidden />
           <button
             type="button"
@@ -203,7 +215,7 @@ export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderR
             onClick={() => void submit()}
           >
             <span className={hasRationale ? 'ou-shareBtnInner' : 'ou-dashBtnInner'}>
-              {hasRationale ? 'Share' : 'Back to Dashboard'}
+              {submitting ? 'Saving…' : hasRationale ? 'Share' : 'Back to Dashboard'}
             </span>
           </button>
         </div>

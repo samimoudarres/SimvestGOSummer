@@ -181,14 +181,16 @@ export function CreateGameWizardScreen() {
     return daysBetweenClient(serverMeta.startsAtIso, previewEndsAtIso)
   }, [serverMeta.startsAtIso, previewEndsAtIso])
 
-  const persist = useCallback(async (body: CreateGameSettingsPutBody) => {
+  const persist = useCallback(async (body: CreateGameSettingsPutBody): Promise<boolean> => {
     setSaving(true)
     setSaveErr(null)
     try {
       const { settings } = await putCreateGameSettings(TARGET_SLUG, { ...body, setupComplete: false })
       setServerMeta({ startsAtIso: settings.startsAtIso, endsAtIso: settings.endsAtIso })
+      return true
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : 'Save failed')
+      return false
     } finally {
       setSaving(false)
     }
@@ -206,10 +208,11 @@ export function CreateGameWizardScreen() {
   const canNext = form.gameDisplayName.trim().length > 0 && (form.durationPreset !== 'custom' || Boolean(form.customEndsOn))
 
   const onNext = useCallback(async () => {
-    if (!canNext) return
-    await persist(form)
+    if (!canNext || saving) return
+    const ok = await persist(form)
+    if (!ok) return
     navigate(gamePaths.createGameTheme)
-  }, [canNext, form, navigate, persist])
+  }, [canNext, form, navigate, persist, saving])
 
   return (
     <div className="cgw-root">

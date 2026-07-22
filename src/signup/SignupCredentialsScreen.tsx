@@ -23,7 +23,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { PrivacyPolicyModal } from '../legal/PrivacyPolicyModal'
 import { TermsOfServiceModal } from '../legal/TermsOfServiceModal'
 import { ensurePreLoginViewerId, setSimvestUserId } from '../user/simvestUserId'
@@ -53,6 +53,7 @@ function fieldErrorFor(errors: SignupValidationError[] | undefined, field: strin
 
 export function SignupCredentialsScreen() {
   const navigate = useNavigate()
+  const location = useLocation()
   const contactRef = useRef<HTMLInputElement>(null)
 
   const [draftReady, setDraftReady] = useState(() => {
@@ -65,7 +66,7 @@ export function SignupCredentialsScreen() {
   useEffect(() => {
     const { firstName, lastName } = readDraftName()
     if (!firstName.trim() || !lastName.trim()) {
-      navigate('/signup/name', { replace: true })
+      navigate('/signup/name', { replace: true, state: location.state })
       return
     }
     const id = readDraftId()
@@ -160,7 +161,10 @@ export function SignupCredentialsScreen() {
   const contactError = fieldErrorFor(serverErrors, 'contact') ?? clientContactError
   const passwordError = fieldErrorFor(serverErrors, 'password') ?? clientPasswordError
 
-  const goBack = useCallback(() => navigate('/signup/name'), [navigate])
+  const goBack = useCallback(
+    () => navigate('/signup/name', { state: location.state }),
+    [navigate, location.state],
+  )
 
   const onSubmit = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
@@ -177,7 +181,7 @@ export function SignupCredentialsScreen() {
       const draftId = readDraftId()
       if (!draftId) {
         setError('Your signup session expired. Going back to step 1…')
-        window.setTimeout(() => navigate('/signup/name', { replace: true }), 1100)
+        window.setTimeout(() => navigate('/signup/name', { replace: true, state: location.state }), 1100)
         return
       }
 
@@ -196,7 +200,7 @@ export function SignupCredentialsScreen() {
           if (result.status === 410) {
             /* Draft expired or already used — send the user back to re-enter their name. */
             setError(result.error || 'Your signup session expired. Going back to step 1…')
-            window.setTimeout(() => navigate('/signup/name', { replace: true }), 1200)
+            window.setTimeout(() => navigate('/signup/name', { replace: true, state: location.state }), 1200)
             return
           }
           if (result.errors && result.errors.length > 0) {
@@ -222,14 +226,14 @@ export function SignupCredentialsScreen() {
         }
         setSimvestLoggedIn(true)
         clearDraft()
-        navigate('/signup/success', { replace: true })
+        navigate('/signup/success', { replace: true, state: location.state })
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not create your account. Please try again.')
       } finally {
         setBusy(false)
       }
     },
-    [busy, contact, contactKind, navigate, password],
+    [busy, contact, contactKind, navigate, password, location.state],
   )
 
   const canSubmit =

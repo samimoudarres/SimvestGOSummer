@@ -33,7 +33,10 @@ Implemented in `server/appLinksWellKnown.ts`.
 2. Set Render env **`APPLE_TEAM_ID`** (10-character id). Redeploy so AASA serves `TEAMID.com.simvest.myapp`.
 3. Until set, AASA uses a `TEAMID.` placeholder and iOS will not verify.
 
+Confirm both flags via `GET /api/health` → `appLinks.androidSha256Configured` / `appLinks.appleTeamIdConfigured`.
+
 ### Residuals
 
-- Guest deep-link → login may drop `?code=` (auth gate only stores pathname historically); logged-in cold/warm open works.
+- Guest deep-link → login now restores `?code=` via post-auth `from` state (Wave A).
 - Mac/Xcode Firebase SPM is out of scope for this phase (see push docs).
+- Optional password-reset email: set `RESEND_API_KEY` + `SIMVEST_PASSWORD_RESET_FROM` (in-app code still works without them).

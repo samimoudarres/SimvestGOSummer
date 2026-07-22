@@ -111,6 +111,11 @@ function isValidPassword(raw: string): boolean {
   return PASSWORD_LETTER_RE.test(raw) && PASSWORD_DIGIT_RE.test(raw)
 }
 
+/** Public password rule check (signup / reset confirm). */
+export function isValidPasswordPublic(raw: string): boolean {
+  return isValidPassword(raw)
+}
+
 export function validateFullNameInput(firstName: string, lastName: string): SignupValidationError[] {
   const errs: SignupValidationError[] = []
   if (normalizeName(firstName).length < NAME_MIN) {
@@ -553,6 +558,34 @@ export async function updateAccountPassword(
     const nextFile: AccountsFile = { accounts: { ...file.accounts, [userId]: next } }
     await writeFile(nextFile)
     return { ok: true as const, account: next }
+  })
+}
+
+/** Password reset path — sets a new password without the current one (caller verified OTP). */
+export async function setAccountPasswordDirect(
+  userId: string,
+  newPassword: string,
+): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  if (!isValidPassword(newPassword)) {
+    return {
+      ok: false,
+      error: 'Password must be at least 5 characters and include letters and a number.',
+      status: 400,
+    }
+  }
+  return withWriteLock(async () => {
+    const file = await readFile()
+    const cur = file.accounts[userId]
+    if (!cur) {
+      return { ok: false as const, error: 'Account not found.', status: 404 }
+    }
+    const next: UserAccountRecord = {
+      ...cur,
+      passwordHash: await hashPassword(newPassword),
+      updatedAtIso: new Date().toISOString(),
+    }
+    await writeFile({ accounts: { ...file.accounts, [userId]: next } })
+    return { ok: true as const }
   })
 }
 

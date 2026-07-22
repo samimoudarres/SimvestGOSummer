@@ -12,7 +12,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { resolvePostAuthPath } from '../auth/postAuthNavigate'
 import { PrivacyPolicyModal } from '../legal/PrivacyPolicyModal'
 import { TermsOfServiceModal } from '../legal/TermsOfServiceModal'
 import { isSimvestLoggedIn } from '../login/loginState'
@@ -21,6 +22,7 @@ import './signupScreens.css'
 
 export function SignupSuccessScreen() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [privacyOpen, setPrivacyOpen] = useState(false)
   const [termsOpen, setTermsOpen] = useState(false)
 
@@ -28,16 +30,16 @@ export function SignupSuccessScreen() {
    * them back to the start so the success state isn't misleading. */
   useEffect(() => {
     if (!isSimvestLoggedIn()) {
-      navigate('/login', { replace: true })
+      navigate('/login', { replace: true, state: location.state })
       return
     }
     /* Defensive: ensure the draft is gone even on a refresh of this screen. */
     clearDraft()
-  }, [navigate])
+  }, [navigate, location.state])
 
   const onStartTrading = useCallback(() => {
-    navigate('/', { replace: true })
-  }, [navigate])
+    navigate(resolvePostAuthPath(location.state), { replace: true })
+  }, [navigate, location.state])
 
   return (
     <main className="su-root">

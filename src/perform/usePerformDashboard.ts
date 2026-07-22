@@ -5,16 +5,13 @@ import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liv
 import { onDocumentVisible } from '../lib/onDocumentVisible'
 import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
 import type { PerformDashboardPayload } from './performTypes'
-import { emptyPerformDashboard } from './performDummy'
 import { readCachedPerform, writeCachedPerform } from './performSessionCache'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
 
 export function usePerformDashboard(gameSlug: string | undefined) {
   const cachedInitial = gameSlug ? readCachedPerform(gameSlug) : null
-  const [data, setData] = useState<PerformDashboardPayload | null>(() =>
-    cachedInitial ?? (gameSlug ? emptyPerformDashboard(gameSlug) : null),
-  )
+  const [data, setData] = useState<PerformDashboardPayload | null>(() => cachedInitial)
   const [status, setStatus] = useState<Status>(() =>
     cachedInitial ? 'ready' : gameSlug ? 'loading' : 'idle',
   )
@@ -27,7 +24,6 @@ export function usePerformDashboard(gameSlug: string | undefined) {
   useEffect(() => {
     if (!gameSlug) return
     const cached = readCachedPerform(gameSlug)
-    const fallback = emptyPerformDashboard(gameSlug)
     hasDataRef.current = !!cached
     skipInitialLoadingUiRef.current = !!cached
     setError(null)
@@ -36,9 +32,8 @@ export function usePerformDashboard(gameSlug: string | undefined) {
       setFromApi(true)
       setStatus('ready')
     } else {
-      setData(fallback)
+      setData(null)
       setFromApi(false)
-      /* Keep shell painted; status loading until first API so UI can tell cache miss. */
       setStatus('loading')
       hasDataRef.current = false
     }
@@ -70,9 +65,9 @@ export function usePerformDashboard(gameSlug: string | undefined) {
         .catch((err) => {
           if (cancelled) return
           if (!hasDataRef.current) {
-            setData(fallback)
+            setData(null)
             setFromApi(false)
-    setError(err instanceof Error ? networkErrorMessage(err) : 'Could not load performance')
+            setError(err instanceof Error ? networkErrorMessage(err) : 'Could not load performance')
             setStatus('error')
           }
         })

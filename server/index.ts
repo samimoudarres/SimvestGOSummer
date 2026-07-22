@@ -588,6 +588,10 @@ app.get('/api/health', async (_req, res) => {
     auth: {
       legacyUserHeader: allowLegacyUserHeader(),
     },
+    appLinks: {
+      androidSha256Configured: Boolean(process.env.ANDROID_APP_LINK_SHA256?.trim()),
+      appleTeamIdConfigured: Boolean(process.env.APPLE_TEAM_ID?.trim()),
+    },
   })
 })
 
@@ -945,6 +949,64 @@ app.post('/api/auth/logout', async (req, res) => {
     }
   }
   res.json({ ok: true })
+})
+
+/**
+ * Forgot-password step 1: request a 6-digit reset code for an email/phone.
+ * Always returns a generic success shape (no account enumeration).
+ */
+app.post('/api/auth/password-reset/start', async (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store')
+  const ipKey = requestIpKey(req)
+  if (await rateLimitHit('accountWrite', ipKey)) {
+    res.status(429).json({ error: 'Too many attempts. Please wait a moment and try again.' })
+    return
+  }
+  const body = (req.body ?? {}) as { contact?: unknown }
+  const contact = typeof body.contact === 'string' ? body.contact.trim() : ''
+  if (!contact) {
+    res.status(400).json({ error: 'Enter the email or phone for your account.' })
+    return
+  }
+  try {
+    const { startPasswordReset } = await import('./passwordResetService.ts')
+    const result = await startPasswordReset(contact)
+    res.json(result)
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Could not start password reset' })
+  }
+})
+
+/**
+ * Forgot-password step 2: verify code + set a new password.
+ */
+app.post('/api/auth/password-reset/confirm', async (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store')
+  const ipKey = requestIpKey(req)
+  if (await rateLimitHit('accountWrite', ipKey)) {
+    res.status(429).json({ error: 'Too many attempts. Please wait a moment and try again.' })
+    return
+  }
+  const body = (req.body ?? {}) as {
+    challengeId?: unknown
+    code?: unknown
+    newPassword?: unknown
+  }
+  try {
+    const { confirmPasswordReset } = await import('./passwordResetService.ts')
+    const result = await confirmPasswordReset({
+      challengeId: typeof body.challengeId === 'string' ? body.challengeId : '',
+      code: typeof body.code === 'string' ? body.code : '',
+      newPassword: typeof body.newPassword === 'string' ? body.newPassword : '',
+    })
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error })
+      return
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Could not reset password' })
+  }
 })
 
 app.get('/api/games/:slug/profile/setup', async (req, res) => {

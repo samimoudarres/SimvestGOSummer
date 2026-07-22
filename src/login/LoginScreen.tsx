@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { PrivacyPolicyModal } from '../legal/PrivacyPolicyModal'
 import { TermsOfServiceModal } from '../legal/TermsOfServiceModal'
 import { apiAssetSrc } from '../config/apiAssetSrc'
@@ -43,6 +43,7 @@ const slides = [
 
 export function LoginScreen() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [privacyOpen, setPrivacyOpen] = useState(false)
   const [termsOpen, setTermsOpen] = useState(false)
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -112,11 +113,11 @@ export function LoginScreen() {
    * share the same Simvest UI shell so the entry experience reads as one
    * piece. */
   const onLogIn = useCallback(() => {
-    navigate('/login/sign-in')
-  }, [navigate])
+    navigate('/login/sign-in', { state: location.state })
+  }, [navigate, location.state])
   const onSignUp = useCallback(() => {
-    navigate('/signup/name')
-  }, [navigate])
+    navigate('/signup/name', { state: location.state })
+  }, [navigate, location.state])
 
   return (
     <main className="li-root">

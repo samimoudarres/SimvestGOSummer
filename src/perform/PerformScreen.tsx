@@ -224,24 +224,13 @@ export function PerformScreen() {
 
   const chartSeries = useMemo((): PerformCompareSeries[] => {
     if (compareData?.series?.length) return compareData.series
-    if (compareStatus === 'loading' || compareStatus === 'idle') {
-      return [
-        {
-          id: 'you',
-          kind: 'you',
-          legendLabel: 'You',
-          color: '#0a95db',
-          values: Array(8).fill(100),
-        },
-      ]
-    }
     return []
-  }, [compareData, compareStatus])
+  }, [compareData])
 
   const chartYAxis =
     compareData?.yAxisLabels?.length && compareData.series.length > 0
       ? compareData.yAxisLabels
-      : ['105', '102', '100', '98', '95']
+      : []
 
   const legendPairs = useMemo(() => {
     const rows: PerformCompareSeries[][] = []

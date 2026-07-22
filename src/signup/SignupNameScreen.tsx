@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { PrivacyPolicyModal } from '../legal/PrivacyPolicyModal'
 import { TermsOfServiceModal } from '../legal/TermsOfServiceModal'
 import { readDraftName, saveDraftNameForStep2 } from './signupClient'
@@ -16,6 +16,7 @@ import './signupScreens.css'
 
 export function SignupNameScreen() {
   const navigate = useNavigate()
+  const location = useLocation()
   const firstRef = useRef<HTMLInputElement>(null)
 
   /* Re-hydrate the in-progress name from sessionStorage so the user can hit
@@ -38,8 +39,8 @@ export function SignupNameScreen() {
   }, [])
 
   const goBack = useCallback(() => {
-    navigate('/login')
-  }, [navigate])
+    navigate('/login', { state: location.state })
+  }, [navigate, location.state])
 
   const onSubmit = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
@@ -53,9 +54,9 @@ export function SignupNameScreen() {
       if (fErr || lErr) return
 
       saveDraftNameForStep2(f, l)
-      navigate('/signup/credentials')
+      navigate('/signup/credentials', { state: location.state })
     },
-    [firstName, lastName, navigate],
+    [firstName, lastName, navigate, location.state],
   )
 
   const canSubmit = firstName.trim().length > 0 && lastName.trim().length > 0
