@@ -19,17 +19,19 @@ import {
   type AccountFieldError,
   type AccountPublicView,
 } from './settingsClient'
+import { readCachedAccount, writeCachedAccount } from '../auth/accountSessionCache'
 import { networkErrorMessage } from '../api/networkErrorMessage'
 import './settingsScreens.css'
 
 export function SettingsContactScreen() {
   const navigate = useNavigate()
-  const [account, setAccount] = useState<AccountPublicView | null>(null)
-  const [loading, setLoading] = useState(true)
+  const cached = readCachedAccount()
+  const [account, setAccount] = useState<AccountPublicView | null>(() => cached)
+  const [loading, setLoading] = useState(() => !cached)
   const [missingAccount, setMissingAccount] = useState(false)
 
-  const [contactKind, setContactKind] = useState<AccountContactKind>('email')
-  const [contact, setContact] = useState('')
+  const [contactKind, setContactKind] = useState<AccountContactKind>(() => cached?.contactKind ?? 'email')
+  const [contact, setContact] = useState(() => cached?.contact ?? '')
   const [currentPassword, setCurrentPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
@@ -40,10 +42,12 @@ export function SettingsContactScreen() {
 
   useEffect(() => {
     let cancelled = false
+    const hadCache = !!readCachedAccount()
     const load = async () => {
       const result = await fetchMyAccount()
       if (cancelled) return
       if (result.ok) {
+        writeCachedAccount(result.account)
         setAccount(result.account)
         setContactKind(result.account.contactKind)
         setContact(result.account.contact)
@@ -52,14 +56,14 @@ export function SettingsContactScreen() {
       } else if (result.error.status === 401) {
         navigate('/login', { replace: true })
         return
-      } else {
+      } else if (!hadCache) {
         setErrorText(result.error.message)
       }
       setLoading(false)
     }
     load().catch((err) => {
       if (cancelled) return
-      setErrorText(err instanceof Error ? err.message : 'Could not load your account')
+      if (!hadCache) setErrorText(networkErrorMessage(err))
       setLoading(false)
     })
     return () => {
@@ -107,6 +111,7 @@ export function SettingsContactScreen() {
         })
 
         if (result.ok) {
+          writeCachedAccount(result.account)
           setAccount(result.account)
           setContact(result.account.contact)
           setCurrentPassword('')

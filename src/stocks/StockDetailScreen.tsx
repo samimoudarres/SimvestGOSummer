@@ -114,7 +114,7 @@ export function StockDetailScreen() {
     seedStockDetailFromBrowse(state.seed)
   }
 
-  const { data, status, error } = useStockDetail(ticker || undefined)
+  const { data, status, error, quotesStale } = useStockDetail(ticker || undefined)
   const { following, toggle } = useFollowStatus(ticker || undefined, effectiveGameSlug || undefined)
   const [range, setRange] = useState<ChartRange>('1D')
   const { bars, status: barStatus, error: barErr } = useStockBars(ticker || undefined, range)
@@ -552,6 +552,11 @@ export function StockDetailScreen() {
 
         <div className="sd-phoneBody">
         <div className="sd-scroll">
+          {quotesStale ? (
+            <p className="sd-stale" role="status">
+              Prices may be outdated — connection issues. Retrying…
+            </p>
+          ) : null}
           <div className="sd-hero">
             <StockBrandingImage className="sd-heroIcon" src={data.iconUrl} alt="" width={52} height={52} />
             <div className="sd-heroText">

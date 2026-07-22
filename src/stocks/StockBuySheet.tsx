@@ -5,6 +5,7 @@ import type { TradeOrderDraft } from './tradeOrderTypes'
 import { sanitizeTradeQtyInput } from './tradeQtyInput'
 import { useStockPosition } from './useStockPosition'
 import { pushSheetBackHandler } from '../lib/sheetBackStack'
+import { useKeyboardInsetCssVar } from '../hooks/useKeyboardInsetCssVar'
 import './stockBuySheet.css'
 
 /** Matches server `DEFAULT_STARTING_CASH` before the first trade persists a ledger row. */
@@ -76,6 +77,7 @@ export function StockBuySheet({
   onRestoreDraftConsumed,
   onReviewOrder,
 }: StockBuySheetProps) {
+  useKeyboardInsetCssVar('--sv-kb-offset', open)
   const [quantityMode, setQuantityMode] = useState<QuantityMode>('shares')
   const [action, setAction] = useState<ActionMode>('buy')
   const [gameSlug, setGameSlug] = useState(() => resolveInitialGameSlug(defaultGameSlug, games))

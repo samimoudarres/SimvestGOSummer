@@ -4,6 +4,7 @@ import { StockBrandingImage } from '../components/StockBrandingImage'
 import type { JoinedGameForTrade } from './useJoinedGamesForTrade'
 import type { TradeOrderDraft } from './tradeOrderTypes'
 import { pushSheetBackHandler } from '../lib/sheetBackStack'
+import { useKeyboardInsetCssVar } from '../hooks/useKeyboardInsetCssVar'
 import './stockReviewOrder.css'
 
 export type StockReviewOrderProps = {
@@ -55,6 +56,7 @@ export function StockReviewOrder({
   placementError,
   placementBusy = false,
 }: StockReviewOrderProps) {
+  useKeyboardInsetCssVar('--sv-kb-offset', open)
   const parsedAmount = useMemo(() => {
     if (!draft) return null
     const t = draft.rawAmount.trim()

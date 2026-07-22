@@ -1,7 +1,7 @@
 /* Standard Buy sheet — Figma 307:834 (402×874 frame, pixel-aligned where specified). */
 
 .bu-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 120;
   background: rgba(0, 0, 0, 0.28);
@@ -10,13 +10,15 @@
   justify-content: flex-end;
   align-items: center;
   box-sizing: border-box;
+  /* Keep sheet above the soft keyboard when visualViewport shrinks. */
+  padding-bottom: var(--sv-kb-offset, 0px);
 }
 
 .bu-sheet {
   position: relative;
-  width: 402px;
+  width: min(402px, 100%);
   height: min(862px, calc(100% - 12px));
-  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 80px - var(--sv-kb-offset, 0px));
   margin-top: auto;
   background: #fff;
   border: 6px solid #05557d;

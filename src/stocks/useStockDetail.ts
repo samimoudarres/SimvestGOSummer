@@ -24,8 +24,10 @@ export function useStockDetail(ticker: string | undefined) {
   const [data, setData] = useState<StockDetailPayload | null>(() => cachedInitial ?? null)
   const [status, setStatus] = useState<Status>(() => (cachedInitial ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
+  const [quotesStale, setQuotesStale] = useState(false)
   const hasDataRef = useRef(!!cachedInitial)
   const tickerRef = useRef(ticker)
+  const pollFailStreakRef = useRef(0)
 
   useEffect(() => {
     if (!ticker) return
@@ -36,6 +38,8 @@ export function useStockDetail(ticker: string | undefined) {
     const url = stockDetailUrl(ticker)
     const key = simvestJsonCacheKey(url)
     const cached = readSimvestJsonCacheStale<StockDetailPayload>(key)
+    pollFailStreakRef.current = 0
+    setQuotesStale(false)
     if (cached) {
       setData(cached)
       hasDataRef.current = true
@@ -69,6 +73,8 @@ export function useStockDetail(ticker: string | undefined) {
             writeSimvestJsonCache(key, next, STOCK_DETAIL_CACHE_MS)
             setData(next)
             hasDataRef.current = true
+            pollFailStreakRef.current = 0
+            setQuotesStale(false)
             setStatus('ready')
           } else {
             if (isPoll && isSimvestPollDebugEnabled()) {
@@ -78,6 +84,10 @@ export function useStockDetail(ticker: string | undefined) {
                 body,
               })
             }
+            if (isPoll && hasDataRef.current) {
+              pollFailStreakRef.current += 1
+              if (pollFailStreakRef.current >= 2) setQuotesStale(true)
+            }
             if (!isPoll && !readSimvestJsonCacheStale<StockDetailPayload>(key) && !hasDataRef.current) {
               setError(typeof body?.error === 'string' ? body.error : 'Failed to load stock')
               setStatus('error')
@@ -85,7 +95,12 @@ export function useStockDetail(ticker: string | undefined) {
           }
         })
         .catch((e) => {
-          if (!cancelled && !isPoll && !readSimvestJsonCacheStale<StockDetailPayload>(key) && !hasDataRef.current) {
+          if (cancelled) return
+          if (isPoll && hasDataRef.current) {
+            pollFailStreakRef.current += 1
+            if (pollFailStreakRef.current >= 2) setQuotesStale(true)
+          }
+          if (!isPoll && !readSimvestJsonCacheStale<StockDetailPayload>(key) && !hasDataRef.current) {
             setError(networkErrorMessage(e))
             setStatus('error')
           }
@@ -106,5 +121,5 @@ export function useStockDetail(ticker: string | undefined) {
     }
   }, [ticker])
 
-  return { data, status, error }
+  return { data, status, error, quotesStale }
 }

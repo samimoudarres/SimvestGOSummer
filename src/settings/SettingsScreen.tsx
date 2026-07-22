@@ -20,6 +20,7 @@ import { clearAuthSession } from '../auth/clearAuthSession'
 import { readCachedAccount, writeCachedAccount } from '../auth/accountSessionCache'
 import { deleteMyAccount, fetchMyAccount, type AccountPublicView } from './settingsClient'
 import { ProfileAvatar } from '../components/ProfileAvatar'
+import { networkErrorMessage } from '../api/networkErrorMessage'
 import {
   openLegalUrl,
   PRIVACY_POLICY_URL,
@@ -41,8 +42,10 @@ export function SettingsScreen() {
 
   useEffect(() => {
     let cancelled = false
+    const hadCache = !!readCachedAccount()
     const load = async () => {
-      setLoading(true)
+      /* Cache-first: keep painted account while refreshing; Loading only with no cache. */
+      if (!hadCache) setLoading(true)
       setErrorText(null)
       setMissingAccount(false)
       const result = await fetchMyAccount()
@@ -55,6 +58,8 @@ export function SettingsScreen() {
       } else if (result.error.status === 401) {
         navigate('/login', { replace: true })
         return
+      } else if (!hadCache) {
+        setErrorText(result.error.message)
       } else {
         setErrorText(result.error.message)
       }
@@ -62,7 +67,7 @@ export function SettingsScreen() {
     }
     load().catch((err) => {
       if (cancelled) return
-      setErrorText(err instanceof Error ? err.message : 'Could not load your account')
+      setErrorText(networkErrorMessage(err))
       setLoading(false)
     })
     return () => {

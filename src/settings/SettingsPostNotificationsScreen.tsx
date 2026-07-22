@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchNotifyAuthors, removeNotifyAuthor, type NotifyAuthorRow } from './settingsClient'
 import { apiAssetSrc } from '../config/apiAssetSrc'
+import { registerSimvestPushIfPossible } from '../push/registerSimvestPush'
+import { networkErrorMessage } from '../api/networkErrorMessage'
 import './settingsScreens.css'
 
 export function SettingsPostNotificationsScreen() {
@@ -10,6 +12,9 @@ export function SettingsPostNotificationsScreen() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushStatus, setPushStatus] = useState<string | null>(null)
+  const [pushError, setPushError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -31,6 +36,49 @@ export function SettingsPostNotificationsScreen() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    const onRegErr = (ev: Event) => {
+      const message = (ev as CustomEvent<{ message?: string }>).detail?.message
+      setPushError(
+        typeof message === 'string' && message.trim()
+          ? message
+          : 'Push registration failed. Check notification permission and try again.',
+      )
+      setPushStatus(null)
+    }
+    window.addEventListener('simvest:push-registration-error', onRegErr)
+    return () => window.removeEventListener('simvest:push-registration-error', onRegErr)
+  }, [])
+
+  const enablePush = useCallback(async () => {
+    if (pushBusy) return
+    setPushBusy(true)
+    setPushError(null)
+    setPushStatus(null)
+    try {
+      const push = await registerSimvestPushIfPossible()
+      if (push.ok) {
+        setPushStatus('Push alerts are enabled on this device.')
+      } else if (push.reason === 'denied') {
+        setPushError(
+          'Notifications are blocked for Simvest. Enable them in your phone or browser settings, then try again.',
+        )
+      } else if (push.reason === 'unsupported') {
+        setPushError(
+          'Push alerts need a supported browser (Chrome, Edge, or Safari) or the native app with notifications configured.',
+        )
+      } else {
+        setPushError(
+          'Could not enable push on this device. Check your connection and notification permission, then try again.',
+        )
+      }
+    } catch (e) {
+      setPushError(networkErrorMessage(e))
+    } finally {
+      setPushBusy(false)
+    }
+  }, [pushBusy])
 
   const onRemove = async (id: string) => {
     setBusyId(id)
@@ -67,6 +115,18 @@ export function SettingsPostNotificationsScreen() {
             When someone you follow posts or trades, Simvest can send a push notification to this
             device. Allow notifications when the app asks (phone) or in your browser when prompted.
           </p>
+
+          <button
+            type="button"
+            className="ss-submit"
+            disabled={pushBusy}
+            onClick={() => void enablePush()}
+          >
+            {pushBusy ? 'Enabling…' : 'Enable push on this device'}
+          </button>
+          {pushStatus ? <p className="ss-hintPara">{pushStatus}</p> : null}
+          {pushError ? <div className="ss-error">{pushError}</div> : null}
+
           {loading ? <p className="ss-loading">Loading…</p> : null}
           {err ? <div className="ss-error">{err}</div> : null}
           {!loading && !err && authors.length === 0 ? (

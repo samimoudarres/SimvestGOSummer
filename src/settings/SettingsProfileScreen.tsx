@@ -14,6 +14,7 @@ import {
   type AccountFieldError,
   type AccountPublicView,
 } from './settingsClient'
+import { readCachedAccount, writeCachedAccount } from '../auth/accountSessionCache'
 import { MAX_PROFILE_AVATAR_FILE_BYTES } from '../profile/maxProfileAvatarUpload'
 import { apiAssetSrc } from '../config/apiAssetSrc'
 import { networkErrorMessage } from '../api/networkErrorMessage'
@@ -21,18 +22,23 @@ import './settingsScreens.css'
 
 const DEFAULT_AVATAR = '/figma-assets/blank-avatar.svg'
 
+function seedFromCache(): AccountPublicView | null {
+  return readCachedAccount()
+}
+
 export function SettingsProfileScreen() {
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const [account, setAccount] = useState<AccountPublicView | null>(null)
-  const [loading, setLoading] = useState(true)
+  const cached = seedFromCache()
+  const [account, setAccount] = useState<AccountPublicView | null>(() => cached)
+  const [loading, setLoading] = useState(() => !cached)
   const [missingAccount, setMissingAccount] = useState(false)
 
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [avatarUrl, setAvatarUrl] = useState('')
+  const [firstName, setFirstName] = useState(() => cached?.firstName ?? '')
+  const [lastName, setLastName] = useState(() => cached?.lastName ?? '')
+  const [displayName, setDisplayName] = useState(() => cached?.displayName ?? '')
+  const [avatarUrl, setAvatarUrl] = useState(() => cached?.avatarUrl ?? '')
 
   const [busy, setBusy] = useState(false)
   const [errorText, setErrorText] = useState<string | null>(null)
@@ -41,10 +47,12 @@ export function SettingsProfileScreen() {
 
   useEffect(() => {
     let cancelled = false
+    const hadCache = !!readCachedAccount()
     const load = async () => {
       const result = await fetchMyAccount()
       if (cancelled) return
       if (result.ok) {
+        writeCachedAccount(result.account)
         setAccount(result.account)
         setFirstName(result.account.firstName)
         setLastName(result.account.lastName)
@@ -55,14 +63,14 @@ export function SettingsProfileScreen() {
       } else if (result.error.status === 401) {
         navigate('/login', { replace: true })
         return
-      } else {
+      } else if (!hadCache) {
         setErrorText(result.error.message)
       }
       setLoading(false)
     }
     load().catch((err) => {
       if (cancelled) return
-      setErrorText(err instanceof Error ? err.message : 'Could not load your account')
+      if (!hadCache) setErrorText(networkErrorMessage(err))
       setLoading(false)
     })
     return () => {
@@ -126,6 +134,7 @@ export function SettingsProfileScreen() {
         })
 
         if (result.ok) {
+          writeCachedAccount(result.account)
           setAccount(result.account)
           setFirstName(result.account.firstName)
           setLastName(result.account.lastName)

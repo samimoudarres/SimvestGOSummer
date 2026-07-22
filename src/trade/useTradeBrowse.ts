@@ -29,8 +29,10 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
   const [payload, setPayload] = useState<TradeBrowsePayload | null>(() => matchingInitial ?? null)
   const [status, setStatus] = useState<Status>(() => (matchingInitial ? 'ready' : 'idle'))
   const [error, setError] = useState<string | null>(null)
+  const [quotesStale, setQuotesStale] = useState(false)
   const hasDataForCategoryRef = useRef(!!matchingInitial)
   const skipInitialLoadingUiRef = useRef(!!matchingInitial)
+  const pollFailStreakRef = useRef(0)
 
   useEffect(() => {
     if (!gameSlug) return
@@ -41,6 +43,8 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
     const cachedMatch = cached && cached.category === category ? cached : undefined
     hasDataForCategoryRef.current = !!cachedMatch
     skipInitialLoadingUiRef.current = !!cachedMatch
+    pollFailStreakRef.current = 0
+    setQuotesStale(false)
     if (cachedMatch) {
       setPayload(cachedMatch)
       setStatus('ready')
@@ -72,6 +76,8 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
             setPayload(next)
             writeSimvestJsonCache(key, next, TRADE_BROWSE_CACHE_MS)
             hasDataForCategoryRef.current = true
+            pollFailStreakRef.current = 0
+            setQuotesStale(false)
             setStatus('ready')
             if (!isPoll) warmBrowseRowDetailCaches(next.rows)
           } else {
@@ -83,6 +89,10 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
                 body,
               })
             }
+            if (isPoll && hasDataForCategoryRef.current) {
+              pollFailStreakRef.current += 1
+              if (pollFailStreakRef.current >= 2) setQuotesStale(true)
+            }
             if (!silent) {
               setError(typeof body?.error === 'string' ? body.error : 'Could not load symbols')
               setStatus('error')
@@ -90,7 +100,12 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
           }
         })
         .catch((e) => {
-          if (!cancelled && !silent) {
+          if (cancelled) return
+          if (isPoll && hasDataForCategoryRef.current) {
+            pollFailStreakRef.current += 1
+            if (pollFailStreakRef.current >= 2) setQuotesStale(true)
+          }
+          if (!silent) {
             setError(networkErrorMessage(e))
             setStatus('error')
           }
@@ -113,5 +128,5 @@ export function useTradeBrowse(gameSlug: string | undefined, category: TradeCate
     }
   }, [gameSlug, category])
 
-  return { payload, status, error }
+  return { payload, status, error, quotesStale }
 }

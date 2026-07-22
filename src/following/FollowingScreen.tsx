@@ -15,9 +15,14 @@ import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import { LIVE_MARKETS_POLL_HIDDEN_MS, LIVE_MARKETS_POLL_MS } from '../config/liveMarketsPoll'
 import { onDocumentVisible } from '../lib/onDocumentVisible'
 import { visibilityAwareInterval } from '../lib/visibilityAwareInterval'
+import { readSessionJsonStale, writeSessionJson } from '../lib/sessionJsonCache'
 import { displayTickerLabel } from '../stocks/displayTicker'
 import type { TradeBrowseRow } from '../trade/tradeTypes'
 import './followingScreen.css'
+
+function followingCacheKey(slug: string): string {
+  return `simvest-following-v1:${slug}`
+}
 
 export function FollowingScreen() {
   const navigate = useNavigate()
@@ -31,8 +36,11 @@ export function FollowingScreen() {
 
   const chromeStyle = useGameChromeCssVars(slug)
 
-  const [rows, setRows] = useState<TradeBrowseRow[]>([])
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const cachedRows = slug ? readSessionJsonStale<TradeBrowseRow[]>(followingCacheKey(slug)) : null
+  const [rows, setRows] = useState<TradeBrowseRow[]>(() => cachedRows ?? [])
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(() =>
+    cachedRows ? 'ready' : 'idle',
+  )
   const [error, setError] = useState<string | null>(null)
 
   const goBack = useCallback(() => {
@@ -41,8 +49,17 @@ export function FollowingScreen() {
 
   useEffect(() => {
     let cancelled = false
+    const cacheKey = followingCacheKey(slug)
+    const seed = readSessionJsonStale<TradeBrowseRow[]>(cacheKey)
+    if (seed) {
+      setRows(seed)
+      setStatus('ready')
+      setError(null)
+    }
+
     const load = async (isPoll: boolean) => {
-      if (!isPoll) {
+      const cachedNow = readSessionJsonStale<TradeBrowseRow[]>(cacheKey)
+      if (!isPoll && !cachedNow) {
         setStatus('loading')
         setError(null)
       }
@@ -53,7 +70,7 @@ export function FollowingScreen() {
         const body = (await r.json().catch(() => ({}))) as { tickers?: unknown; error?: string }
         if (cancelled) return
         if (!r.ok || !body || !Array.isArray(body.tickers)) {
-          if (!isPoll) {
+          if (!isPoll && !cachedNow) {
             setError(typeof body.error === 'string' ? body.error : 'Could not load follows')
             setStatus('error')
           }
@@ -62,6 +79,7 @@ export function FollowingScreen() {
         const tickers = body.tickers as string[]
         if (tickers.length < 1) {
           setRows([])
+          writeSessionJson(cacheKey, [])
           setStatus('ready')
           return
         }
@@ -72,14 +90,16 @@ export function FollowingScreen() {
         const b2 = (await r2.json().catch(() => ({}))) as { rows?: unknown; error?: string }
         if (cancelled) return
         if (r2.ok && b2 && Array.isArray(b2.rows)) {
-          setRows(b2.rows as TradeBrowseRow[])
+          const next = b2.rows as TradeBrowseRow[]
+          setRows(next)
+          writeSessionJson(cacheKey, next)
           setStatus('ready')
-        } else if (!isPoll) {
+        } else if (!isPoll && !cachedNow) {
           setError(typeof b2.error === 'string' ? b2.error : 'Could not load symbols')
           setStatus('error')
         }
       } catch (e) {
-        if (!cancelled && !isPoll) {
+        if (!cancelled && !isPoll && !readSessionJsonStale<TradeBrowseRow[]>(cacheKey)) {
           setError(networkErrorMessage(e))
           setStatus('error')
         }
@@ -116,6 +136,8 @@ export function FollowingScreen() {
     return <Navigate to="/" replace />
   }
 
+  const showLoading = status === 'loading' && rows.length === 0
+
   return (
     <div className="pf-root" style={chromeStyle}>
       <div className="fol-phone">
@@ -127,14 +149,16 @@ export function FollowingScreen() {
         </header>
 
         <div className="fol-scroll">
-          {status === 'loading' ? <p className="fol-msg">Loading…</p> : null}
-          {status === 'error' ? <p className="fol-err">{error ?? 'Something went wrong.'}</p> : null}
+          {showLoading ? <p className="fol-msg">Loading…</p> : null}
+          {status === 'error' && rows.length === 0 ? (
+            <p className="fol-err">{error ?? 'Something went wrong.'}</p>
+          ) : null}
           {status === 'ready' && !rows.length ? (
             <p className="fol-msg">
               You are not following any symbols yet. Open a stock and tap Follow.
             </p>
           ) : null}
-          {status === 'ready' && rows.length > 0
+          {rows.length > 0
             ? rows.map((row) => (
                 <button key={row.symbol} type="button" className="pf-stockRow" onClick={() => onStock(row.symbol)}>
                   <span className="pf-stockLogoWrap">

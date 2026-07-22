@@ -107,8 +107,6 @@ export default function App() {
       <PushNavigationBridge />
       <Suspense fallback={<RouteFallback />}>
         <Routes>
-          <Route path="/admin" element={<AdminScreen />} />
-
           <Route element={<GuestOnly />}>
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/login/sign-in" element={<SimvestLoginFormScreen />} />
@@ -118,6 +116,7 @@ export default function App() {
           </Route>
 
           <Route element={<RequireAuth />}>
+            <Route path="/admin" element={<AdminScreen />} />
             <Route path="/" element={<HomeRoute />} />
             <Route path="/signup/success" element={<SignupSuccessScreen />} />
             <Route path="/settings" element={<SettingsScreen />} />

@@ -13,13 +13,14 @@ import {
   updatePassword,
   type AccountFieldError,
 } from './settingsClient'
+import { readCachedAccount } from '../auth/accountSessionCache'
 import { setSessionToken } from '../auth/sessionToken'
 import { networkErrorMessage } from '../api/networkErrorMessage'
 import './settingsScreens.css'
 
 export function SettingsPasswordScreen() {
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !readCachedAccount())
   const [missingAccount, setMissingAccount] = useState(false)
 
   const [currentPassword, setCurrentPassword] = useState('')
@@ -37,24 +38,25 @@ export function SettingsPasswordScreen() {
 
   useEffect(() => {
     let cancelled = false
+    const hadCache = !!readCachedAccount()
     const load = async () => {
       const result = await fetchMyAccount()
       if (cancelled) return
       if (result.ok) {
-        /* Just a presence check — we don't render any account fields here. */
+        /* Presence check only — no account fields on this screen. */
       } else if (result.error.status === 404) {
         setMissingAccount(true)
       } else if (result.error.status === 401) {
         navigate('/login', { replace: true })
         return
-      } else {
+      } else if (!hadCache) {
         setErrorText(result.error.message)
       }
       setLoading(false)
     }
     load().catch((err) => {
       if (cancelled) return
-      setErrorText(err instanceof Error ? err.message : 'Could not load your account')
+      if (!hadCache) setErrorText(networkErrorMessage(err))
       setLoading(false)
     })
     return () => {

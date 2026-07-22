@@ -1,7 +1,7 @@
 /* Review Order — Figma node 363:1138 (402×phone frame, pixel-aligned). */
 
 .rv-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 125;
   background: rgba(0, 0, 0, 0.28);
@@ -10,13 +10,14 @@
   justify-content: flex-end;
   align-items: center;
   box-sizing: border-box;
+  padding-bottom: var(--sv-kb-offset, 0px);
 }
 
 .rv-sheet {
   position: relative;
-  width: 402px;
+  width: min(402px, 100%);
   height: min(862px, calc(100% - 12px));
-  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 80px - var(--sv-kb-offset, 0px));
   margin-top: auto;
   background: #f7f7f7;
   border: 6px solid #05557d;

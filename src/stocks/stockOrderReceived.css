@@ -66,7 +66,7 @@
 
 
 .ou-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 130;
   background: rgba(0, 0, 0, 0.28);
@@ -75,6 +75,7 @@
   justify-content: flex-end;
   align-items: center;
   box-sizing: border-box;
+  padding-bottom: var(--sv-kb-offset, 0px);
 }
 
 .ou-sheet {
@@ -82,7 +83,7 @@
   width: min(402px, 100%);
   max-width: 100%;
   height: min(812px, calc(100% - 12px));
-  max-height: calc(100vh - 72px);
+  max-height: calc(100dvh - 72px - var(--sv-kb-offset, 0px));
   margin-top: auto;
   background: #f7f7f7;
   border: 6px solid #05557d;

@@ -91,6 +91,25 @@ Open **`ios/`** in Xcode or **`android/`** in Android Studio; run on **physical 
 
 ---
 
+## G. Store-launch device matrix (Wave C)
+
+Run on **physical** iPhone (notch) + Android before App Store / Play submit. Mark Pass / Fail.
+
+| # | Scenario | Steps | Expected |
+|---|-----------|-------|----------|
+| G1 | Status bar / safe area | Cold open home + Activity | Blue status bar; **no double top gap** under notch |
+| G2 | Android hardware back | Open invite / buy sheet → Back | Sheet closes first; then history.back |
+| G3 | QR join | Scan invite QR on Join | Auto-joins (no “Tap Join” step); camera permission UX ok |
+| G4 | Cold kill / reopen | Log in → kill app → reopen | Still logged in; Settings / Following paint from cache then refresh |
+| G5 | Browse Public Games | Open from Join on device | Full-bleed (no grey letterbox) |
+| G6 | Trade keyboard | Buy sheet → focus qty → keyboard | CTA stays reachable (`100dvh` + keyboard inset) |
+| G7 | Stale quotes | Toggle airplane briefly on Trade | Yellow “Prices may be outdated” after failed polls; clears when live |
+| G8 | Keep-alive | Confirm GitHub Action **Keep API warm** enabled | `/api/health` pinged ~every 7m (see `.github/workflows/keep-api-warm.yml`) |
+| G9 | Admin gate | Visit `/admin` while logged out | Redirected to login (not public SPA shell) |
+| G10 | Push failures | Settings → Post alerts → Enable push | Success copy **or** visible error (not silent) |
+
+---
+
 ## D. Capacitor — LAN live reload (dev only)
 
 `capacitor.config.ts`: **`server.url`** + **`cleartext: true`** + **`npm run dev`** on PC; **`npx cap sync`**.

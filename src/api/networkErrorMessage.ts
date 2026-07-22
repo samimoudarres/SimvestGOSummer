@@ -3,7 +3,11 @@ export function networkErrorMessage(err?: unknown): string {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     return 'You appear to be offline. Check your connection and try again.'
   }
-  if (err instanceof DOMException && err.name === 'AbortError') {
+  /* DOMException or Error — both appear across browsers / AbortController. */
+  if (
+    (err instanceof DOMException || err instanceof Error) &&
+    err.name === 'AbortError'
+  ) {
     return 'Request timed out. Please try again.'
   }
   if (err instanceof Error) {

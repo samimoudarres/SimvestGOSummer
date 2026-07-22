@@ -9,6 +9,7 @@ import { rememberActiveGameSlug } from '../user/activeGameSlug'
 import { postTradeComplete } from './completeGameTrade'
 import type { CompletedTradeSnapshot } from './tradeOrderTypes'
 import { pushSheetBackHandler } from '../lib/sheetBackStack'
+import { useKeyboardInsetCssVar } from '../hooks/useKeyboardInsetCssVar'
 import './stockOrderReceived.css'
 
 export type StockOrderReceivedSheetProps = {
@@ -18,6 +19,7 @@ export type StockOrderReceivedSheetProps = {
 }
 
 export function StockOrderReceivedSheet({ open, trade, onFinished }: StockOrderReceivedSheetProps) {
+  useKeyboardInsetCssVar('--sv-kb-offset', open)
   const [rationale, setRationale] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)

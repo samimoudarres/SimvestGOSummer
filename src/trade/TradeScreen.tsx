@@ -83,7 +83,7 @@ export function TradeScreen() {
     () => TRADE_CATEGORY_OPTIONS.filter((c) => c.id !== 'crypto'),
     [],
   )
-  const { payload, status, error } = useTradeBrowse(slug, category)
+  const { payload, status, error, quotesStale } = useTradeBrowse(slug, category)
   const followPreviewTickers = useGameFollowTickers(slug || undefined)
 
   useEffect(() => {
@@ -303,6 +303,11 @@ export function TradeScreen() {
                 </ul>
               ) : null}
               {status === 'loading' && rows.length > 0 ? <p className="tr-load tr-load--inline">Updating…</p> : null}
+              {quotesStale && rows.length > 0 ? (
+                <p className="tr-stale" role="status">
+                  Prices may be outdated — connection issues. Retrying…
+                </p>
+              ) : null}
               {status === 'error' && rows.length === 0 ? (
                 <p className="tr-err">{error ?? 'Something went wrong.'}</p>
               ) : null}

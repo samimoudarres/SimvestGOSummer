@@ -20,8 +20,17 @@ function bindNativePushListenersOnce(): void {
       body: JSON.stringify({ token, platform }),
     })
   })
-  void PushNotifications.addListener('registrationError', () => {
-    /* permission denied or missing Firebase config */
+  void PushNotifications.addListener('registrationError', (err) => {
+    const msg =
+      typeof err?.error === 'string' && err.error.trim()
+        ? err.error.trim()
+        : 'Push registration failed (permission or Firebase config).'
+    console.warn('[simvest] push registrationError:', msg)
+    try {
+      window.dispatchEvent(new CustomEvent('simvest:push-registration-error', { detail: { message: msg } }))
+    } catch {
+      /* ignore */
+    }
   })
 }
 
